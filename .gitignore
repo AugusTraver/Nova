@@ -1,0 +1,33 @@
+# Dependencias y builds
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+
+# Datos locales de la app
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Modelos descargados (Whisper, Piper, palabra clave)
+models/
+*.bin
+*.onnx
+*.onnx.json
+
+# Editores y sistema
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
+Thumbs.db
+.DS_Store
+
+# Claude Code (configuración local)
+.claude/settings.local.json
