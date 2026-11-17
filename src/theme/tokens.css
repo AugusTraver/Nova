@@ -1,52 +1,43 @@
 /*
- * Tokens de tema de Nova.
- * Todos los colores, tipografías y radios salen de acá: los componentes usan
+ * Tokens de tema de Nova — dirección "Instrumento".
+ * Negro casi puro, líneas finas en vez de tarjetas, números monoespaciados
+ * y un solo acento cálido. La esfera es lo único con color propio.
+ *
+ * Todos los colores, tipografías y tiempos salen de acá: los componentes usan
  * las utilidades de Tailwind generadas a partir de estos tokens
- * (bg-superficie, text-texto-suave, border-borde, etc.), nunca colores sueltos.
- * Para cambiar el tema alcanza con tocar este archivo.
+ * (bg-fondo, text-texto-2, border-linea, font-mono, ease-salida, etc.).
  */
 @theme static {
   /* Tipografía */
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
 
-  /* Fondo del panel (se apoya sobre el desenfoque acrylic de la ventana) */
-  --color-velo: rgb(6 8 16 / 0.55);
+  /* Fondo: negro apenas translúcido sobre el desenfoque acrylic */
+  --color-fondo: rgb(7 7 8 / 0.9);
+  --color-resalte: rgb(255 255 255 / 0.035); /* hover de filas */
 
-  /* Superficies de vidrio */
-  --color-superficie: rgb(255 255 255 / 0.05);
-  --color-superficie-hover: rgb(255 255 255 / 0.08);
-  --color-borde: rgb(255 255 255 / 0.09);
-  --color-borde-fuerte: rgb(255 255 255 / 0.16);
+  /* Líneas finas */
+  --color-linea: rgb(255 255 255 / 0.08);
+  --color-linea-fuerte: rgb(255 255 255 / 0.18);
 
-  /* Texto */
-  --color-texto: rgb(240 243 250);
-  --color-texto-suave: rgb(240 243 250 / 0.62);
-  --color-texto-tenue: rgb(240 243 250 / 0.38);
+  /* Texto en tres niveles */
+  --color-texto: rgb(236 234 229);
+  --color-texto-2: rgb(236 234 229 / 0.56);
+  --color-texto-3: rgb(236 234 229 / 0.32);
 
-  /* Acento y estados */
-  --color-acento: rgb(122 146 255);
-  --color-acento-2: rgb(176 120 255);
-  --color-exito: rgb(94 214 160);
-  --color-alerta: rgb(255 112 112);
-  --color-aviso: rgb(255 196 92);
+  /* Un solo acento: ámbar. Se usa poco: urgencias, Boca, el cursor. */
+  --color-acento: rgb(255 168 64);
+  --color-acento-tenue: rgb(255 168 64 / 0.14);
+  --color-alerta: rgb(255 98 82);
 
-  /* Tipos de evento */
-  --color-evento-clase: rgb(122 146 255);
-  --color-evento-examen: rgb(255 112 112);
-  --color-evento-entrega: rgb(255 196 92);
-  --color-evento-cumpleanos: rgb(240 130 200);
-  --color-evento-partido: rgb(255 214 64);
-  --color-evento-otro: rgb(160 170 190);
+  /* Luces de la esfera de metal líquido (ver src/esfera) */
+  --color-luz-calida: rgb(255 168 64);
+  --color-luz-fria: rgb(150 190 255);
 
-  /* Boca */
-  --color-boca-azul: rgb(16 60 160);
-  --color-boca-oro: rgb(255 204 0);
+  /* Movimiento (curvas de Emil Kowalski) */
+  --ease-salida: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-movimiento: cubic-bezier(0.77, 0, 0.175, 1);
 
-  /* Radios */
-  --radius-tarjeta: 1.25rem;
-  --radius-chip: 999px;
-
-  /* Desenfoque de las tarjetas */
-  --blur-vidrio: 24px;
+  /* Espaciado del layout */
+  --spacing-margen: 2.75rem;
 }

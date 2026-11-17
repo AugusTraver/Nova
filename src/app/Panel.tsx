@@ -1,13 +1,16 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Esfera } from "../esfera/Esfera";
+import { useAhora } from "../lib/useAhora";
+import { usePanel } from "../store/panel";
 import { Calendario } from "../widgets/Calendario";
 import { Facu } from "../widgets/Facu";
 import { Futbol } from "../widgets/Futbol";
 import { Noticias } from "../widgets/Noticias";
 import { Responsabilidades } from "../widgets/Responsabilidades";
 import { ResumenDelDia } from "../widgets/ResumenDelDia";
-import { varianteEsfera, varianteGrilla, varianteVelo } from "./animaciones";
+import { varianteEsfera, varianteSoloOpacidad, varianteVelo, varianteZona } from "./animaciones";
 import { BarraEntrada } from "./BarraEntrada";
+import { BarraEstado } from "./BarraEstado";
 
 interface PanelProps {
   abierto: boolean;
@@ -16,18 +19,31 @@ interface PanelProps {
   onSalidaCompleta: () => void;
 }
 
+const ESTADOS_ESFERA = {
+  reposo: "EN REPOSO",
+  escuchando: "ESCUCHANDO",
+  pensando: "PENSANDO",
+  hablando: "HABLANDO",
+  error: "ERROR",
+} as const;
+
 /**
- * Layout de la sección 3.2 de la especificación:
- * tres columnas (widgets | esfera | widgets) y la barra de entrada abajo.
- * Clic en el fondo vacío cierra; los widgets y la barra frenan la propagación.
+ * Layout de la sección 3.2 de la especificación, en estilo "instrumento":
+ * barra de estado arriba, tres columnas (widgets | esfera | widgets) y la
+ * línea de comandos abajo. Clic en el fondo vacío cierra; los bloques frenan el clic.
  *
  * El panel queda siempre montado (no se desmonta al cerrar) para que abrir sea
  * instantáneo: no hay que recrear el contexto WebGL de la esfera cada vez.
  */
 export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
+  const ahora = useAhora();
+  const estadoEsfera = usePanel((s) => s.estadoEsfera);
+  const reducido = useReducedMotion() ?? false;
+  const zona = (retraso: number) => (reducido ? varianteSoloOpacidad : varianteZona(retraso));
+
   return (
     <motion.div
-      className={`fixed inset-0 bg-velo ${abierto ? "" : "pointer-events-none"}`}
+      className={`fixed inset-0 bg-fondo ${abierto ? "" : "pointer-events-none"}`}
       variants={varianteVelo}
       initial="oculto"
       animate={abierto ? "visible" : "saliendo"}
@@ -36,37 +52,41 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       }}
       onClick={onCerrar}
     >
-      <motion.div
-        className="mx-auto grid h-full max-w-[1800px] grid-cols-[minmax(280px,1fr)_minmax(360px,1.3fr)_minmax(280px,1fr)] grid-rows-[1fr_auto] gap-6 p-10"
-        variants={varianteGrilla}
-      >
-        <div className="flex min-h-0 flex-col gap-6">
-          <ResumenDelDia />
-          <Calendario />
-          <Facu />
-        </div>
+      <div className="mx-auto grid h-full max-w-[1760px] grid-cols-[minmax(300px,1fr)_minmax(380px,1.25fr)_minmax(300px,1fr)] grid-rows-[auto_1fr_auto] gap-x-16 gap-y-8 p-margen">
+        <motion.div className="col-span-3" variants={zona(0.06)}>
+          <BarraEstado ahora={ahora} />
+        </motion.div>
+
+        <motion.div className="flex min-h-0 flex-col gap-9" variants={zona(0.04)}>
+          <ResumenDelDia ahora={ahora} />
+          <Calendario ahora={ahora} />
+          <Facu ahora={ahora} />
+        </motion.div>
 
         <div className="flex min-h-0 flex-col items-center justify-center">
           <motion.div
-            variants={varianteEsfera}
-            className="aspect-square w-full max-w-[520px]"
+            variants={reducido ? varianteSoloOpacidad : varianteEsfera}
+            className="aspect-square w-full max-w-[560px]"
             onClick={(e) => e.stopPropagation()}
           >
             <Esfera activa={abierto} />
           </motion.div>
-          <p className="mt-2 text-center text-sm text-texto-tenue">Estoy acá. Escribime algo.</p>
+          <p className="mt-1 font-mono text-[11px] tracking-[0.16em] text-texto-3">
+            <span className="mr-2 inline-block h-1.5 w-1.5 translate-y-[-1px] rounded-full bg-acento" />
+            {ESTADOS_ESFERA[estadoEsfera]}
+          </p>
         </div>
 
-        <div className="flex min-h-0 flex-col gap-6">
-          <Futbol />
-          <Responsabilidades />
+        <motion.div className="flex min-h-0 flex-col gap-9" variants={zona(0.07)}>
+          <Futbol ahora={ahora} />
+          <Responsabilidades ahora={ahora} />
           <Noticias />
-        </div>
+        </motion.div>
 
-        <div className="col-span-3 flex justify-center">
-          <BarraEntrada />
-        </div>
-      </motion.div>
+        <motion.div className="col-span-3 flex justify-center" variants={zona(0.1)}>
+          <BarraEntrada abierto={abierto} />
+        </motion.div>
+      </div>
     </motion.div>
   );
 }

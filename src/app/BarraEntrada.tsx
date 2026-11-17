@@ -1,39 +1,51 @@
-import { motion } from "framer-motion";
-import { useState } from "react";
-import { varianteWidget } from "./animaciones";
+import { useEffect, useRef, useState } from "react";
 
-/** Barra para escribir o hablar. En v0.1 todavía no hace nada. */
-export function BarraEntrada() {
+/**
+ * Barra de texto tipo línea de comandos. Sin botón de micrófono: desde v0.5
+ * Nova escucha sola al abrir el panel (ver SPEC 5.1). En v0.1 todavía no
+ * hace nada con lo que escribís.
+ */
+export function BarraEntrada({ abierto }: { abierto: boolean }) {
   const [texto, setTexto] = useState("");
+  const campo = useRef<HTMLInputElement>(null);
+
+  // Cada vez que se abre el panel, el foco va directo a la barra.
+  useEffect(() => {
+    if (abierto) campo.current?.focus();
+  }, [abierto]);
 
   return (
-    <motion.form
-      variants={varianteWidget}
-      onClick={(e) => e.stopPropagation()}
+    <form
+      onClick={(e) => {
+        e.stopPropagation();
+        campo.current?.focus();
+      }}
       onSubmit={(e) => {
         e.preventDefault();
         setTexto("");
       }}
-      className="flex w-full max-w-2xl items-center gap-2 rounded-chip border border-borde bg-superficie p-1.5 pl-5 shadow-2xl shadow-black/30 backdrop-blur-(--blur-vidrio)"
+      className="flex w-full max-w-3xl cursor-text items-baseline gap-3 border-b border-linea-fuerte pb-3 font-mono text-[15px]"
     >
-      <input
-        autoFocus
-        value={texto}
-        onChange={(e) => setTexto(e.target.value)}
-        placeholder="Pedile algo a Nova…"
-        className="min-w-0 flex-1 bg-transparent text-base text-texto outline-none placeholder:text-texto-tenue"
-      />
-      <button
-        type="button"
-        aria-label="Hablar (disponible en v0.5)"
-        title="Hablar (disponible en v0.5)"
-        className="grid h-10 w-10 place-items-center rounded-chip bg-acento/20 text-acento transition-colors hover:bg-acento/30"
-      >
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <rect x="9" y="3" width="6" height="12" rx="3" />
-          <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
-        </svg>
-      </button>
-    </motion.form>
+      <span className="text-acento">&gt;</span>
+      <div className="relative min-w-0 flex-1">
+        <input
+          ref={campo}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          aria-label="Pedile algo a Nova"
+          className={`w-full bg-transparent text-texto outline-none ${texto === "" ? "caret-transparent" : "caret-acento"}`}
+          spellCheck={false}
+        />
+        {/* Mientras está vacío: cursor de bloque que parpadea + texto de ayuda
+            (el cursor nativo se oculta para no ver dos) */}
+        {texto === "" && (
+          <span className="pointer-events-none absolute inset-0 flex items-baseline text-texto-3">
+            <span className="cursor-parpadeo mr-2 inline-block h-[1.05em] w-[0.6em] translate-y-[0.15em] bg-acento" />
+            pedile algo a nova
+          </span>
+        )}
+      </div>
+      <span className="shrink-0 text-[11px] tracking-[0.12em] text-texto-3">ESC CIERRA</span>
+    </form>
   );
 }

@@ -1,47 +1,54 @@
-import type { Variants } from "framer-motion";
+import type { Transition, Variants } from "framer-motion";
 
-/** Curva suave tipo "ease out expo" para todo el panel. */
-export const EASE = [0.16, 1, 0.3, 1] as const;
+/*
+ * Movimiento del panel.
+ * El panel se abre con un atajo muchas veces por día, así que la entrada es
+ * corta (< 250 ms) y la salida todavía más (≈ 120 ms): nada que haga esperar.
+ * El "wow" está en la esfera, no en la entrada.
+ * Curvas: ease-out fuerte para entrar (responde al instante), sin ease-in.
+ */
+export const EASE_SALIDA = [0.23, 1, 0.32, 1] as const;
 
-/** Fondo velado: se oscurece al abrir. */
+const salida: Transition = { duration: 0.12, ease: "easeOut" };
+
+/** Fondo: aparece rápido; al cerrar se va último. */
 export const varianteVelo: Variants = {
   oculto: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.35, ease: EASE } },
-  saliendo: { opacity: 0, transition: { duration: 0.25, ease: "easeIn", delay: 0.1 } },
+  visible: { opacity: 1, transition: { duration: 0.14, ease: EASE_SALIDA } },
+  saliendo: { opacity: 0, transition: { duration: 0.14, ease: "easeOut", delay: 0.04 } },
 };
 
-/** Contenedor de widgets: orquesta la cascada de entrada. */
-export const varianteGrilla: Variants = {
-  oculto: {},
-  visible: { transition: { staggerChildren: 0.05, delayChildren: 0.12 } },
-  saliendo: { transition: { staggerChildren: 0.025, staggerDirection: -1 } },
-};
+/**
+ * Cada zona (columna izquierda, derecha, barra) entra subiendo 6 px.
+ * Retrasos no uniformes por zona: el ojo va primero al centro (esfera),
+ * después a los costados y por último a la barra.
+ */
+export function varianteZona(retraso: number): Variants {
+  return {
+    oculto: { opacity: 0, y: 6 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.2, ease: EASE_SALIDA, delay: retraso },
+    },
+    saliendo: { opacity: 0, transition: salida },
+  };
+}
 
-/** Cada widget entra subiendo y desenfocado. */
-export const varianteWidget: Variants = {
-  oculto: { opacity: 0, y: 24, scale: 0.97, filter: "blur(8px)" },
+/** La esfera crece con un resorte apenas elástico. */
+export const varianteEsfera: Variants = {
+  oculto: { opacity: 0, scale: 0.9 },
   visible: {
     opacity: 1,
-    y: 0,
     scale: 1,
-    filter: "blur(0px)",
-    transition: { duration: 0.55, ease: EASE },
+    transition: { type: "spring", duration: 0.5, bounce: 0.18 },
   },
-  saliendo: {
-    opacity: 0,
-    y: 12,
-    scale: 0.98,
-    filter: "blur(6px)",
-    transition: { duration: 0.2, ease: "easeIn" },
-  },
+  saliendo: { opacity: 0, scale: 0.96, transition: salida },
 };
 
-/** La esfera se expande desde el centro. */
-export const varianteEsfera: Variants = {
-  oculto: { opacity: 0, scale: 0.4 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.7, ease: EASE } },
-  saliendo: { opacity: 0, scale: 0.6, transition: { duration: 0.25, ease: "easeIn" } },
+/** Versión sin movimiento para "reducir movimiento" de Windows. */
+export const varianteSoloOpacidad: Variants = {
+  oculto: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.15 } },
+  saliendo: { opacity: 0, transition: { duration: 0.1 } },
 };
-
-/** Duración total de la salida (ms): después de esto se oculta la ventana. */
-export const DURACION_SALIDA_MS = 380;

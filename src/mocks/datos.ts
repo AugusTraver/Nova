@@ -22,9 +22,9 @@ const soloFecha = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export const materias: Materia[] = [
-  { id: 1, nombre: "Análisis Matemático II", color: "var(--color-evento-clase)" },
-  { id: 2, nombre: "Algoritmos y Estructuras", color: "var(--color-acento-2)" },
-  { id: 3, nombre: "Sistemas Operativos", color: "var(--color-exito)" },
+  { id: 1, nombre: "Análisis Matemático II", color: "var(--color-texto-2)" },
+  { id: 2, nombre: "Algoritmos y Estructuras", color: "var(--color-texto-2)" },
+  { id: 3, nombre: "Sistemas Operativos", color: "var(--color-texto-2)" },
 ];
 
 export const eventos: Evento[] = [

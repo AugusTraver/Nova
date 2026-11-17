@@ -1,4 +1,4 @@
-import { Tarjeta } from "../components/Tarjeta";
+import { Bloque } from "../components/Bloque";
 import { etiquetaDia, formatearHora } from "../lib/fechas";
 import {
   jugadoresSeguidos,
@@ -8,54 +8,48 @@ import {
   ultimoResultadoBoca,
 } from "../mocks/datos";
 
-function cuando(iso: string, hoy: Date) {
+function cuando(iso: string, ahora: Date): string {
   const fecha = new Date(iso);
-  return `${etiquetaDia(fecha, hoy)} · ${formatearHora(fecha)}`;
+  return `${etiquetaDia(fecha, ahora).toUpperCase()} ${formatearHora(fecha)}`;
 }
 
-export function Futbol() {
-  const hoy = new Date();
-  const ultimo = ultimoResultadoBoca;
-  const gano = ultimo.golesBoca > ultimo.golesRival;
+export function Futbol({ ahora }: { ahora: Date }) {
+  const p = proximoPartidoBoca;
+  const u = ultimoResultadoBoca;
+  const resultado = u.golesBoca > u.golesRival ? "G" : u.golesBoca < u.golesRival ? "P" : "E";
 
   return (
-    <Tarjeta titulo="Fútbol" className="shrink-0">
+    <Bloque etiqueta="FÚTBOL" meta={`${tablaBoca.posicion}° · ${tablaBoca.puntos} PTS`} className="shrink-0">
       {/* Boca: protagonista */}
-      <div className="mb-3 rounded-xl border border-boca-oro/25 bg-gradient-to-br from-boca-azul/40 to-boca-azul/10 p-3">
-        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-boca-oro">
-          <span>Boca · {proximoPartidoBoca.competencia}</span>
-          <span>{tablaBoca.posicion}° · {tablaBoca.puntos} pts</span>
+      <p className="font-mono text-[11px] tracking-[0.12em] text-acento">
+        BOCA · {p.competencia.toUpperCase()} · {p.local ? "LOCAL" : "VISITANTE"}
+      </p>
+      <div className="mt-1 flex items-baseline justify-between gap-3">
+        <p className="text-[22px] font-medium tracking-tight">
+          {p.local ? "Boca" : p.rival} <span className="text-texto-3">—</span> {p.local ? p.rival : "Boca"}
+        </p>
+        <p className="shrink-0 font-mono text-[13px] text-texto-2">{cuando(p.fecha, ahora)}</p>
+      </div>
+      <p className="mt-1 font-mono text-[12px] text-texto-3">
+        ÚLTIMO <span className="text-texto-2">{resultado} {u.golesBoca}–{u.golesRival}</span> vs {u.rival}
+      </p>
+
+      <div className="mt-4 flex flex-col">
+        <div className="fila -mx-2 flex items-baseline gap-3 px-2 py-1 text-[14px]">
+          <span className="w-16 shrink-0 font-mono text-[10px] tracking-[0.1em] text-texto-3">ARG</span>
+          <span className="min-w-0 flex-1 truncate">vs {proximoPartidoSeleccion.rival}</span>
+          <span className="shrink-0 font-mono text-[12px] text-texto-2">{cuando(proximoPartidoSeleccion.fecha, ahora)}</span>
         </div>
-        <p className="mt-1 font-display text-lg font-semibold">
-          {proximoPartidoBoca.local ? `Boca vs. ${proximoPartidoBoca.rival}` : `${proximoPartidoBoca.rival} vs. Boca`}
-        </p>
-        <p className="text-sm text-texto-suave">{cuando(proximoPartidoBoca.fecha, hoy)}</p>
-        <p className="mt-2 text-xs text-texto-suave">
-          Último:{" "}
-          <span className={gano ? "text-exito" : "text-texto"}>
-            Boca {ultimo.golesBoca} – {ultimo.golesRival} {ultimo.rival}
-          </span>
-        </p>
-      </div>
-
-      <div className="mb-3 flex items-baseline justify-between text-sm">
-        <span>
-          <span className="mr-2 text-xs font-semibold text-acento">Selección</span>
-          vs. {proximoPartidoSeleccion.rival}
-        </span>
-        <span className="text-xs text-texto-suave">{cuando(proximoPartidoSeleccion.fecha, hoy)}</span>
-      </div>
-
-      <ul className="flex flex-col gap-1 text-xs">
         {jugadoresSeguidos.map((j) => (
-          <li key={j.nombre} className="flex justify-between gap-2">
-            <span className="truncate text-texto-suave">
-              {j.nombre} <span className="text-texto-tenue">· {j.equipo}</span>
+          <div key={j.nombre} className="fila -mx-2 flex items-baseline gap-3 px-2 py-1 text-[14px]">
+            <span className="w-16 shrink-0 truncate font-mono text-[10px] tracking-[0.1em] text-texto-3">
+              {j.equipo.split(" ")[0].toUpperCase()}
             </span>
-            <span className="shrink-0">{j.ultimaFecha}</span>
-          </li>
+            <span className="min-w-0 flex-1 truncate">{j.nombre}</span>
+            <span className="shrink-0 font-mono text-[12px] text-texto-2">{j.ultimaFecha}</span>
+          </div>
         ))}
-      </ul>
-    </Tarjeta>
+      </div>
+    </Bloque>
   );
 }

@@ -1,5 +1,5 @@
-import { Tarjeta } from "../components/Tarjeta";
-import { diasEntre, fechaLarga, formatearHora } from "../lib/fechas";
+import { Bloque } from "../components/Bloque";
+import { diasEntre, formatearHora } from "../lib/fechas";
 import { eventos, noticias, proximoPartidoBoca, responsabilidades } from "../mocks/datos";
 
 function saludo(hora: number): string {
@@ -9,31 +9,29 @@ function saludo(hora: number): string {
   return "Buenas noches";
 }
 
-export function ResumenDelDia() {
-  const hoy = new Date();
-  const eventosHoy = eventos.filter((e) => diasEntre(hoy, new Date(e.inicio)) === 0);
+export function ResumenDelDia({ ahora }: { ahora: Date }) {
+  const eventosHoy = eventos.filter((e) => diasEntre(ahora, new Date(e.inicio)) === 0);
   const urgentes = responsabilidades.filter(
     (r) => r.estado === "pendiente" && r.fechaLimite !== undefined && r.prioridad === "alta",
   );
-  const juegaBocaHoy = diasEntre(hoy, new Date(proximoPartidoBoca.fecha)) === 0;
+  const juegaBocaHoy = diasEntre(ahora, new Date(proximoPartidoBoca.fecha)) === 0;
 
   return (
-    <Tarjeta titulo="Resumen del día" className="shrink-0">
-      <p className="font-display text-2xl font-semibold leading-tight">{saludo(hoy.getHours())}</p>
-      <p className="mb-3 text-sm text-texto-suave">{fechaLarga(hoy)}</p>
-      <ul className="flex flex-col gap-1.5 text-sm text-texto-suave">
-        <li>
-          <span className="text-texto">{eventosHoy.length}</span> eventos hoy
-          {eventosHoy[0] && ` · el primero a las ${formatearHora(new Date(eventosHoy[0].inicio))}`}
-        </li>
-        <li>
-          <span className="text-texto">{urgentes.length}</span> responsabilidades urgentes
-        </li>
+    <Bloque etiqueta="RESUMEN" className="shrink-0">
+      <p className="text-[28px] font-medium leading-tight tracking-tight">{saludo(ahora.getHours())}.</p>
+      <p className="mt-2 text-[15px] leading-relaxed text-texto-2">
+        Hoy tenés <span className="text-texto">{eventosHoy.length} eventos</span>
+        {eventosHoy[0] && <> desde las {formatearHora(new Date(eventosHoy[0].inicio))}</>} y{" "}
+        <span className="text-texto">{urgentes.length} cosas urgentes</span>.
         {juegaBocaHoy && (
-          <li className="text-boca-oro">Juega Boca a las {formatearHora(new Date(proximoPartidoBoca.fecha))}</li>
+          <>
+            {" "}
+            Juega Boca a las{" "}
+            <span className="text-acento">{formatearHora(new Date(proximoPartidoBoca.fecha))}</span>.
+          </>
         )}
-        <li className="truncate">📰 {noticias[0].titulo}</li>
-      </ul>
-    </Tarjeta>
+      </p>
+      <p className="mt-3 truncate font-mono text-xs text-texto-3">↳ {noticias[0].titulo}</p>
+    </Bloque>
   );
 }
