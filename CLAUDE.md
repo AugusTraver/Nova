@@ -28,6 +28,9 @@
 - Los modelos de Whisper y Piper se descargan en una carpeta de datos de la app, no dentro del repo.
 
 ## Estado actual
-- Versión en curso: **ninguna (arrancar por v0.1)**
-- Completadas: —
+- Versión en curso: **v0.1 terminada, pendiente de fusionar a `main`** (siguiente: v0.2)
+- Completadas: v0.1 (esqueleto y panel)
 - Notas:
+  - En PowerShell, `npm.ps1` está bloqueado por la política de ejecución: usar `npm.cmd` (ej. `npm.cmd run tauri dev`).
+  - Decisiones pendientes para v0.2: SQLite desde Rust (recomendado) o con el plugin SQL desde el frontend; eventos recurrentes (clases semanales, cumpleaños anuales); qué pasa con las responsabilidades automáticas si se edita o borra el evento; guardar eventos de todo el día como fecha sola.
+  - La ventana del panel se crea una vez y se muestra u oculta; el frontend nunca se desmonta (para abrir en menos de 300 ms).
