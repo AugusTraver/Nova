@@ -1,7 +1,14 @@
-// Shaders de la esfera central.
-// El vértice se desplaza con ruido 3D (simplex) que avanza con el tiempo,
-// más una "respiración" lenta (seno) que infla y desinfla toda la esfera.
-// El fragmento mezcla dos colores según el ruido y agrega un brillo de borde (fresnel).
+// Shaders de la esfera de metal líquido.
+//
+// Vértice: cada punto de la esfera se empuja hacia afuera según un ruido 3D de
+// varias capas que fluye con el tiempo (el "líquido"), más una onda que la
+// recorre y una respiración lenta. Como la forma cambia, las normales se
+// recalculan midiendo el desplazamiento en dos puntos vecinos.
+//
+// Fragmento: es un metal, así que su color es lo que refleja. No hay una imagen
+// de entorno: el "estudio de fotos" que se refleja (caja de luz arriba, línea de
+// horizonte, una luz cálida y una fría) se calcula en el shader. Encima, un
+// toque iridiscente en los bordes, como una película de aceite.
 
 const ruidoSimplex = /* glsl */ `
 // Simplex noise 3D — Ian McEwan, Ashima Arts (licencia MIT)
@@ -56,46 +63,101 @@ float snoise(vec3 v) {
 
 export const vertexShader = /* glsl */ `
 uniform float uTiempo;
-uniform float uAmplitud;   // cuánto se deforma (más adelante lo maneja el audio)
+uniform float uAmplitud;    // cuánto se deforma en reposo (después: el audio)
 uniform float uRespiracion; // intensidad del "respirar"
+uniform float uImpulso;     // 1 justo al abrir el panel, decae a 0 (salpicón)
 
-varying float vRuido;
 varying vec3 vNormal;
 varying vec3 vVista;
 
 ${ruidoSimplex}
 
-void main() {
-  float ruido = snoise(normal * 1.2 + vec3(uTiempo * 0.25));
-  float respirar = sin(uTiempo * 1.1) * uRespiracion;
-  vec3 posicion = position + normal * (ruido * uAmplitud + respirar);
+// Desplazamiento radial de la superficie en la dirección "dir" (vector unitario).
+float desplazamiento(vec3 dir) {
+  float t = uTiempo;
+  float liquido =
+      snoise(dir * 0.85 + vec3(0.0, t * 0.18, t * 0.12)) * 0.72
+    + snoise(dir * 1.7 - vec3(t * 0.24, 0.0, t * 0.16)) * 0.28;
 
-  vRuido = ruido;
+  // Onda que recorre la superficie desde un polo que se mueve despacio
+  vec3 polo = normalize(vec3(sin(t * 0.3), cos(t * 0.21), 0.5));
+  float onda = sin(dot(dir, polo) * 6.0 - t * 2.0) * 0.006;
+
+  float amplitud = uAmplitud * (1.0 + uImpulso * 1.2);
+  return liquido * amplitud + onda * (1.0 + uImpulso * 2.0) + sin(t * 1.05) * uRespiracion;
+}
+
+vec3 superficie(vec3 dir) {
+  return dir * (1.0 + desplazamiento(dir));
+}
+
+void main() {
+  vec3 dir = normalize(position);
+
+  // Dos direcciones tangentes para medir la pendiente y rehacer la normal
+  vec3 eje = abs(dir.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  vec3 tangente = normalize(cross(eje, dir));
+  vec3 bitangente = cross(dir, tangente);
+
+  float e = 0.012;
+  vec3 p = superficie(dir);
+  vec3 pt = superficie(normalize(dir + tangente * e));
+  vec3 pb = superficie(normalize(dir + bitangente * e));
+  vec3 normal = normalize(cross(pt - p, pb - p));
+
   vNormal = normalize(normalMatrix * normal);
-  vec4 posVista = modelViewMatrix * vec4(posicion, 1.0);
+  vec4 posVista = modelViewMatrix * vec4(p, 1.0);
   vVista = normalize(-posVista.xyz);
   gl_Position = projectionMatrix * posVista;
 }
 `;
 
 export const fragmentShader = /* glsl */ `
-uniform vec3 uColorA;
-uniform vec3 uColorB;
 uniform float uTiempo;
+uniform vec3 uLuzCalida;
+uniform vec3 uLuzFria;
 
-varying float vRuido;
 varying vec3 vNormal;
 varying vec3 vVista;
 
+// El "estudio" que se refleja en el metal, en función de la dirección reflejada.
+vec3 entorno(vec3 r) {
+  // Fondo: gris muy oscuro que aclara apenas hacia arriba
+  vec3 color = mix(vec3(0.012), vec3(0.05), smoothstep(-1.0, 1.0, r.y));
+
+  // Caja de luz rectangular arriba
+  float caja = smoothstep(0.55, 0.72, r.y) * smoothstep(0.75, 0.35, abs(r.x));
+  color += vec3(1.0) * caja * 1.4;
+
+  // Línea de horizonte fina y brillante
+  color += vec3(0.85) * exp(-pow((r.y + 0.04) * 16.0, 2.0)) * 0.55;
+
+  // Luz cálida (ámbar) desde la izquierda y luz fría desde la derecha
+  color += uLuzCalida * pow(max(dot(r, normalize(vec3(-0.85, 0.15, 0.5))), 0.0), 22.0) * 2.2;
+  color += uLuzFria * pow(max(dot(r, normalize(vec3(0.9, -0.25, 0.35))), 0.0), 16.0) * 1.1;
+  return color;
+}
+
 void main() {
-  float mezcla = smoothstep(-0.6, 0.8, vRuido + sin(uTiempo * 0.4) * 0.2);
-  vec3 color = mix(uColorA, uColorB, mezcla);
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(vVista);
+  vec3 r = reflect(-v, n);
 
-  // Fresnel: más brillo en los bordes, centro más transparente
-  float fresnel = pow(1.0 - max(dot(vNormal, vVista), 0.0), 2.2);
-  color += fresnel * 0.6;
-  float alpha = 0.55 + fresnel * 0.45;
+  float borde = 1.0 - max(dot(n, v), 0.0);
 
-  gl_FragColor = vec4(color, alpha);
+  // Metal: el color es el reflejo, levemente cálido
+  vec3 color = entorno(r) * vec3(0.96, 0.95, 0.93);
+
+  // Iridiscencia sutil en los bordes (película fina)
+  vec3 iris = 0.5 + 0.5 * cos(6.2831 * (borde * 1.4 + uTiempo * 0.04 + vec3(0.0, 0.33, 0.67)));
+  color *= mix(vec3(1.0), iris * 1.3, 0.3 * pow(borde, 1.5));
+
+  // Brillo de borde (Fresnel)
+  color += vec3(pow(borde, 4.0) * 0.22);
+
+  // Compresión de luces para que los brillos no "quemen"
+  color = 1.0 - exp(-color * 1.35);
+
+  gl_FragColor = vec4(color, 1.0);
 }
 `;
