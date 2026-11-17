@@ -1,18 +1,19 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-// @ts-expect-error type error without @types/node package
+import tailwindcss from "@tailwindcss/vite";
 import process from "node:process";
+
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
 
-  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
-  //
-  // 1. prevent Vite from obscuring rust errors
+  // Opciones de Vite pensadas para `tauri dev` y `tauri build`:
+  // 1. no limpiar la pantalla, así se ven los errores de Rust
   clearScreen: false,
-  // 2. tauri expects a fixed port, fail if that port is not available
+  // 2. Tauri espera un puerto fijo: si está ocupado, falla
   server: {
     port: 1420,
     strictPort: true,
@@ -25,8 +26,12 @@ export default defineConfig(() => ({
         }
       : undefined,
     watch: {
-      // 3. tell Vite to ignore watching `src-tauri`
+      // 3. no vigilar `src-tauri` (eso lo recompila Cargo)
       ignored: ["**/src-tauri/**"],
     },
+  },
+
+  test: {
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 }));
