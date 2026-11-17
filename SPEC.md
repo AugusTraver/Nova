@@ -54,11 +54,11 @@ Costo objetivo: **$0**. Todo lo pago se reemplaza por algo local o por un plan g
 │                       respuesta                         │
 │  [Facu]                                [Noticias]       │
 │                                                         │
-│              [ barra de texto / micrófono ]             │
+│                  [ barra de texto ]                     │
 └─────────────────────────────────────────────────────────┘
 ```
 - La esfera ocupa el centro. Debajo muestra lo que digo (transcripción en vivo) y la respuesta del asistente.
-- Abajo hay una barra para escribir y un botón de micrófono (pulsar para hablar).
+- Abajo hay una barra para escribir. **No hay botón de micrófono:** al abrir el panel, Nova ya está escuchando (ver 5.1). Se puede hablar o escribir indistintamente.
 - Los widgets tienen una disposición fija en v1. Arrastrarlos y reordenarlos es una mejora futura.
 - Estética a definir más adelante. Base: oscura, glassmorphism (paneles translúcidos), tipografía moderna, un color de acento. Todos los colores en variables o tokens para poder cambiar el tema fácil.
 
@@ -133,7 +133,7 @@ Solo fútbol. Prioridad: **Boca Juniors** > **Selección Argentina** > **jugador
 ## 5. Asistente
 
 ### 5.1 Flujo
-1. Entrada: texto o voz (pulsar para hablar; palabra clave desde v0.6).
+1. Entrada: texto o voz, **sin tocar ningún botón**. Al abrir el panel, Nova empieza a escuchar sola: detecta cuándo empezás y terminás de hablar (detección de actividad de voz, local) y procesa el pedido. Si escribís, la escucha se pausa. Desde v0.6 también se abre con la palabra clave ("Oye Nova"). El micrófono solo está activo con el panel abierto (o, desde v0.6, para la palabra clave).
 2. Voz → texto con Whisper. La transcripción se muestra en vivo.
 3. Se manda al modelo con: instrucciones de sistema, fecha y hora actuales, contexto (eventos y responsabilidades próximas), historial reciente y la lista de herramientas.
 4. El modelo responde con texto o con llamadas a herramientas. Se ejecutan, se le devuelve el resultado y continúa hasta dar una respuesta final.
