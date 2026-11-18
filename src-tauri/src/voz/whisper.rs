@@ -16,7 +16,7 @@ use super::modelos::{Rutas, sin_ventana};
 use crate::error::{Error, Resultado};
 
 /// Palabras que ayudan a Whisper a escribir bien nombres propios y el voseo.
-const CONTEXTO: &str = "Nova, recordame, anotá, agendá, mañana, pasado mañana, parcial, Análisis, Boca, la Selección.";
+pub const CONTEXTO: &str = "Nova, recordame, anotá, agendá, mañana, pasado mañana, parcial, Análisis, Boca, la Selección.";
 
 pub struct ServidorWhisper {
     proceso: Child,

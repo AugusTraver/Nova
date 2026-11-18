@@ -192,6 +192,28 @@ Reglas:
 - **Historial:** se mandan los últimos 12 mensajes de las últimas 2 horas, con los resultados de herramientas recortados. Se borra desde Ajustes. La migración 2 agrega `mensajes.datos_json` para guardar las llamadas a herramientas.
 - **Widgets en vivo:** Rust emite `datos-cambiados` con las fuentes afectadas apenas termina cada herramienta.
 
+### 5.6 Decisiones de v0.5 (voz)
+- **Todo local, como programas aparte:** `whisper-server.exe` (whisper.cpp) y `piper.exe` quedan abiertos mientras se usan y Nova les habla por la red local (Whisper) y por la entrada estándar (Piper). No hace falta compilar C++ ni tener CMake.
+  - Al salir de Nova se cierran.
+  - Si Nova se cae, se cierran al volver a abrirla (se anota su número de proceso).
+- **Modelos:** Whisper `large-v3-turbo` cuantizado y la voz `es_AR-daniela-high` de Piper.
+  - En la placa de video (CUDA), Whisper transcribe un pedido en unos 170 ms. Si CUDA no arranca, se usa la versión de CPU.
+  - Se bajan desde Ajustes (unos 1,4 GB, una vez) a `%LOCALAPPDATA%\com.augustraver.nova\voz`, nunca al repo.
+- **Escucha:** el micrófono (cpal) se abre al abrir el panel y se suelta al cerrarlo.
+  - La detección de voz es por energía, con un piso de ruido que se adapta: el ruido es lo más bajo de los últimos 5 segundos.
+  - Arranca después de 120 ms de voz y termina después de 900 ms de silencio. Agrega los 300 ms de antes para no comerse la primera sílaba.
+  - Antes de bajar de 48 a 16 kHz pasa un filtro pasabajos, para que no haya aliasing.
+- **Transcripción en vivo:** con la placa de video, lo que vas diciendo se transcribe cada 0,7 s y se ve debajo de la esfera. Las frases que Whisper inventa sobre el ruido ("Subtítulos realizados por…", "Gracias por ver") se descartan.
+- **Medio dúplex:** mientras Nova habla y hasta 350 ms después, el micrófono se ignora, para que no se escuche a sí misma. `Esc` la calla.
+- **Respuestas:**
+  - Lo que dijiste hablando se manda al asistente con `por_voz`, que pide una sola oración corta, sin símbolos y con las horas dichas.
+  - Esas respuestas, y la pregunta de "¿Borro…?", se leen con Piper, frase por frase, así empieza a hablar antes de tener todo sintetizado.
+  - Lo que escribís se contesta sin voz, y escribir pausa la escucha.
+- **Resumen al abrir:** la primera vez en el día, si está activado, se lee el texto de `dominio/resumen.rs` sin pasar por la IA.
+- **Esfera:** con la voz, la esfera recibe el volumen unas 30 veces por segundo.
+  - Escuchando, se forman ondas finas y se aclara el borde.
+  - Hablando, laten pulsos más grandes y se infla un poco con cada sílaba.
+
 ### 5.4 Proactividad (v0.6+)
 - Notificaciones del sistema: "En 30 minutos tenés clase", "Vence hoy: estudiar para Análisis", "Arranca el partido".
 - Configurables y silenciables.

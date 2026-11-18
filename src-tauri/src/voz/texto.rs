@@ -57,6 +57,16 @@ pub fn limpiar_transcripcion(texto: &str) -> Option<String> {
     Some(limpio)
 }
 
+/// Con ruido, Whisper a veces repite las palabras de contexto que se le
+/// pasan ("Nova, recordame, anotá…") en vez de transcribir. Eso no es un pedido.
+pub fn es_eco_del_contexto(texto: &str, contexto: &str) -> bool {
+    let limpio = |t: &str| -> String {
+        normalizar(t).chars().filter(|c| c.is_alphanumeric() || *c == ' ').collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ")
+    };
+    let (t, c) = (limpio(texto), limpio(contexto));
+    !t.is_empty() && c.contains(&t) && t.split(' ').count() >= 2
+}
+
 /// Deja el texto listo para leer: sin markdown, sin emojis ni símbolos que
 /// Piper leería raro.
 pub fn para_leer(texto: &str) -> String {
@@ -118,6 +128,14 @@ mod tests {
         assert_eq!(limpiar_transcripcion("(risas) ¿Qué tengo hoy?"), Some("¿Qué tengo hoy?".into()));
         // "gracias" solo es ruido, pero dentro de una frase vale.
         assert_eq!(limpiar_transcripcion("Gracias, ¿y mañana?"), Some("Gracias, ¿y mañana?".into()));
+    }
+
+    #[test]
+    fn eco_del_contexto() {
+        let contexto = "Nova, recordame, anotá, agendá, mañana, pasado mañana, parcial, Análisis.";
+        assert!(es_eco_del_contexto("Nova, recordame, anota.", contexto));
+        assert!(!es_eco_del_contexto("Recordame comprar pan", contexto));
+        assert!(!es_eco_del_contexto("Mañana", contexto)); // una palabra sola puede ser un pedido
     }
 
     #[test]

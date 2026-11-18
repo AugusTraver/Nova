@@ -22,7 +22,7 @@ use super::audio::{FRECUENCIA_WHISPER, Remuestreador, envolvente, nivel_visual, 
 use super::dispositivos::{DelMicrofono, Microfono, Parlante};
 use super::modelos::Rutas;
 use super::piper::Piper;
-use super::texto::{limpiar_transcripcion, oraciones, para_leer};
+use super::texto::{es_eco_del_contexto, limpiar_transcripcion, oraciones, para_leer};
 use super::vad::{AjustesVad, EventoVad, MUESTRAS_POR_CUADRO, Vad};
 use super::whisper::ServidorWhisper;
 use super::AjustesVoz;
@@ -379,7 +379,7 @@ impl Motor {
         let whisper = self.whisper.as_ref()?;
         self.ultimo_uso_whisper = Instant::now();
         match tauri::async_runtime::block_on(whisper.transcribir(wav(audio, FRECUENCIA_WHISPER))) {
-            Ok(texto) => limpiar_transcripcion(&texto),
+            Ok(texto) => limpiar_transcripcion(&texto).filter(|t| !es_eco_del_contexto(t, super::whisper::CONTEXTO)),
             Err(e) => {
                 eprintln!("Voz: {e}");
                 None
