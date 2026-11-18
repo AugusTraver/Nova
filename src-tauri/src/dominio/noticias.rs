@@ -178,7 +178,7 @@ pub fn armar_pedido(candidatos: &[Titular], intereses: &str) -> Vec<Mensaje> {
          De la lista, elegí entre {MIN_ELEGIDAS} y {MAX_ELEGIDAS} titulares que le importen, de la más relevante a la menos. \
          Evitá repetir el mismo tema. Para cada uno escribí un resumen de una línea (máximo 90 letras), en español rioplatense, \
          usando solo lo que dicen el título y la bajada: no inventes datos.\n\
-         Respondé SOLO con JSON, sin texto alrededor: {{\"noticias\":[{{\"n\":3,\"resumen\":\"...\"}}]}}"
+         Respondé SOLO con JSON, sin texto alrededor. En \"titulo\" copiá el título tal cual está en la lista:          {{\"noticias\":[{{\"n\":3,\"titulo\":\"...\",\"resumen\":\"...\"}}]}}"
     );
     let lista: Vec<String> = candidatos
         .iter()
@@ -198,9 +198,25 @@ struct RespuestaIa {
 
 #[derive(Deserialize)]
 struct ElegidaIa {
-    n: usize,
+    #[serde(default)]
+    n: Option<usize>,
+    #[serde(default)]
+    titulo: Option<String>,
     #[serde(default)]
     resumen: String,
+}
+
+/// Qué candidato eligió la IA. Primero por el título que copió (los modelos
+/// a veces cuentan mal y el número queda corrido); si no lo copió bien, por
+/// el número.
+fn candidato<'a>(e: &ElegidaIa, candidatos: &'a [Titular]) -> Option<&'a Titular> {
+    if let Some(titulo) = e.titulo.as_deref().map(normalizar).filter(|t| t.chars().count() >= 8) {
+        let inicio: String = titulo.chars().take(40).collect();
+        if let Some(t) = candidatos.iter().find(|t| normalizar(&t.titulo).starts_with(&inicio)) {
+            return Some(t);
+        }
+    }
+    e.n.and_then(|n| n.checked_sub(1)).and_then(|i| candidatos.get(i))
 }
 
 /// Lee lo que contestó la IA. `None` si no sirve (y se usa el orden sin IA).
@@ -211,8 +227,8 @@ pub fn leer_respuesta(texto: &str, candidatos: &[Titular]) -> Option<Vec<Noticia
     let respuesta: RespuestaIa = serde_json::from_str(texto.get(inicio..=fin)?).ok()?;
     let mut elegidas: Vec<Noticia> = Vec::new();
     for e in respuesta.noticias {
-        // Los números empiezan en 1; uno inventado se ignora.
-        let Some(t) = e.n.checked_sub(1).and_then(|i| candidatos.get(i)) else { continue };
+        // Uno inventado (ni el título ni el número existen) se ignora.
+        let Some(t) = candidato(&e, candidatos) else { continue };
         if elegidas.iter().any(|n| n.id == t.id) {
             continue;
         }
@@ -321,6 +337,20 @@ mod tests {
         assert_eq!(titulos, vec!["C", "A", "B"]);
         assert_eq!(r[0].resumen, "Ce");
         assert!(leer_respuesta("no sé", &lista).is_none());
+
+        // El título manda sobre el número (acá el número está corrido en uno)
+        let largos = vec![
+            titular("Boca ganó el clásico", "ole", 1),
+            titular("La Selección ya tiene rival", "ole", 1),
+            titular("Salió un modelo de IA nuevo", "x", 1),
+        ];
+        let r = leer_respuesta(
+            r#"{"noticias":[{"n":1,"titulo":"La Selección ya tiene rival","resumen":"S"},{"n":2,"titulo":"Salió un modelo de IA nuevo","resumen":"I"},{"n":0,"titulo":"Boca ganó el clásico","resumen":"B"}]}"#,
+            &largos,
+        )
+        .unwrap();
+        let pares: Vec<(&str, &str)> = r.iter().map(|n| (n.titulo.as_str(), n.resumen.as_str())).collect();
+        assert_eq!(pares, vec![("La Selección ya tiene rival", "S"), ("Salió un modelo de IA nuevo", "I"), ("Boca ganó el clásico", "B")]);
         assert!(leer_respuesta("{\"noticias\":[{\"n\":1}]}", &lista).is_none());
     }
 }
