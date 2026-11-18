@@ -3,7 +3,7 @@
 // no hacen nada: así se puede iterar la interfaz sin compilar Rust.
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { FuenteDatos } from "../lib/tipos";
+import type { AvisoGol, FuenteDatos } from "../lib/tipos";
 
 /** Eventos que emite Rust hacia el frontend. */
 export const EVENTOS = {
@@ -11,6 +11,8 @@ export const EVENTOS = {
   cerrar: "panel:cerrar",
   /** El asistente cambió datos (ver comandos.rs, EVENTO_DATOS_CAMBIADOS). */
   datosCambiados: "datos-cambiados",
+  /** Gol de Boca o la Selección en vivo (fondo.rs, EVENTO_GOL). */
+  gol: "futbol:gol",
 } as const;
 
 export const enTauri = isTauri();
@@ -53,4 +55,10 @@ export async function escucharCambios(oyente: OyenteCambios): Promise<UnlistenFn
     quitarLocal();
     quitarTauri();
   };
+}
+
+/** Escucha los goles en vivo que detecta la tarea de fondo. */
+export async function escucharGoles(oyente: (aviso: AvisoGol) => void): Promise<UnlistenFn> {
+  if (!enTauri) return () => {};
+  return listen<AvisoGol>(EVENTOS.gol, (e) => oyente(e.payload));
 }

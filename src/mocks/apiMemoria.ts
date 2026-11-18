@@ -4,7 +4,20 @@
 import { avisarCambiosLocal } from "../app/puenteTauri";
 import type { Api } from "../lib/api";
 import { aFecha, aIsoLocal, desdeFecha, sumarDias } from "../lib/fechas";
-import type { Ajustes, AjustesIa, Evento, Materia, Ocurrencia, Progreso, Responsabilidad, Turno } from "../lib/tipos";
+import type {
+  Ajustes,
+  AjustesClima,
+  AjustesIa,
+  AjustesNoticias,
+  Evento,
+  JugadorSeguido,
+  Materia,
+  Ocurrencia,
+  Progreso,
+  Responsabilidad,
+  Turno,
+} from "../lib/tipos";
+import * as externos from "./externos";
 
 function pausa(ms: number): Promise<void> {
   return new Promise((ok) => window.setTimeout(ok, ms));
@@ -87,6 +100,20 @@ export function crearApiMemoria(): Api {
     urlOllama: "http://localhost:11434",
   };
   let tieneKey = false;
+  let jugadoresSeguidos: JugadorSeguido[] = [
+    { id: "45843", nombre: "Lionel Messi" },
+    { id: "153115", nombre: "Leandro Paredes" },
+    { id: "320760", nombre: "Valentín Barco" },
+    { id: "132948", nombre: "Neymar" },
+  ];
+  let ajustesNoticias: AjustesNoticias = {
+    intereses: "Boca, Selección Argentina, fútbol argentino, IA, desarrollo web",
+    feeds: [
+      { nombre: "Olé", url: "https://www.ole.com.ar/rss/boca-juniors/" },
+      { nombre: "Xataka", url: "https://www.xataka.com/feedburner.xml" },
+    ],
+  };
+  let ajustesClima: AjustesClima = { mostrar: true, ciudad: "Buenos Aires", latitud: -34.61, longitud: -58.38 };
   /** Evento esperando el "sí" para borrarse. */
   let pendiente: Evento | null = null;
 
@@ -257,11 +284,35 @@ export function crearApiMemoria(): Api {
       }
     },
 
-    // Fútbol de prueba: llega en el próximo paso de v0.4.
-    obtenerFutbol: () => esperar({ datos: null, obtenidoEn: null, error: null }),
+    // Internet de prueba (ver mocks/externos.ts). Con ?vivo en la dirección,
+    // Boca está jugando; con ?sinred, todo viene viejo y con aviso.
+    obtenerFutbol: () => esperar(externos.futbol()),
     refrescarExternos: async () => {},
-    buscarJugadores: () => esperar([]),
-    obtenerJugadores: () => esperar([]),
-    guardarJugadores: (jugadores) => esperar(jugadores),
+    buscarJugadores: (texto) =>
+      esperar(texto.length < 3 ? [] : [{ id: "1", nombre: `${texto} (de prueba)`, club: "Club de prueba" }]),
+    obtenerJugadores: () => esperar(jugadoresSeguidos),
+    guardarJugadores: (jugadores) => {
+      jugadoresSeguidos = jugadores;
+      return esperar(jugadores);
+    },
+
+    obtenerNoticias: () => esperar(externos.noticias()),
+    obtenerAjustesNoticias: () => esperar(ajustesNoticias),
+    guardarAjustesNoticias: (nuevos) => {
+      ajustesNoticias = nuevos;
+      return esperar(nuevos);
+    },
+    abrirEnlace: async (url) => {
+      window.open(url, "_blank", "noopener");
+    },
+
+    obtenerClima: () => esperar({ mostrar: ajustesClima.mostrar, clima: externos.clima(ajustesClima.ciudad) }),
+    obtenerAjustesClima: () => esperar(ajustesClima),
+    guardarAjustesClima: (nuevos) => {
+      ajustesClima = nuevos;
+      return esperar(nuevos);
+    },
+    buscarCiudades: (texto) =>
+      esperar(texto.length < 2 ? [] : [{ nombre: texto, region: "Buenos Aires, Argentina", latitud: -34.6, longitud: -58.4 }]),
   };
 }

@@ -100,6 +100,31 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   }
 }
 
+/* El punto de "en vivo": late despacio */
+@keyframes latido {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.latido {
+  animation: latido 1.6s ease-in-out infinite;
+}
+
+.pausado .latido {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .latido {
+    animation: none;
+  }
+}
+
 /* Filas que responden al mouse (solo con mouse real) */
 .fila {
   border-radius: 8px;

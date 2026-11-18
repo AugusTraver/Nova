@@ -3,7 +3,7 @@ import { useAsistente } from "../store/asistente";
 import { useDatos } from "../store/datos";
 import { usePanel } from "../store/panel";
 import { Panel } from "./Panel";
-import { enTauri, escucharCambios, escucharPanel, ocultarVentana } from "./puenteTauri";
+import { enTauri, escucharCambios, escucharGoles, escucharPanel, ocultarVentana } from "./puenteTauri";
 
 export function App() {
   const abierto = usePanel((s) => s.abierto);
@@ -39,6 +39,29 @@ export function App() {
     return () => {
       cancelado = true;
       quitar?.();
+    };
+  }, []);
+
+  // Gol en vivo: la esfera festeja los de Boca (SPEC 4.4) y el marcador se
+  // actualiza. En el navegador, `?gol` simula uno a los 3 segundos.
+  useEffect(() => {
+    let quitar: (() => void) | undefined;
+    let cancelado = false;
+    escucharGoles((aviso) => {
+      if (aviso.equipo === "boca") usePanel.getState().festejarGol();
+      void useDatos.getState().recargar("futbol");
+    }).then((fn) => {
+      if (cancelado) fn();
+      else quitar = fn;
+    });
+    const prueba =
+      !enTauri && new URLSearchParams(window.location.search).has("gol")
+        ? window.setTimeout(() => usePanel.getState().festejarGol(), 3000)
+        : undefined;
+    return () => {
+      cancelado = true;
+      quitar?.();
+      window.clearTimeout(prueba);
     };
   }, []);
 

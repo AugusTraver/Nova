@@ -6,8 +6,11 @@ import { enTauri } from "../app/puenteTauri";
 import { crearApiMemoria } from "../mocks/apiMemoria";
 import type {
   Ajustes,
+  AjustesClima,
   AjustesIa,
+  AjustesNoticias,
   Cacheado,
+  CiudadEncontrada,
   DatosEvento,
   DatosMateria,
   DatosResponsabilidad,
@@ -16,11 +19,13 @@ import type {
   JugadorEncontrado,
   JugadorSeguido,
   Materia,
+  Noticia,
   Ocurrencia,
   Progreso,
   Responsabilidad,
   Turno,
   VistaAjustesIa,
+  VistaClima,
   VistaFutbol,
 } from "./tipos";
 
@@ -65,6 +70,17 @@ export interface Api {
   buscarJugadores(texto: string): Promise<JugadorEncontrado[]>;
   obtenerJugadores(): Promise<JugadorSeguido[]>;
   guardarJugadores(jugadores: JugadorSeguido[]): Promise<JugadorSeguido[]>;
+
+  obtenerNoticias(): Promise<Cacheado<Noticia[]>>;
+  obtenerAjustesNoticias(): Promise<AjustesNoticias>;
+  guardarAjustesNoticias(ajustes: AjustesNoticias): Promise<AjustesNoticias>;
+  /** Abre una dirección web en el navegador del sistema. */
+  abrirEnlace(url: string): Promise<void>;
+
+  obtenerClima(): Promise<VistaClima>;
+  obtenerAjustesClima(): Promise<AjustesClima>;
+  guardarAjustesClima(ajustes: AjustesClima): Promise<AjustesClima>;
+  buscarCiudades(texto: string): Promise<CiudadEncontrada[]>;
 }
 
 /** Un `Channel` de Tauri: Rust manda mensajes mientras el comando corre. */
@@ -111,6 +127,16 @@ const apiTauri: Api = {
   buscarJugadores: (texto) => invoke("buscar_jugadores", { texto }),
   obtenerJugadores: () => invoke("obtener_jugadores"),
   guardarJugadores: (jugadores) => invoke("guardar_jugadores", { jugadores }),
+
+  obtenerNoticias: () => invoke("obtener_noticias"),
+  obtenerAjustesNoticias: () => invoke("obtener_ajustes_noticias"),
+  guardarAjustesNoticias: (ajustes) => invoke("guardar_ajustes_noticias", { ajustes }),
+  abrirEnlace: (url) => invoke("abrir_enlace", { url }),
+
+  obtenerClima: () => invoke("obtener_clima"),
+  obtenerAjustesClima: () => invoke("obtener_ajustes_clima"),
+  guardarAjustesClima: (ajustes) => invoke("guardar_ajustes_clima", { ajustes }),
+  buscarCiudades: (texto) => invoke("buscar_ciudades", { texto }),
 };
 
 export const api: Api = enTauri ? apiTauri : crearApiMemoria();

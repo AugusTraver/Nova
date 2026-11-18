@@ -258,9 +258,56 @@ export interface AvisoGol {
 }
 
 export interface Noticia {
-  id: number;
+  id: string;
   titulo: string;
+  /** Una línea (la escribe la IA o es la bajada del feed); puede venir vacío. */
   resumen: string;
   fuente: string;
   url: string;
+  publicado: string | null;
+}
+
+export interface Feed {
+  nombre: string;
+  url: string;
+}
+
+export interface AjustesNoticias {
+  /** Texto libre: "Boca, Selección Argentina, IA". */
+  intereses: string;
+  feeds: Feed[];
+}
+
+export interface Clima {
+  ciudad: string;
+  temperatura: number;
+  sensacion: number | null;
+  codigo: number;
+  /** "despejado", "lluvia leve"… */
+  descripcion: string;
+  esDeDia: boolean;
+  maxima: number | null;
+  minima: number | null;
+  /** Probabilidad de lluvia del día (%). */
+  lluvia: number | null;
+}
+
+export interface VistaClima {
+  mostrar: boolean;
+  clima: Cacheado<Clima>;
+}
+
+export interface AjustesClima {
+  mostrar: boolean;
+  ciudad: string;
+  latitud: number;
+  longitud: number;
+}
+
+export interface CiudadEncontrada {
+  nombre: string;
+  /** "Buenos Aires, Argentina" */
+  region: string;
+  latitud: number;
+  longitud: number;
 }

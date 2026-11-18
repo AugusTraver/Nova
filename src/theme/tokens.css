@@ -34,6 +34,11 @@
   /* Lo que requiere atención: urgente, hoy, vencido */
   --color-aviso: #ffc98a;
 
+  /* El destello de la esfera en un gol de Boca: azul y oro. Solo los usa el
+     shader, así que valen para todos los cielos. */
+  --color-gol-azul: #2a5bd7;
+  --color-gol-oro: #ffcc33;
+
   /*
    * Paleta de materias: tonos de pastel que se leen sobre el cielo oscuro.
    * En los cielos claros (mañana y mediodía) se oscurecen. Los nombres
