@@ -25,7 +25,7 @@ Sin objetivos comerciales. Es para un solo usuario (yo).
 | Animaciones de interfaz | **Framer Motion** | Entrada y salida del panel, reordenamiento de widgets |
 | Esfera central | **Three.js** vía `@react-three/fiber` + shaders | Reacciona al audio |
 | Estado del frontend | **Zustand** | |
-| Base de datos | **SQLite** local (plugin SQL de Tauri) | Todos los datos personales quedan en la máquina |
+| Base de datos | **SQLite** local, manejada desde Rust (`rusqlite`) y expuesta con comandos de Tauri tipados | Todos los datos personales quedan en la máquina, en la carpeta de datos de la app |
 | Secretos (API keys, tokens) | Llavero del sistema operativo (crate `keyring` o plugin de Tauri equivalente) | **Nunca** en el repo ni en texto plano |
 | IA (cerebro) | Capa de proveedores intercambiables: **API con plan gratuito** (por defecto) u **Ollama local** | Tiene que soportar *tool calling* |
 | Voz → texto | **Whisper** local (whisper.cpp / `whisper-rs`) | Español |
@@ -89,6 +89,9 @@ Lista de cosas que tengo que **hacer**, distinta del calendario (que dice lo que
   - `entrega` → "Terminar {entrega}" con fecha límite el día anterior.
   - `cumpleaños` → "Comprar regalo para {persona}" con fecha límite 3 días antes.
   - Las automáticas llevan una etiqueta "auto". Se pueden editar o borrar como cualquier otra.
+  - Siguen a su evento: si el evento cambia, las automáticas pendientes que no tocaste se actualizan; si el evento se borra, cambia de tipo o ya pasó, se borran. Las hechas y las que editaste a mano no se tocan nunca (al borrar el evento quedan, sin evento vinculado). Una automática que borrás no vuelve a aparecer.
+  - En los eventos que se repiten (cumpleaños) existe solo la de la próxima repetición.
+  - La fecha límite nunca queda antes del día en que se creó (si cargás un cumpleaños para pasado mañana, "comprar regalo" vence hoy).
 - Se pueden crear a mano o por voz ("tengo que llamar al dentista").
 
 ### 4.3 Facu
@@ -175,11 +178,16 @@ Reglas:
 materias(id, nombre, color, creado_en)
 
 eventos(id, titulo, tipo, inicio, fin, todo_el_dia, materia_id?, persona?, notas,
+        recurrencia['ninguna'|'semanal'|'anual'], repetir_hasta?,
         origen['local'|'google'], id_externo?, creado_en, actualizado_en)
+
+eventos_excepciones(evento_id, fecha)   -- fechas salteadas de una serie (feriados)
 
 responsabilidades(id, titulo, descripcion?, fecha_limite?, prioridad['baja'|'media'|'alta'],
                   estado['pendiente'|'hecha'], hecha_en?, evento_id?, materia_id?,
-                  origen['manual'|'auto'|'asistente'], creado_en, actualizado_en)
+                  origen['manual'|'auto'|'asistente'],
+                  regla?, evento_fecha?, editada_a_mano, descartada,  -- solo automáticas
+                  creado_en, actualizado_en)
 
 mensajes(id, rol['usuario'|'asistente'|'herramienta'], contenido, creado_en)
 
@@ -188,8 +196,10 @@ preferencias(clave, valor_json)
   -- intereses_noticias, feeds_rss,
   -- reglas_auto_responsabilidades, leer_resumen_al_abrir, ciudad_clima, tema
 ```
-- Fechas en ISO 8601 con zona horaria.
-- Migraciones versionadas desde el primer día.
+- Fechas en ISO 8601 con zona horaria. Los eventos de todo el día y las fechas límite se guardan como fecha sola (`2026-11-20`); el `fin` de un evento de todo el día es el último día incluido.
+- Los eventos recurrentes se guardan como serie y las repeticiones se calculan al pedir un rango. Editar una repetición cambia toda la serie; para una fecha suelta existe "saltear".
+- Los colores de las materias son nombres de una paleta de tokens (`celeste`, `coral`, `menta`, `lavanda`, `ambar`, `rosa`), no hex.
+- Migraciones versionadas desde el primer día (`PRAGMA user_version`, archivos en `src-tauri/migraciones/`).
 
 ## 7. Configuración
 Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, API keys (guardadas en el llavero), equipos, intereses y feeds de noticias, reglas de responsabilidades automáticas, voz (activar/desactivar, velocidad), arranque con el sistema, clima on/off.

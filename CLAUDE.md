@@ -28,7 +28,7 @@
 - Los modelos de Whisper y Piper se descargan en una carpeta de datos de la app, no dentro del repo.
 
 ## Estado actual
-- Versión en curso: **v0.2** (por empezar)
+- Versión en curso: **v0.2** (implementada, falta el criterio de terminado: cargar la semana real y usarla un par de días)
 - Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón)
 - Notas:
   - Dirección visual aprobada: **"Atmósfera"**. Cielo translúcido que cambia según la hora (`src/theme/cielo.ts` + bloques `data-cielo` en `tokens.css`), esfera de luz en el centro y widgets sin tarjetas que la orbitan (`src/app/Orbita.tsx`). Tipografías Fraunces + Instrument Sans. Nada de etiquetas en mayúsculas ni monoespaciadas. Los widgets nuevos tienen que seguir esta estética.
@@ -36,5 +36,8 @@
   - Voz: sin botón de micrófono. Nova escucha sola al abrir el panel (SPEC 5.1, en v0.5).
   - Para ver otro momento del día en el navegador: `http://localhost:1420/?cielo=tarde`.
   - En PowerShell, `npm.ps1` está bloqueado por la política de ejecución: usar `npm.cmd` (ej. `npm.cmd run tauri dev`).
-  - Decisiones pendientes para v0.2: SQLite desde Rust (recomendado) o con el plugin SQL desde el frontend; eventos recurrentes (clases semanales, cumpleaños anuales); qué pasa con las responsabilidades automáticas si se edita o borra el evento; guardar eventos de todo el día como fecha sola.
+  - Decisiones de v0.2 (detalle en SPEC 4.2 y 6): SQLite desde Rust con `rusqlite`; recurrencia semanal/anual con excepciones; las automáticas siguen al evento salvo que estén hechas, editadas o descartadas; eventos de todo el día como fecha sola.
+  - Estructura de Rust: `dominio/` (lógica pura con tests), `repos/` (consultas, testeadas con base en memoria), `comandos.rs` (capa de Tauri). En el frontend, `src/lib/api.ts` espeja los comandos y en el navegador usa `src/mocks/apiMemoria.ts`.
+  - Los formularios se abren dentro de cada widget; mientras se edita, el resto del panel se apaga (`edicion` en `src/store/panel.ts`).
+  - En PowerShell 5.1 no reescribir archivos con `Get-Content`/`Set-Content`: rompen los acentos (leen como ANSI).
   - La ventana del panel se crea una vez y se muestra u oculta; el frontend nunca se desmonta (para abrir en menos de 300 ms).
