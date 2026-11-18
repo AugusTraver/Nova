@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { BotonTexto, Formulario, Interruptor } from "../components/Formulario";
-import { api, mensajeDeError } from "../lib/api";
+import { api, mensajeDeError, mensajeDelAsistente } from "../lib/api";
 import { atajoDesdeTecla, nombreAtajo } from "../lib/atajo";
-import type { Ajustes as TipoAjustes, Regla, Reglas } from "../lib/tipos";
+import type { AjustesIa, Ajustes as TipoAjustes, Regla, Reglas } from "../lib/tipos";
 import { useDatos } from "../store/datos";
+import { AjustesAsistente } from "./AjustesAsistente";
 
 const REGLAS: { clave: keyof Reglas; texto: string; ayuda: string }[] = [
   { clave: "examen", texto: "Antes de un examen", ayuda: "{materia} es el nombre de la materia" },
@@ -11,17 +12,38 @@ const REGLAS: { clave: keyof Reglas; texto: string; ayuda: string }[] = [
   { clave: "cumpleanos", texto: "Antes de un cumpleaños", ayuda: "{persona} es de quién es el cumple" },
 ];
 
-/** Ajustes básicos de v0.2: el atajo y las reglas de responsabilidades automáticas. */
+/** Ajustes: el atajo, las reglas de responsabilidades automáticas y el asistente. */
 export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const recargar = useDatos((s) => s.recargar);
   const [ajustes, setAjustes] = useState<TipoAjustes | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [capturando, setCapturando] = useState(false);
+  const [ia, setIa] = useState<AjustesIa | null>(null);
+  const [tieneKey, setTieneKey] = useState(false);
+  const [keyNueva, setKeyNueva] = useState<string | null>(null);
 
   useEffect(() => {
     api.obtenerAjustes().then(setAjustes, (e: unknown) => setError(mensajeDeError(e)));
+    api.obtenerAjustesIa().then(
+      (vista) => {
+        setIa(vista.ajustes);
+        setTieneKey(vista.tieneKey);
+      },
+      (e: unknown) => setError(mensajeDelAsistente(e)),
+    );
   }, []);
+
+  /** Guarda proveedor, modelo y key (la key va derecho al llavero). */
+  async function guardarIa() {
+    if (!ia) return;
+    const vista = await api.guardarAjustesIa(ia);
+    setIa(vista.ajustes);
+    if (keyNueva !== null) {
+      setTieneKey(await api.guardarApiKey(keyNueva));
+      setKeyNueva(null);
+    }
+  }
 
   // Mientras se elige el atajo, la próxima combinación con Ctrl/Alt/Shift
   // queda como nuevo atajo. Esc cancela. Se escucha en la fase de captura y se
@@ -54,11 +76,12 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     setError(null);
     try {
       await api.guardarAjustes(ajustes);
+      await guardarIa();
       // Las reglas pueden haber creado o borrado automáticas
       await recargar("responsabilidades");
       alTerminar();
     } catch (e) {
-      setError(mensajeDeError(e));
+      setError(mensajeDelAsistente(e));
     } finally {
       setGuardando(false);
     }
@@ -127,6 +150,17 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
           );
         })}
       </section>
+
+      {ia && (
+        <AjustesAsistente
+          ia={ia}
+          alCambiar={setIa}
+          tieneKey={tieneKey}
+          keyNueva={keyNueva}
+          alCambiarKey={setKeyNueva}
+          guardarIa={guardarIa}
+        />
+      )}
     </Formulario>
   );
 }
