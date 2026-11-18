@@ -19,13 +19,27 @@ body {
   user-select: none;
 }
 
+/* En los campos sí se puede seleccionar texto */
+input,
+textarea {
+  user-select: text;
+}
+
+/* El ícono del calendario de los campos de fecha y hora, en el tono de la tinta */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.55;
+  cursor: pointer;
+}
+
 /* Fraunces con su eje "SOFT": terminaciones redondeadas, menos solemne */
 .font-display {
   font-variation-settings: "SOFT" 100, "WONK" 0;
   font-optical-sizing: auto;
 }
 
-:focus-visible {
+/* Los campos de texto marcan el foco con su subrayado, no con un recuadro */
+:focus-visible:not(input, textarea) {
   outline: 1.5px solid var(--color-tinta-2);
   outline-offset: 4px;
   border-radius: 4px;

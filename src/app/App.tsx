@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useDatos } from "../store/datos";
 import { usePanel } from "../store/panel";
 import { Panel } from "./Panel";
 import { enTauri, escucharPanel, ocultarVentana } from "./puenteTauri";
@@ -7,6 +8,7 @@ export function App() {
   const abierto = usePanel((s) => s.abierto);
   const abrir = usePanel((s) => s.abrir);
   const cerrar = usePanel((s) => s.cerrar);
+  const cargarTodo = useDatos((s) => s.cargarTodo);
 
   // Atajo global y bandeja → eventos de Rust
   useEffect(() => {
@@ -24,10 +26,19 @@ export function App() {
     };
   }, [abrir, cerrar]);
 
-  // Esc cierra
+  // Cada vez que se abre: automáticas al día y datos frescos. Mientras tanto se
+  // ven los datos de la vez anterior, así que abrir sigue siendo instantáneo.
+  useEffect(() => {
+    if (abierto) void cargarTodo();
+  }, [abierto, cargarTodo]);
+
+  // Esc: si hay algo a medio editar, lo cancela; si no, cierra el panel.
   useEffect(() => {
     const alTeclear = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cerrar();
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const { edicion, terminarEdicion } = usePanel.getState();
+      if (edicion) terminarEdicion();
+      else cerrar();
     };
     window.addEventListener("keydown", alTeclear);
     return () => window.removeEventListener("keydown", alTeclear);

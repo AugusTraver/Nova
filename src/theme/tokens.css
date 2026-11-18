@@ -34,6 +34,18 @@
   /* Lo que requiere atención: urgente, hoy, vencido */
   --color-aviso: #ffc98a;
 
+  /*
+   * Paleta de materias: tonos de pastel que se leen sobre el cielo oscuro.
+   * En los cielos claros (mañana y mediodía) se oscurecen. Los nombres
+   * coinciden con PALETA_MATERIAS (src/lib/tipos.ts) y PALETA (materias.rs).
+   */
+  --color-materia-celeste: #8ec5ff;
+  --color-materia-coral: #ff9e8a;
+  --color-materia-menta: #8fe0bf;
+  --color-materia-lavanda: #c3a8ff;
+  --color-materia-ambar: #ffd27a;
+  --color-materia-rosa: #ff9ccb;
+
   /* Movimiento (curvas de Emil Kowalski) */
   --ease-salida: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-movimiento: cubic-bezier(0.77, 0, 0.175, 1);
@@ -45,6 +57,20 @@
 /* Cuánto tapa el cielo al escritorio (el resto se ve desenfocado detrás). */
 :root {
   --opacidad-cielo: 74%;
+  /* Para los controles nativos (calendario de los campos de fecha, etc.) */
+  color-scheme: dark;
+}
+
+/* Cielos claros: tinta oscura, controles claros y materias más profundas */
+:root[data-cielo="manana"],
+:root[data-cielo="mediodia"] {
+  color-scheme: light;
+  --color-materia-celeste: #1f6fc4;
+  --color-materia-coral: #c2462c;
+  --color-materia-menta: #1d8a62;
+  --color-materia-lavanda: #6b48c8;
+  --color-materia-ambar: #a86a00;
+  --color-materia-rosa: #b8336f;
 }
 
 /* 0 a 6 h: índigo casi negro, luz de luna fría */
