@@ -16,27 +16,78 @@ pub fn a_mono(muestras: &[f32], canales: usize) -> Vec<f32> {
 }
 
 /// Cambia la frecuencia de muestreo de a pedazos (el micrófono entrega el
-/// audio en tandas). Interpolación lineal: para voz alcanza y es barata.
+/// audio en tandas), con interpolación lineal.
 ///
-/// Guarda la última muestra de la tanda anterior para que no haya un salto
-/// entre tandas.
+/// Al bajar la frecuencia (48 kHz → 16 kHz), primero pasa un filtro
+/// pasabajos: si no, los agudos que no entran en 16 kHz "se doblan" y
+/// aparecen como ruido en la parte de la voz (aliasing), y Whisper entiende
+/// peor. Guarda lo necesario de la tanda anterior para que no haya saltos.
 pub struct Remuestreador {
     paso: f64,
     /// Dónde cae la próxima muestra de salida, medido en muestras de entrada
     /// desde `anterior` (que es la posición -1... en la práctica, 0 a 1).
     posicion: f64,
     anterior: f32,
+    filtro: Option<Pasabajos>,
+}
+
+/// Filtro FIR de seno cardinal con ventana de Hann (el pasabajos clásico).
+struct Pasabajos {
+    coeficientes: Vec<f32>,
+    /// Las últimas muestras de la tanda anterior.
+    historia: Vec<f32>,
+}
+
+impl Pasabajos {
+    /// `corte`: frecuencia de corte como fracción de la de muestreo (0 a 0,5).
+    fn new(corte: f64, largo: usize) -> Self {
+        let centro = (largo - 1) as f64 / 2.0;
+        let mut coeficientes: Vec<f32> = (0..largo)
+            .map(|i| {
+                let x = i as f64 - centro;
+                let sinc = if x == 0.0 { 2.0 * corte } else { (2.0 * std::f64::consts::PI * corte * x).sin() / (std::f64::consts::PI * x) };
+                let hann = 0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / (largo - 1) as f64).cos();
+                (sinc * hann) as f32
+            })
+            .collect();
+        // Que no cambie el volumen de lo que pasa (ganancia 1 en graves).
+        let suma: f32 = coeficientes.iter().sum();
+        coeficientes.iter_mut().for_each(|c| *c /= suma);
+        Pasabajos { historia: vec![0.0; largo - 1], coeficientes }
+    }
+
+    fn filtrar(&mut self, entrada: &[f32]) -> Vec<f32> {
+        let n = self.coeficientes.len();
+        let mut todo = std::mem::take(&mut self.historia);
+        todo.extend_from_slice(entrada);
+        let salida = (0..entrada.len())
+            .map(|i| todo[i..i + n].iter().zip(&self.coeficientes).map(|(m, c)| m * c).sum())
+            .collect();
+        self.historia = todo[todo.len() - (n - 1)..].to_vec();
+        salida
+    }
 }
 
 impl Remuestreador {
     pub fn new(desde: u32, hacia: u32) -> Self {
-        Remuestreador { paso: f64::from(desde) / f64::from(hacia), posicion: 0.0, anterior: 0.0 }
+        let paso = f64::from(desde) / f64::from(hacia);
+        // Corta un poco antes de la mitad de la frecuencia nueva.
+        let filtro = (paso > 1.0).then(|| Pasabajos::new(0.45 / paso, 63));
+        Remuestreador { paso, posicion: 0.0, anterior: 0.0, filtro }
     }
 
     pub fn procesar(&mut self, entrada: &[f32]) -> Vec<f32> {
         if (self.paso - 1.0).abs() < f64::EPSILON {
             return entrada.to_vec();
         }
+        let filtrada;
+        let entrada = match self.filtro.as_mut() {
+            Some(f) => {
+                filtrada = f.filtrar(entrada);
+                &filtrada[..]
+            }
+            None => entrada,
+        };
         let mut salida = Vec::with_capacity((entrada.len() as f64 / self.paso) as usize + 1);
         // La muestra `i` de la tanda está en la posición i + 1 (la 0 es `anterior`).
         let valor = |i: usize| if i == 0 { self.anterior } else { entrada[i - 1] };
@@ -173,6 +224,10 @@ mod tests {
         // De una vez da lo mismo que por tandas.
         let junta = remuestrear(&entrada, 48_000, 16_000);
         assert_eq!(junta.len(), salida.len());
+        // Un agudo que no entra en 16 kHz (10 kHz) no tiene que colarse.
+        let agudo = seno(10_000.0, 48_000, 0.5, 0.5);
+        let bajado = remuestrear(&agudo, 48_000, 16_000);
+        assert!(rms(&bajado[100..]) < rms(&agudo) * 0.05, "{}", rms(&bajado[100..]));
         // Subir también anda (Piper 22 050 → parlantes 48 000).
         assert!((remuestrear(&seno(200.0, 22_050, 1.0, 0.5), 22_050, 48_000).len() as i64 - 48_000).abs() <= 1);
     }

@@ -109,12 +109,28 @@ pub fn resolver_pendiente(db: &Db, estado: &Asistente, aceptar: bool, avisos: &d
     Ok(Turno { respuesta, confirmacion: None })
 }
 
-/// Un turno completo a partir de lo que escribió el usuario.
+/// Un turno completo a partir de lo que escribió el usuario (los tests lo
+/// usan así; la app pasa por `responder_con`).
+#[cfg(test)]
 pub async fn responder<P: ProveedorIa>(
     proveedor: &P,
     db: &Db,
     estado: &Asistente,
     texto: &str,
+    avisos: &dyn Avisos,
+    ahora: &Ahora,
+) -> Resultado<Turno> {
+    responder_con(proveedor, db, estado, texto, false, avisos, ahora).await
+}
+
+/// Igual que `responder`, pero `por_voz` pide una respuesta corta para leer
+/// en voz alta (SPEC 5.2: "nada de párrafos largos por voz").
+pub async fn responder_con<P: ProveedorIa>(
+    proveedor: &P,
+    db: &Db,
+    estado: &Asistente,
+    texto: &str,
+    por_voz: bool,
     avisos: &dyn Avisos,
     ahora: &Ahora,
 ) -> Resultado<Turno> {
@@ -141,7 +157,11 @@ pub async fn responder<P: ProveedorIa>(
     guardar(db, &usuario, ahora)?;
 
     let mut conversacion = Vec::with_capacity(historial.len() + 4);
-    conversacion.push(Mensaje::Sistema(prompt::armar(ahora, &contexto)));
+    let mut sistema = prompt::armar(ahora, &contexto);
+    if por_voz {
+        sistema.push_str(prompt::POR_VOZ);
+    }
+    conversacion.push(Mensaje::Sistema(sistema));
     conversacion.extend(historial);
     conversacion.push(usuario);
 
