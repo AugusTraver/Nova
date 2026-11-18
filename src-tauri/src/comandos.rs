@@ -144,3 +144,95 @@ pub fn guardar_ajustes(app: AppHandle, db: State<'_, Db>, ajustes: Ajustes) -> R
     automaticas::sincronizar_todo(&mut conexion, &Ahora::del_sistema())?;
     Ok(Ajustes { atajo, reglas: ajustes.reglas })
 }
+
+/// Contrato con el frontend: los JSON que arma `src/lib/api.ts` (con los
+/// nombres en camelCase de `src/lib/tipos.ts`) tienen que leerse bien acá, y lo
+/// que devolvemos tiene que traer esos mismos nombres. Si alguien renombra un
+/// campo de un lado solo, falla este test.
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::db;
+    use crate::dominio::texto::{Prioridad, Recurrencia, TipoEvento};
+
+    fn claves(valor: &serde_json::Value) -> Vec<String> {
+        let mut c: Vec<String> = valor.as_object().unwrap().keys().cloned().collect();
+        c.sort();
+        c
+    }
+
+    #[test]
+    fn lee_lo_que_manda_la_interfaz() {
+        let evento: DatosEvento = serde_json::from_value(json!({
+            "titulo": "Parcial", "tipo": "examen", "inicio": "2026-11-20T09:00:00-03:00",
+            "fin": null, "todoElDia": false, "materiaId": 1, "persona": null, "notas": null,
+            "recurrencia": "ninguna", "repetirHasta": null
+        }))
+        .unwrap();
+        assert_eq!(evento.tipo, TipoEvento::Examen);
+        assert_eq!(evento.materia_id, Some(1));
+        assert_eq!(evento.recurrencia, Recurrencia::Ninguna);
+
+        let resp: DatosResponsabilidad = serde_json::from_value(json!({
+            "titulo": "x", "descripcion": null, "fechaLimite": "2026-11-20",
+            "prioridad": "alta", "materiaId": null, "eventoId": 3
+        }))
+        .unwrap();
+        assert_eq!(resp.prioridad, Prioridad::Alta);
+        assert_eq!(resp.evento_id, Some(3));
+
+        let materia: DatosMateria = serde_json::from_value(json!({ "nombre": "Física", "color": "menta" })).unwrap();
+        assert_eq!(materia.color, "menta");
+
+        let ajustes: Ajustes = serde_json::from_value(json!({
+            "atajo": "Ctrl+Shift+Space",
+            "reglas": {
+                "examen": { "activa": true, "diasAntes": 1, "plantilla": "Estudiar para {materia}" },
+                "entrega": { "activa": false, "diasAntes": 2, "plantilla": "Terminar {entrega}" },
+                "cumpleanos": { "activa": true, "diasAntes": 3, "plantilla": "Comprar regalo para {persona}" }
+            }
+        }))
+        .unwrap();
+        assert_eq!(ajustes.reglas.entrega.dias_antes, 2);
+    }
+
+    #[test]
+    fn devuelve_los_nombres_que_espera_la_interfaz() {
+        let mut base = db::en_memoria();
+        let ahora = Ahora::fijo("2026-11-17");
+        let fisica = materias::crear(&base, DatosMateria { nombre: "Física".into(), color: "menta".into() }, &ahora).unwrap();
+        let mut datos = crate::repos::eventos::tests::datos("Parcial", TipoEvento::Examen, "2026-11-20T09:00:00-03:00");
+        datos.materia_id = Some(fisica.id);
+        eventos::crear(&mut base, datos, &ahora).unwrap();
+
+        let ocurrencia = serde_json::to_value(
+            &eventos::ocurrencias(&base, fecha("2026-11-17").unwrap(), fecha("2026-11-30").unwrap()).unwrap()[0],
+        )
+        .unwrap();
+        assert_eq!(claves(&ocurrencia), ["evento", "fecha", "fin", "inicio"]);
+        assert_eq!(
+            claves(&ocurrencia["evento"]),
+            [
+                "excepciones", "fin", "id", "inicio", "materiaId", "notas", "persona", "recurrencia",
+                "repetirHasta", "tipo", "titulo", "todoElDia"
+            ]
+        );
+
+        let resp = serde_json::to_value(&responsabilidades::listar(&base).unwrap()[0]).unwrap();
+        assert_eq!(
+            claves(&resp),
+            [
+                "creadoEn", "descripcion", "estado", "eventoId", "fechaLimite", "hechaEn", "id", "materiaId",
+                "origen", "prioridad", "titulo"
+            ]
+        );
+        assert_eq!(resp["origen"], "auto");
+
+        assert_eq!(claves(&serde_json::to_value(&fisica).unwrap()), ["color", "id", "nombre"]);
+
+        let error = serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
+        assert_eq!(error, json!({ "tipo": "validacion", "mensaje": "Ponele un título." }));
+    }
+}
