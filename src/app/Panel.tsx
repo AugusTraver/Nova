@@ -1,7 +1,8 @@
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import type { ReactNode } from "react";
 import { Esfera } from "../esfera/Esfera";
 import { useAhora } from "../lib/useAhora";
-import { usePanel } from "../store/panel";
+import { type Edicion, usePanel } from "../store/panel";
 import { useCielo } from "../theme/useCielo";
 import { Calendario } from "../widgets/Calendario";
 import { Facu } from "../widgets/Facu";
@@ -9,8 +10,10 @@ import { Futbol } from "../widgets/Futbol";
 import { Noticias } from "../widgets/Noticias";
 import { Responsabilidades } from "../widgets/Responsabilidades";
 import { ResumenDelDia } from "../widgets/ResumenDelDia";
+import { Ajustes } from "./Ajustes";
 import { varianteEsfera, varianteHalo, varianteSoloOpacidad, varianteVelo, varianteZona } from "./animaciones";
 import { BarraEntrada } from "./BarraEntrada";
+import { cambioDeVista } from "../widgets/animacionWidget";
 import { Orbita, usePunteroSuave } from "./Orbita";
 
 interface PanelProps {
@@ -48,6 +51,23 @@ const aDistancia = (extra: string) => `calc(50% + ${RADIO} + ${extra})`;
  * El panel queda siempre montado (no se desmonta al cerrar) para que abrir sea
  * instantáneo: no hay que recrear el contexto WebGL de la esfera cada vez.
  */
+/**
+ * Mientras se edita algo, el resto del panel se apaga y deja de responder al
+ * mouse: un clic ahí cae en el cielo y cancela la edición.
+ */
+function Atenuable({ apagado, oculto, children }: { apagado: boolean; oculto: boolean; children: ReactNode }) {
+  return (
+    <div
+      className={`transition-opacity duration-200 ${apagado ? "pointer-events-none" : ""}`}
+      style={{ opacity: oculto ? 0 : apagado ? 0.16 : 1 }}
+      aria-hidden={apagado || undefined}
+      inert={apagado || undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
   const ahora = useAhora();
   const momento = useCielo(abierto);
@@ -55,6 +75,15 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
   const reducido = useReducedMotion() ?? false;
   const puntero = usePunteroSuave(abierto && !reducido);
   const orbita = { puntero, reducido };
+  const edicion = usePanel((s) => s.edicion);
+  const editar = usePanel((s) => s.editar);
+  const terminarEdicion = usePanel((s) => s.terminarEdicion);
+  /** Props para el envoltorio de cada widget según qué se está editando. */
+  const estado = (propio?: Edicion) => ({
+    apagado: edicion !== null && edicion !== propio,
+    oculto: edicion === "ajustes",
+  });
+  const alFrente = (propio: Edicion) => (edicion === propio ? "z-10" : "");
 
   return (
     <motion.div
@@ -65,7 +94,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       onAnimationComplete={(variante) => {
         if (variante === "saliendo") onSalidaCompleta();
       }}
-      onClick={onCerrar}
+      onClick={edicion ? terminarEdicion : onCerrar}
       // Contenedor de tamaño: las medidas cqw/cqh de la órbita son relativas al panel
       style={{ containerType: "size" }}
     >
@@ -78,29 +107,37 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
         retraso={0.04}
         vaiven={11}
       >
-        <ResumenDelDia ahora={ahora} />
+        <Atenuable {...estado()}>
+          <ResumenDelDia ahora={ahora} />
+        </Atenuable>
       </Orbita>
 
       {/* Izquierda */}
       <Orbita
         {...orbita}
+        className={alFrente("calendario")}
         lado="izquierda"
         posicion={{ top: "25%", right: aDistancia("3cqw"), width: ANCHO_WIDGET }}
         profundidad={14}
         retraso={0.07}
         vaiven={9}
       >
-        <Calendario ahora={ahora} />
+        <Atenuable {...estado("calendario")}>
+          <Calendario ahora={ahora} />
+        </Atenuable>
       </Orbita>
       <Orbita
         {...orbita}
+        className={alFrente("facu")}
         lado="izquierda"
         posicion={{ top: "58%", right: aDistancia("8cqw"), width: ANCHO_WIDGET }}
         profundidad={10}
         retraso={0.12}
         vaiven={12}
       >
-        <Facu ahora={ahora} />
+        <Atenuable {...estado("facu")}>
+          <Facu ahora={ahora} />
+        </Atenuable>
       </Orbita>
 
       {/* Derecha */}
@@ -112,17 +149,22 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
         retraso={0.09}
         vaiven={10}
       >
-        <Futbol ahora={ahora} />
+        <Atenuable {...estado()}>
+          <Futbol ahora={ahora} />
+        </Atenuable>
       </Orbita>
       <Orbita
         {...orbita}
+        className={alFrente("responsabilidades")}
         lado="derecha"
         posicion={{ top: "53%", left: aDistancia("3cqw"), width: ANCHO_WIDGET }}
         profundidad={15}
         retraso={0.11}
         vaiven={8}
       >
-        <Responsabilidades ahora={ahora} />
+        <Atenuable {...estado("responsabilidades")}>
+          <Responsabilidades ahora={ahora} />
+        </Atenuable>
       </Orbita>
 
       {/* Abajo: noticias */}
@@ -134,8 +176,40 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
         retraso={0.15}
         vaiven={13}
       >
-        <Noticias />
+        <Atenuable {...estado()}>
+          <Noticias />
+        </Atenuable>
       </Orbita>
+
+      {/* Ajustes: ocupan el lugar de la columna izquierda mientras el resto se apaga */}
+      <AnimatePresence>
+        {edicion === "ajustes" && (
+          <motion.div
+            key="ajustes"
+            {...cambioDeVista}
+            className="absolute z-10 overflow-y-auto"
+            style={{ top: "22%", right: aDistancia("3cqw"), width: "min(440px, 30cqw)", maxHeight: "70cqh" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Ajustes alTerminar={terminarEdicion} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {edicion === null && (
+        <motion.button
+          type="button"
+          variants={reducido ? varianteSoloOpacidad : varianteZona(0.2)}
+          onClick={(e) => {
+            e.stopPropagation();
+            editar("ajustes");
+          }}
+          className="absolute rounded-md text-[14px] text-tinta-3 transition-colors duration-150 hover:text-tinta-2"
+          style={{ left: "var(--spacing-margen)", bottom: "5cqh" }}
+        >
+          Ajustes
+        </motion.button>
+      )}
 
       {/* Centro: la esfera, su estado y la barra para escribirle */}
       <div
@@ -157,13 +231,13 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       </div>
 
       <div
-        className="absolute left-1/2 flex w-[min(30rem,40cqw)] -translate-x-1/2 flex-col items-center"
-        style={{ top: `calc(${CENTRO_Y} + ${RADIO} + 8px)` }}
+        className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center"
+        style={{ top: `calc(${CENTRO_Y} + ${RADIO} + 8px)`, width: `min(30rem, calc(2 * ${RADIO} + 4cqw))` }}
       >
         <p aria-live="polite" className="h-6 font-display text-[17px] italic text-tinta-2">
           {ESTADOS_ESFERA[estadoEsfera]}
         </p>
-        <motion.div className="mt-6 flex w-full justify-center" variants={reducido ? varianteSoloOpacidad : varianteZona(0.1)}>
+        <motion.div className="pointer-events-auto mt-6 flex w-full justify-center" variants={reducido ? varianteSoloOpacidad : varianteZona(0.1)}>
           <BarraEntrada abierto={abierto} />
         </motion.div>
       </div>

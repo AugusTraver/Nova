@@ -1,13 +1,7 @@
-// Datos de ejemplo para v0.1. Las fechas se calculan a partir de "ahora"
-// para que el panel siempre se vea vigente. En v0.2 esto se reemplaza por SQLite.
-import type {
-  Evento,
-  Materia,
-  Noticia,
-  Partido,
-  Responsabilidad,
-  ResultadoPartido,
-} from "../lib/tipos";
+// Datos de ejemplo de fútbol y noticias, hasta que lleguen las integraciones
+// reales en v0.4. Las fechas se calculan a partir de "ahora" para que el panel
+// siempre se vea vigente. (Agenda, pendientes y materias ya son reales: SQLite.)
+import type { Noticia, Partido, ResultadoPartido } from "../lib/tipos";
 
 /** Fecha relativa a hoy: `en(2, 9, 30)` = pasado mañana a las 9:30. */
 function en(dias: number, hora = 0, minutos = 0): Date {
@@ -18,40 +12,6 @@ function en(dias: number, hora = 0, minutos = 0): Date {
 }
 
 const iso = (d: Date) => d.toISOString();
-const soloFecha = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-export const materias: Materia[] = [
-  { id: 1, nombre: "Análisis Matemático II", color: "var(--color-tinta-2)" },
-  { id: 2, nombre: "Algoritmos y Estructuras", color: "var(--color-tinta-2)" },
-  { id: 3, nombre: "Sistemas Operativos", color: "var(--color-tinta-2)" },
-];
-
-export const eventos: Evento[] = [
-  { id: 1, titulo: "Clase de Análisis II", tipo: "clase", inicio: iso(en(0, 15)), fin: iso(en(0, 17)), todoElDia: false, materiaId: 1 },
-  { id: 2, titulo: "Boca vs. Racing", tipo: "partido", inicio: iso(en(0, 21, 30)), todoElDia: false },
-  { id: 3, titulo: "Entrega TP Algoritmos", tipo: "entrega", inicio: iso(en(1, 23, 59)), todoElDia: false, materiaId: 2 },
-  { id: 4, titulo: "Cumple de Juan", tipo: "cumpleanos", inicio: iso(en(3)), todoElDia: true, persona: "Juan" },
-  { id: 5, titulo: "Parcial de Análisis II", tipo: "examen", inicio: iso(en(4, 9)), todoElDia: false, materiaId: 1 },
-  { id: 6, titulo: "Clase de Sistemas Operativos", tipo: "clase", inicio: iso(en(2, 18)), fin: iso(en(2, 21)), todoElDia: false, materiaId: 3 },
-  { id: 7, titulo: "Final de Sistemas Operativos", tipo: "examen", inicio: iso(en(12, 14)), todoElDia: false, materiaId: 3 },
-];
-
-export const responsabilidades: Responsabilidad[] = [
-  { id: 1, titulo: "Pagar la cuota del gimnasio", fechaLimite: soloFecha(en(-1)), prioridad: "media", estado: "pendiente", origen: "manual" },
-  { id: 2, titulo: "Terminar TP Algoritmos", fechaLimite: soloFecha(en(0)), prioridad: "alta", estado: "pendiente", origen: "auto", materiaId: 2 },
-  { id: 3, titulo: "Comprar regalo para Juan", fechaLimite: soloFecha(en(0)), prioridad: "media", estado: "pendiente", origen: "auto" },
-  { id: 4, titulo: "Estudiar para Análisis II", fechaLimite: soloFecha(en(3)), prioridad: "alta", estado: "pendiente", origen: "auto", materiaId: 1 },
-  { id: 5, titulo: "Llamar al dentista", prioridad: "baja", estado: "pendiente", origen: "asistente" },
-  { id: 6, titulo: "Resumen de la unidad 3", prioridad: "baja", estado: "hecha", origen: "manual", materiaId: 3 },
-];
-
-/** Progreso de estudio por materia: [hechas, total]. */
-export const progresoMaterias: Record<number, [number, number]> = {
-  1: [3, 7],
-  2: [5, 6],
-  3: [2, 5],
-};
 
 export const proximoPartidoBoca: Partido = {
   rival: "Racing",
