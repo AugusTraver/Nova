@@ -390,4 +390,36 @@ mod tests {
         let largo = "a".repeat(LARGO_MAXIMO + 1);
         assert!(responder(&modelo, &db, &Asistente::default(), &largo, &avisos, &ahora()).await.is_err());
     }
+
+    /// El criterio de v0.5 contra el modelo de verdad (Groq, con la key del
+    /// llavero) y una base en memoria: "recordame comprar el regalo de Juan
+    /// para el viernes" crea la responsabilidad y la confirma corto, como
+    /// para leerla en voz alta. `cargo test regalo_de_juan -- --ignored`.
+    #[tokio::test]
+    #[ignore]
+    async fn recordame_el_regalo_de_juan_por_voz() {
+        let db = Db::de_conexion(crate::db::en_memoria());
+        let ajustes = crate::asistente::proveedor::AjustesIa::default();
+        let key = crate::llavero::leer("groq-api-key").unwrap();
+        let cliente = ajustes.cliente(key).unwrap();
+        let avisos = Registro::default();
+        let turno = responder_con(
+            &cliente,
+            &db,
+            &Asistente::default(),
+            "Recordame comprar el regalo de Juan para el viernes.",
+            true,
+            &avisos,
+            &ahora(),
+        )
+        .await
+        .unwrap();
+        let lista = crate::repos::responsabilidades::listar(&db.conexion()).unwrap();
+        let creada = lista.iter().find(|r| r.titulo.to_lowercase().contains("regalo")).expect("no creó la responsabilidad");
+        assert_eq!(creada.fecha_limite.as_deref(), Some("2026-11-20"));
+        // Una oración corta, sin listas ni markdown.
+        assert!(turno.respuesta.chars().count() < 160, "{}", turno.respuesta);
+        assert!(!turno.respuesta.contains('*') && !turno.respuesta.contains("\n"), "{}", turno.respuesta);
+        println!("Respuesta por voz: {}", turno.respuesta);
+    }
 }

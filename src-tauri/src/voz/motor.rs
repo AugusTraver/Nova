@@ -15,6 +15,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
 use super::audio::{FRECUENCIA_WHISPER, Remuestreador, envolvente, nivel_visual, remuestrear, rms, wav};
@@ -97,8 +98,21 @@ struct Habla {
     frases: VecDeque<String>,
 }
 
+/// Cómo avisa el motor a la interfaz: en la app, eventos de Tauri; en los
+/// tests, una función que los anota.
+pub type Avisador = Box<dyn Fn(&'static str, Value) + Send>;
+
+pub fn avisador_de_tauri(app: AppHandle) -> Avisador {
+    Box::new(move |evento, valor| {
+        let _ = app.emit(evento, valor);
+    })
+}
+
 pub struct Motor {
-    app: AppHandle,
+    avisar_evento: Avisador,
+    /// En los tests no hay micrófono: el audio llega por `Orden::Microfono`
+    /// a esta frecuencia.
+    microfono_de_prueba: Option<u32>,
     rutas: Rutas,
     ajustes: AjustesVoz,
     canal: Sender<Orden>,
@@ -123,9 +137,10 @@ pub struct Motor {
 }
 
 impl Motor {
-    pub fn new(app: AppHandle, rutas: Rutas, ajustes: AjustesVoz, canal: Sender<Orden>) -> Self {
+    pub fn new(avisar_evento: Avisador, rutas: Rutas, ajustes: AjustesVoz, canal: Sender<Orden>) -> Self {
         Motor {
-            app,
+            avisar_evento,
+            microfono_de_prueba: None,
             rutas,
             ajustes,
             canal,
@@ -145,6 +160,13 @@ impl Motor {
             sordo_hasta: Instant::now(),
             estado: Estado::Apagada,
         }
+    }
+
+    /// Para los tests: sin micrófono de verdad (el audio se manda a mano).
+    #[cfg(test)]
+    pub fn sin_microfono(mut self, frecuencia: u32) -> Self {
+        self.microfono_de_prueba = Some(frecuencia);
+        self
     }
 
     /// El ciclo del hilo: espera órdenes (o el próximo cuadro de la esfera).
@@ -177,7 +199,7 @@ impl Motor {
             return;
         }
         self.estado = estado;
-        let _ = self.app.emit(EVENTO_ESTADO, AvisoEstado { estado, mensaje });
+        (self.avisar_evento)(EVENTO_ESTADO, json!(AvisoEstado { estado, mensaje }));
     }
 
     fn error(&mut self, mensaje: impl Into<String>) {
@@ -278,7 +300,9 @@ impl Motor {
             }
         }
         self.ultimo_uso_whisper = Instant::now();
-        if self.microfono.is_none() {
+        if let Some(frecuencia) = self.microfono_de_prueba {
+            self.remuestreador.get_or_insert_with(|| Remuestreador::new(frecuencia, FRECUENCIA_WHISPER));
+        } else if self.microfono.is_none() {
             match Microfono::abrir(self.canal.clone(), del_microfono) {
                 Ok(m) => {
                     self.remuestreador = Some(Remuestreador::new(m.frecuencia, FRECUENCIA_WHISPER));
@@ -309,7 +333,7 @@ impl Motor {
         if !self.activo || !self.ajustes.activada || self.habla.is_some() {
             return;
         }
-        if self.microfono.is_none() {
+        if self.microfono.is_none() && self.microfono_de_prueba.is_none() {
             return self.activar();
         }
         self.vad.reiniciar();
@@ -375,7 +399,7 @@ impl Motor {
             return;
         }
         if let Some(texto) = self.transcribir(&audio) {
-            let _ = self.app.emit(EVENTO_PARCIAL, texto);
+            (self.avisar_evento)(EVENTO_PARCIAL, json!(texto));
         }
     }
 
@@ -387,7 +411,7 @@ impl Motor {
                 // la manda y después pide `Hablar` o `Reanudar`).
                 self.esperando = true;
                 self.avisar(Estado::Pensando, None);
-                let _ = self.app.emit(EVENTO_FINAL, texto);
+                (self.avisar_evento)(EVENTO_FINAL, json!(texto));
             }
             None => self.avisar(Estado::Escuchando, None),
         }
@@ -465,7 +489,7 @@ impl Motor {
             0.0
         };
         if self.activo || self.habla.is_some() {
-            let _ = self.app.emit(EVENTO_NIVEL, nivel);
+            (self.avisar_evento)(EVENTO_NIVEL, json!(nivel));
         }
         if termino {
             self.habla = None;
