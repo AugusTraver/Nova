@@ -1,7 +1,13 @@
-// Shaders de la esfera central.
-// El vértice se desplaza con ruido 3D (simplex) que avanza con el tiempo,
-// más una "respiración" lenta (seno) que infla y desinfla toda la esfera.
-// El fragmento mezcla dos colores según el ruido y agrega un brillo de borde (fresnel).
+// Shaders de la esfera: la fuente de luz del cielo (un sol de día, una luna de noche).
+//
+// Vértice: cada punto de la esfera se empuja hacia afuera según un ruido 3D
+// que fluye con el tiempo, más una onda que la recorre y una respiración lenta.
+// Como la forma cambia, las normales se recalculan midiendo el desplazamiento
+// en dos puntos vecinos.
+//
+// Fragmento: la esfera emite luz propia. El centro es el color más claro y
+// hacia el borde va tomando el color del "borde"; adentro se mueven nubes de
+// luz suaves (ruido). El contorno se desvanece para fundirse con el halo.
 
 const ruidoSimplex = /* glsl */ `
 // Simplex noise 3D — Ian McEwan, Ashima Arts (licencia MIT)
@@ -56,46 +62,91 @@ float snoise(vec3 v) {
 
 export const vertexShader = /* glsl */ `
 uniform float uTiempo;
-uniform float uAmplitud;   // cuánto se deforma (más adelante lo maneja el audio)
+uniform float uAmplitud;    // cuánto se deforma en reposo (después: el audio)
 uniform float uRespiracion; // intensidad del "respirar"
+uniform float uImpulso;     // 1 justo al abrir el panel, decae a 0 (salpicón)
 
-varying float vRuido;
 varying vec3 vNormal;
 varying vec3 vVista;
+varying vec3 vDir;
 
 ${ruidoSimplex}
 
-void main() {
-  float ruido = snoise(normal * 1.2 + vec3(uTiempo * 0.25));
-  float respirar = sin(uTiempo * 1.1) * uRespiracion;
-  vec3 posicion = position + normal * (ruido * uAmplitud + respirar);
+// Desplazamiento radial de la superficie en la dirección "dir" (vector unitario).
+float desplazamiento(vec3 dir) {
+  float t = uTiempo;
+  float liquido =
+      snoise(dir * 0.85 + vec3(0.0, t * 0.18, t * 0.12)) * 0.72
+    + snoise(dir * 1.7 - vec3(t * 0.24, 0.0, t * 0.16)) * 0.28;
 
-  vRuido = ruido;
+  // Onda que recorre la superficie desde un polo que se mueve despacio
+  vec3 polo = normalize(vec3(sin(t * 0.3), cos(t * 0.21), 0.5));
+  float onda = sin(dot(dir, polo) * 6.0 - t * 2.0) * 0.006;
+
+  float amplitud = uAmplitud * (1.0 + uImpulso * 1.2);
+  return liquido * amplitud + onda * (1.0 + uImpulso * 2.0) + sin(t * 1.05) * uRespiracion;
+}
+
+vec3 superficie(vec3 dir) {
+  return dir * (1.0 + desplazamiento(dir));
+}
+
+void main() {
+  vec3 dir = normalize(position);
+
+  // Dos direcciones tangentes para medir la pendiente y rehacer la normal
+  vec3 eje = abs(dir.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  vec3 tangente = normalize(cross(eje, dir));
+  vec3 bitangente = cross(dir, tangente);
+
+  float e = 0.012;
+  vec3 p = superficie(dir);
+  vec3 pt = superficie(normalize(dir + tangente * e));
+  vec3 pb = superficie(normalize(dir + bitangente * e));
+  vec3 normal = normalize(cross(pt - p, pb - p));
+
+  vDir = dir;
   vNormal = normalize(normalMatrix * normal);
-  vec4 posVista = modelViewMatrix * vec4(posicion, 1.0);
+  vec4 posVista = modelViewMatrix * vec4(p, 1.0);
   vVista = normalize(-posVista.xyz);
   gl_Position = projectionMatrix * posVista;
 }
 `;
 
 export const fragmentShader = /* glsl */ `
-uniform vec3 uColorA;
-uniform vec3 uColorB;
 uniform float uTiempo;
+uniform float uImpulso;
+uniform vec3 uLuz;      // centro (token --color-luz)
+uniform vec3 uBorde;    // hacia el contorno (token --color-luz-borde)
 
-varying float vRuido;
 varying vec3 vNormal;
 varying vec3 vVista;
+varying vec3 vDir;
+
+${ruidoSimplex}
 
 void main() {
-  float mezcla = smoothstep(-0.6, 0.8, vRuido + sin(uTiempo * 0.4) * 0.2);
-  vec3 color = mix(uColorA, uColorB, mezcla);
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(vVista);
 
-  // Fresnel: más brillo en los bordes, centro más transparente
-  float fresnel = pow(1.0 - max(dot(vNormal, vVista), 0.0), 2.2);
-  color += fresnel * 0.6;
-  float alpha = 0.55 + fresnel * 0.45;
+  // 1 mirando de frente, 0 en el contorno
+  float frente = max(dot(n, v), 0.0);
 
-  gl_FragColor = vec4(color, alpha);
+  // Nubes de luz que fluyen despacio por adentro
+  float t = uTiempo;
+  float nubes = snoise(vDir * 1.6 + vec3(t * 0.08, -t * 0.11, t * 0.05)) * 0.6
+              + snoise(vDir * 3.2 - vec3(0.0, t * 0.16, t * 0.07)) * 0.4;
+
+  // Del borde al centro; las nubes corren el límite un poco
+  float mezcla = smoothstep(0.05, 0.95, pow(frente, 0.75) + nubes * 0.12);
+  vec3 color = mix(uBorde, uLuz, mezcla);
+
+  // Más brillo justo al abrir el panel
+  color *= 1.0 + uImpulso * 0.12 + nubes * 0.04;
+
+  // El contorno se desvanece: la esfera se funde con su halo
+  float alfa = smoothstep(0.0, 0.32, frente);
+
+  gl_FragColor = vec4(color, alfa);
 }
 `;

@@ -21,8 +21,9 @@ fn panel(app: &AppHandle) -> Option<WebviewWindow> {
 /// Si el sistema no lo soporta, prueba con el "blur" clásico; si tampoco,
 /// sigue sin efecto (el panel igual tiene su velo oscuro semitransparente).
 pub fn aplicar_vidrio(ventana: &WebviewWindow) {
-    // `Some((r, g, b, a))` es el tinte del vidrio: un azul muy oscuro.
-    let tinte = Some((6, 8, 16, 90));
+    // `Some((r, g, b, a))` es el tinte del vidrio: negro neutro y suave, para
+    // que el cielo translúcido del panel (que ya pone el color) no se apague.
+    let tinte = Some((8, 8, 9, 50));
     if window_vibrancy::apply_acrylic(ventana, tinte).is_err() {
         let _ = window_vibrancy::apply_blur(ventana, tinte);
     }

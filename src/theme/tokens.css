@@ -1,52 +1,123 @@
 /*
- * Tokens de tema de Nova.
- * Todos los colores, tipografías y radios salen de acá: los componentes usan
- * las utilidades de Tailwind generadas a partir de estos tokens
- * (bg-superficie, text-texto-suave, border-borde, etc.), nunca colores sueltos.
- * Para cambiar el tema alcanza con tocar este archivo.
+ * Tokens de tema de Nova — dirección "Atmósfera".
+ *
+ * El panel es un cielo que cambia con la hora (ver src/theme/cielo.ts) y la
+ * esfera es la fuente de luz de ese cielo. No hay tarjetas: el texto flota
+ * directo sobre el cielo, así que cada momento define también su tinta
+ * (texto oscuro con cielo claro, texto claro con cielo oscuro).
+ *
+ * Los valores de abajo son los de la noche (por defecto); cada bloque
+ * `:root[data-cielo="..."]` los reemplaza. Los componentes usan las
+ * utilidades de Tailwind generadas (text-tinta, text-tinta-2, bg-tinta-4...).
  */
 @theme static {
-  /* Tipografía */
-  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  /* Tipografía: una serif cálida para lo importante, una sans para el resto */
+  --font-display: "Fraunces Variable", Georgia, serif;
+  --font-sans: "Instrument Sans Variable", "Segoe UI", system-ui, sans-serif;
 
-  /* Fondo del panel (se apoya sobre el desenfoque acrylic de la ventana) */
-  --color-velo: rgb(6 8 16 / 0.55);
+  /* Cielo: arriba, medio y horizonte */
+  --color-cielo-alto: #040815;
+  --color-cielo-medio: #0b1730;
+  --color-cielo-horizonte: #1d2d4f;
 
-  /* Superficies de vidrio */
-  --color-superficie: rgb(255 255 255 / 0.05);
-  --color-superficie-hover: rgb(255 255 255 / 0.08);
-  --color-borde: rgb(255 255 255 / 0.09);
-  --color-borde-fuerte: rgb(255 255 255 / 0.16);
+  /* La luz de la esfera y su halo */
+  --color-luz: #e6ecff;
+  --color-luz-borde: #8fa6e8;
+  --color-halo: rgb(150 175 255 / 0.3);
 
-  /* Texto */
-  --color-texto: rgb(240 243 250);
-  --color-texto-suave: rgb(240 243 250 / 0.62);
-  --color-texto-tenue: rgb(240 243 250 / 0.38);
+  /* Tinta en cuatro niveles (el cuarto es para líneas y pistas) */
+  --color-tinta: #f1f3fb;
+  --color-tinta-2: rgb(241 243 251 / 0.66);
+  --color-tinta-3: rgb(241 243 251 / 0.42);
+  --color-tinta-4: rgb(241 243 251 / 0.14);
 
-  /* Acento y estados */
-  --color-acento: rgb(122 146 255);
-  --color-acento-2: rgb(176 120 255);
-  --color-exito: rgb(94 214 160);
-  --color-alerta: rgb(255 112 112);
-  --color-aviso: rgb(255 196 92);
+  /* Lo que requiere atención: urgente, hoy, vencido */
+  --color-aviso: #ffc98a;
 
-  /* Tipos de evento */
-  --color-evento-clase: rgb(122 146 255);
-  --color-evento-examen: rgb(255 112 112);
-  --color-evento-entrega: rgb(255 196 92);
-  --color-evento-cumpleanos: rgb(240 130 200);
-  --color-evento-partido: rgb(255 214 64);
-  --color-evento-otro: rgb(160 170 190);
+  /* Movimiento (curvas de Emil Kowalski) */
+  --ease-salida: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-movimiento: cubic-bezier(0.77, 0, 0.175, 1);
 
-  /* Boca */
-  --color-boca-azul: rgb(16 60 160);
-  --color-boca-oro: rgb(255 204 0);
+  /* Margen exterior del panel */
+  --spacing-margen: 4.5rem;
+}
 
-  /* Radios */
-  --radius-tarjeta: 1.25rem;
-  --radius-chip: 999px;
+/* Cuánto tapa el cielo al escritorio (el resto se ve desenfocado detrás). */
+:root {
+  --opacidad-cielo: 74%;
+}
 
-  /* Desenfoque de las tarjetas */
-  --blur-vidrio: 24px;
+/* 0 a 6 h: índigo casi negro, luz de luna fría */
+:root[data-cielo="madrugada"] {
+  --color-cielo-alto: #070a22;
+  --color-cielo-medio: #141a40;
+  --color-cielo-horizonte: #2c2752;
+  --color-luz: #e9e6ff;
+  --color-luz-borde: #9b8fe0;
+  --color-halo: rgb(170 160 255 / 0.2);
+  --color-tinta: #eeedfb;
+  --color-tinta-2: rgb(238 237 251 / 0.66);
+  --color-tinta-3: rgb(238 237 251 / 0.42);
+  --color-tinta-4: rgb(238 237 251 / 0.14);
+  --color-aviso: #ffc98a;
+}
+
+/* 6 a 11 h: celeste lavado que se entibia en el horizonte; tinta azul oscura */
+:root[data-cielo="manana"] {
+  --color-cielo-alto: #9cc0e6;
+  --color-cielo-medio: #c7dbef;
+  --color-cielo-horizonte: #f1dcc8;
+  --color-luz: #fff8ea;
+  --color-luz-borde: #ffb877;
+  --color-halo: rgb(255 214 160 / 0.65);
+  --color-tinta: #12233f;
+  --color-tinta-2: rgb(18 35 63 / 0.7);
+  --color-tinta-3: rgb(18 35 63 / 0.5);
+  --color-tinta-4: rgb(18 35 63 / 0.14);
+  --color-aviso: #b4440e;
+}
+
+/* 11 a 16 h: cielo despejado */
+:root[data-cielo="mediodia"] {
+  --color-cielo-alto: #6aa3e2;
+  --color-cielo-medio: #a3c9ef;
+  --color-cielo-horizonte: #e3eef8;
+  --color-luz: #fffdf5;
+  --color-luz-borde: #ffd98f;
+  --color-halo: rgb(255 244 210 / 0.7);
+  --color-tinta: #0d2141;
+  --color-tinta-2: rgb(13 33 65 / 0.7);
+  --color-tinta-3: rgb(13 33 65 / 0.5);
+  --color-tinta-4: rgb(13 33 65 / 0.14);
+  --color-aviso: #a8320a;
+}
+
+/* 16 a 19 h: hora dorada, azul que baja a cobre */
+:root[data-cielo="tarde"] {
+  --color-cielo-alto: #2b3a6e;
+  --color-cielo-medio: #6c4b70;
+  --color-cielo-horizonte: #b45d47;
+  --color-luz: #fff1d8;
+  --color-luz-borde: #ffb36b;
+  --color-halo: rgb(255 190 120 / 0.3);
+  --color-tinta: #fff6ec;
+  --color-tinta-2: rgb(255 246 236 / 0.72);
+  --color-tinta-3: rgb(255 246 236 / 0.5);
+  --color-tinta-4: rgb(255 246 236 / 0.16);
+  --color-aviso: #ffd27a;
+}
+
+/* 19 a 21 h: después de la puesta, violeta con un resto rosado abajo */
+:root[data-cielo="anochecer"] {
+  --color-cielo-alto: #10163a;
+  --color-cielo-medio: #33295a;
+  --color-cielo-horizonte: #7d4560;
+  --color-luz: #fde9f0;
+  --color-luz-borde: #e59ab8;
+  --color-halo: rgb(240 160 200 / 0.22);
+  --color-tinta: #f8f0f6;
+  --color-tinta-2: rgb(248 240 246 / 0.68);
+  --color-tinta-3: rgb(248 240 246 / 0.44);
+  --color-tinta-4: rgb(248 240 246 / 0.15);
+  --color-aviso: #ffc98a;
 }

@@ -1,4 +1,4 @@
-import { Tarjeta } from "../components/Tarjeta";
+import { Seccion } from "../components/Seccion";
 import { diasEntre, etiquetaDia } from "../lib/fechas";
 import type { Responsabilidad } from "../lib/tipos";
 import { responsabilidades } from "../mocks/datos";
@@ -9,44 +9,35 @@ function desdeFecha(fecha: string): Date {
   return new Date(a, m - 1, d);
 }
 
-function etiquetaVencimiento(r: Responsabilidad, hoy: Date) {
-  if (!r.fechaLimite) return { texto: "Sin fecha", clase: "text-texto-tenue" };
+function vencimiento(r: Responsabilidad, ahora: Date): { texto: string; clase: string } {
+  if (!r.fechaLimite) return { texto: "", clase: "" };
   const fecha = desdeFecha(r.fechaLimite);
-  const dias = diasEntre(hoy, fecha);
-  if (dias < 0) return { texto: "Vencida", clase: "text-alerta" };
+  const dias = diasEntre(ahora, fecha);
+  if (dias < 0) return { texto: "Venció", clase: "text-aviso" };
   if (dias === 0) return { texto: "Hoy", clase: "text-aviso" };
-  return { texto: etiquetaDia(fecha, hoy), clase: "text-texto-suave" };
+  return { texto: etiquetaDia(fecha, ahora), clase: "text-tinta-3" };
 }
 
-export function Responsabilidades() {
-  const hoy = new Date();
-  // En v0.1 el orden viene dado por los datos de ejemplo; en v0.2 se ordena
-  // según la regla de la especificación (vencidas → hoy → próximas → sin fecha).
+export function Responsabilidades({ ahora }: { ahora: Date }) {
+  // En v0.1 el orden viene de los datos de ejemplo; en v0.2 se ordena según
+  // la regla de la especificación (vencidas → hoy → próximas → sin fecha).
   const pendientes = responsabilidades.filter((r) => r.estado === "pendiente");
 
   return (
-    <Tarjeta
-      titulo="Responsabilidades"
-      className="shrink-0"
-      accion={<span className="text-texto-tenue normal-case tracking-normal">{pendientes.length} pendientes</span>}
-    >
-      <ul className="flex flex-col gap-2">
+    <Seccion titulo="Pendientes" detalle={pendientes.length} className="shrink-0">
+      <ul className="flex flex-col">
         {pendientes.map((r) => {
-          const venc = etiquetaVencimiento(r, hoy);
+          const v = vencimiento(r, ahora);
           return (
-            <li key={r.id} className="flex items-center gap-3 text-sm">
-              <span className="h-4 w-4 shrink-0 rounded-chip border-2 border-borde-fuerte" />
-              <span className="flex-1 truncate">{r.titulo}</span>
-              {r.origen === "auto" && (
-                <span className="rounded-chip bg-acento/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-acento">
-                  auto
-                </span>
-              )}
-              <span className={`w-16 shrink-0 text-right text-xs ${venc.clase}`}>{venc.texto}</span>
+            <li key={r.id} className="fila -mx-2 flex items-center gap-3 px-2 py-1 text-[16px]">
+              {/* En v0.2 este círculo se marca con un clic */}
+              <span className="h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] border-tinta-3" />
+              <span className="min-w-0 flex-1 truncate">{r.titulo}</span>
+              <span className={`shrink-0 text-[14px] ${v.clase}`}>{v.texto}</span>
             </li>
           );
         })}
       </ul>
-    </Tarjeta>
+    </Seccion>
   );
 }

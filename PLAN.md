@@ -77,7 +77,7 @@ Cada versión termina en algo que **funciona y se puede usar**. No se pasa a la 
 
 ## v0.5 — Voz
 **Objetivo:** hablarle y que me hable. Acá aparece el efecto "wow".
-- Botón y atajo de **pulsar para hablar**.
+- **Escucha automática al abrir el panel**, sin botón: detección de actividad de voz (VAD) local para saber cuándo empieza y termina el pedido. Escribir pausa la escucha.
 - Captura de micrófono y **Whisper** local con transcripción en vivo en pantalla.
 - **Piper** local para las respuestas, con voz en español.
 - **Esfera audio-reactiva:** se deforma con mi voz al escuchar y con la del asistente al hablar. Todos los estados de la sección 3.3.

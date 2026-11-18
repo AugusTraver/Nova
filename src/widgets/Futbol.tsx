@@ -1,5 +1,5 @@
-import { Tarjeta } from "../components/Tarjeta";
-import { etiquetaDia, formatearHora } from "../lib/fechas";
+import { Seccion } from "../components/Seccion";
+import { diasEntre, etiquetaDia, formatearHora } from "../lib/fechas";
 import {
   jugadoresSeguidos,
   proximoPartidoBoca,
@@ -8,54 +8,44 @@ import {
   ultimoResultadoBoca,
 } from "../mocks/datos";
 
-function cuando(iso: string, hoy: Date) {
+function cuando(iso: string, ahora: Date): string {
   const fecha = new Date(iso);
-  return `${etiquetaDia(fecha, hoy)} · ${formatearHora(fecha)}`;
+  return `${etiquetaDia(fecha, ahora)}, ${formatearHora(fecha)}`;
 }
 
-export function Futbol() {
-  const hoy = new Date();
-  const ultimo = ultimoResultadoBoca;
-  const gano = ultimo.golesBoca > ultimo.golesRival;
+/** Boca de protagonista; abajo, la Selección y los jugadores que sigue. */
+export function Futbol({ ahora }: { ahora: Date }) {
+  const p = proximoPartidoBoca;
+  const u = ultimoResultadoBoca;
+  const verbo = u.golesBoca > u.golesRival ? "Le ganó" : u.golesBoca < u.golesRival ? "Perdió" : "Empató";
+  const esHoy = diasEntre(ahora, new Date(p.fecha)) === 0;
 
   return (
-    <Tarjeta titulo="Fútbol" className="shrink-0">
-      {/* Boca: protagonista */}
-      <div className="mb-3 rounded-xl border border-boca-oro/25 bg-gradient-to-br from-boca-azul/40 to-boca-azul/10 p-3">
-        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-boca-oro">
-          <span>Boca · {proximoPartidoBoca.competencia}</span>
-          <span>{tablaBoca.posicion}° · {tablaBoca.puntos} pts</span>
-        </div>
-        <p className="mt-1 font-display text-lg font-semibold">
-          {proximoPartidoBoca.local ? `Boca vs. ${proximoPartidoBoca.rival}` : `${proximoPartidoBoca.rival} vs. Boca`}
-        </p>
-        <p className="text-sm text-texto-suave">{cuando(proximoPartidoBoca.fecha, hoy)}</p>
-        <p className="mt-2 text-xs text-texto-suave">
-          Último:{" "}
-          <span className={gano ? "text-exito" : "text-texto"}>
-            Boca {ultimo.golesBoca} – {ultimo.golesRival} {ultimo.rival}
-          </span>
-        </p>
-      </div>
+    <Seccion titulo="Boca" detalle={`${tablaBoca.posicion}.º con ${tablaBoca.puntos} puntos`} className="shrink-0">
+      <p className="font-display text-[38px] font-[380] leading-[1.05] tracking-[-0.015em]">
+        {p.local ? "Boca" : p.rival} <span className="text-tinta-3">y</span> {p.local ? p.rival : "Boca"}
+      </p>
+      <p className="mt-1.5 text-[16px] text-tinta-2">
+        <span className={esHoy ? "text-aviso" : ""}>{cuando(p.fecha, ahora)}</span>, {p.local ? "en la Bombonera" : "de visitante"}
+      </p>
+      <p className="mt-1 text-[14px] text-tinta-3">
+        {verbo} {u.golesBoca} a {u.golesRival} {verbo === "Le ganó" ? "a" : "con"} {u.rival}
+      </p>
 
-      <div className="mb-3 flex items-baseline justify-between text-sm">
-        <span>
-          <span className="mr-2 text-xs font-semibold text-acento">Selección</span>
-          vs. {proximoPartidoSeleccion.rival}
-        </span>
-        <span className="text-xs text-texto-suave">{cuando(proximoPartidoSeleccion.fecha, hoy)}</span>
-      </div>
-
-      <ul className="flex flex-col gap-1 text-xs">
+      <ul className="mt-5 flex flex-col text-[15px]">
+        <li className="fila -mx-2 flex items-baseline gap-3 px-2 py-1">
+          <span className="min-w-0 flex-1 truncate">Argentina y {proximoPartidoSeleccion.rival}</span>
+          <span className="shrink-0 text-[14px] text-tinta-3">{cuando(proximoPartidoSeleccion.fecha, ahora)}</span>
+        </li>
         {jugadoresSeguidos.map((j) => (
-          <li key={j.nombre} className="flex justify-between gap-2">
-            <span className="truncate text-texto-suave">
-              {j.nombre} <span className="text-texto-tenue">· {j.equipo}</span>
+          <li key={j.nombre} className="fila -mx-2 flex items-baseline gap-3 px-2 py-1">
+            <span className="min-w-0 flex-1 truncate">
+              {j.nombre} <span className="text-tinta-3">en {j.equipo}</span>
             </span>
-            <span className="shrink-0">{j.ultimaFecha}</span>
+            <span className="shrink-0 text-[14px] text-tinta-3">{j.ultimaFecha}</span>
           </li>
         ))}
       </ul>
-    </Tarjeta>
+    </Seccion>
   );
 }
