@@ -1,16 +1,19 @@
 //! Punto de entrada de la app. `main.rs` solo llama a `run()`.
 
+mod asistente;
 mod atajos;
 mod bandeja;
 mod comandos;
 mod db;
 mod dominio;
 mod error;
+mod llavero;
 mod repos;
 mod ventana;
 
 use tauri::{Manager, WindowEvent};
 
+use crate::asistente::ciclo::Asistente;
 use crate::db::Db;
 use crate::repos::{Ahora, automaticas, preferencias};
 
@@ -37,6 +40,13 @@ pub fn run() {
             comandos::sincronizar_automaticas,
             comandos::obtener_ajustes,
             comandos::guardar_ajustes,
+            comandos::enviar_mensaje,
+            comandos::confirmar_accion,
+            comandos::borrar_historial,
+            comandos::obtener_ajustes_ia,
+            comandos::guardar_ajustes_ia,
+            comandos::guardar_api_key,
+            comandos::probar_conexion,
         ])
         .setup(|app| {
             // La base va en la carpeta de datos de la app
@@ -54,6 +64,7 @@ pub fn run() {
                 preferencias::atajo(&conexion).unwrap_or_else(|_| preferencias::ATAJO_POR_DEFECTO.into())
             }; // acá se suelta el candado de la conexión
             app.manage(db);
+            app.manage(Asistente::default());
 
             if let Some(panel) = app.get_webview_window(ventana::VENTANA_PANEL) {
                 ventana::aplicar_vidrio(&panel);
