@@ -8,6 +8,7 @@
 //! - `ciclo`: un turno completo.
 
 pub mod ciclo;
+pub mod consultas;
 pub mod herramientas;
 pub mod mensajes;
 pub mod openai;
