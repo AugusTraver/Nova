@@ -1,0 +1,294 @@
+{
+ "team": {
+  "id": "5",
+  "displayName": "Boca Juniors",
+  "abbreviation": "CABJ"
+ },
+ "events": [
+  {
+   "id": "401926286",
+   "date": "2026-11-14T22:00Z",
+   "name": "Boca Juniors at Banfield",
+   "league": {
+    "name": "Copa Argentina",
+    "abbreviation": "Copa Argentina",
+    "slug": "arg.copa"
+   },
+   "seasonType": {
+    "id": "5",
+    "type": 13987,
+    "name": "Semifinals",
+    "abbreviation": "Semifinals"
+   },
+   "competitions": [
+    {
+     "id": "401926286",
+     "date": "2026-11-14T22:00Z",
+     "status": {
+      "clock": 5400.0,
+      "addedClock": 0.0,
+      "displayClock": "90'",
+      "period": 2,
+      "type": {
+       "id": "28",
+       "name": "STATUS_FULL_TIME",
+       "state": "post",
+       "completed": true,
+       "description": "Full Time",
+       "detail": "FT",
+       "shortDetail": "FT"
+      }
+     },
+     "competitors": [
+      {
+       "id": "235",
+       "homeAway": "home",
+       "winner": false,
+       "score": {
+        "value": 0.0,
+        "displayValue": "0"
+       },
+       "team": {
+        "id": "235",
+        "displayName": "Banfield",
+        "shortDisplayName": "Banfield",
+        "abbreviation": "BAN",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/235.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2019-05-08T16:07Z"
+         }
+        ]
+       }
+      },
+      {
+       "id": "5",
+       "homeAway": "away",
+       "winner": true,
+       "score": {
+        "value": 3.0,
+        "displayValue": "3"
+       },
+       "team": {
+        "id": "5",
+        "displayName": "Boca Juniors",
+        "shortDisplayName": "Boca ",
+        "abbreviation": "CABJ",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-27T13:49Z"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401841669",
+   "date": "2026-11-07T20:30Z",
+   "name": "Defensa y Justicia at Boca Juniors",
+   "league": {
+    "name": "Argentine Liga Profesional de Fútbol",
+    "abbreviation": "Argentine LPF",
+    "slug": "arg.1"
+   },
+   "seasonType": {
+    "id": "6",
+    "type": 13900,
+    "name": "Torneo Clausura",
+    "abbreviation": "2026 Argentine LPF Clausura"
+   },
+   "competitions": [
+    {
+     "id": "401841669",
+     "date": "2026-11-07T20:30Z",
+     "status": {
+      "clock": 5400.0,
+      "addedClock": 600.0,
+      "displayClock": "90'+10'",
+      "period": 2,
+      "type": {
+       "id": "28",
+       "name": "STATUS_FULL_TIME",
+       "state": "post",
+       "completed": true,
+       "description": "Full Time",
+       "detail": "FT",
+       "shortDetail": "FT"
+      }
+     },
+     "competitors": [
+      {
+       "id": "5",
+       "homeAway": "home",
+       "winner": true,
+       "score": {
+        "value": 1.0,
+        "displayValue": "1"
+       },
+       "team": {
+        "id": "5",
+        "displayName": "Boca Juniors",
+        "shortDisplayName": "Boca ",
+        "abbreviation": "CABJ",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-27T13:49Z"
+         }
+        ]
+       }
+      },
+      {
+       "id": "8950",
+       "homeAway": "away",
+       "winner": false,
+       "score": {
+        "value": 0.0,
+        "displayValue": "0"
+       },
+       "team": {
+        "id": "8950",
+        "displayName": "Defensa y Justicia",
+        "shortDisplayName": "Def. y Jus.",
+        "abbreviation": "DYJ",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/8950.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-24T19:32Z"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401841658",
+   "date": "2026-11-01T18:00Z",
+   "name": "River Plate at Boca Juniors",
+   "league": {
+    "name": "Argentine Liga Profesional de Fútbol",
+    "abbreviation": "Argentine LPF",
+    "slug": "arg.1"
+   },
+   "seasonType": {
+    "id": "6",
+    "type": 13900,
+    "name": "Torneo Clausura",
+    "abbreviation": "2026 Argentine LPF Clausura"
+   },
+   "competitions": [
+    {
+     "id": "401841658",
+     "date": "2026-11-01T18:00Z",
+     "status": {
+      "clock": 5400.0,
+      "addedClock": 540.0,
+      "displayClock": "90'+9'",
+      "period": 2,
+      "type": {
+       "id": "28",
+       "name": "STATUS_FULL_TIME",
+       "state": "post",
+       "completed": true,
+       "description": "Full Time",
+       "detail": "FT",
+       "shortDetail": "FT"
+      }
+     },
+     "competitors": [
+      {
+       "id": "5",
+       "homeAway": "home",
+       "winner": true,
+       "score": {
+        "value": 1.0,
+        "displayValue": "1"
+       },
+       "team": {
+        "id": "5",
+        "displayName": "Boca Juniors",
+        "shortDisplayName": "Boca ",
+        "abbreviation": "CABJ",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-27T13:49Z"
+         }
+        ]
+       }
+      },
+      {
+       "id": "16",
+       "homeAway": "away",
+       "winner": false,
+       "score": {
+        "value": 0.0,
+        "displayValue": "0"
+       },
+       "team": {
+        "id": "16",
+        "displayName": "River Plate",
+        "shortDisplayName": "River Plate",
+        "abbreviation": "RIV",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/16.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2022-06-09T20:00Z"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

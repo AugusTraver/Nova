@@ -1,0 +1,27 @@
+{
+ "results": [
+  {
+   "type": "player",
+   "contents": [
+    {
+     "uid": "s:600~a:153115",
+     "displayName": "Leandro Paredes",
+     "subtitle": "Boca Juniors",
+     "description": "Copa Argentina"
+    },
+    {
+     "uid": "s:1~l:10~a:39706",
+     "displayName": "Isaac Paredes",
+     "subtitle": "Houston Astros",
+     "description": "MLB"
+    },
+    {
+     "uid": "s:600~a:183529",
+     "displayName": "Kevin Paredes",
+     "subtitle": "FC Utrecht",
+     "description": "Eredivisie"
+    }
+   ]
+  }
+ ]
+}
