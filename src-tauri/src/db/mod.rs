@@ -47,6 +47,14 @@ fn configurar(conexion: &Connection) -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(test)]
+impl Db {
+    /// Envuelve una conexión (en memoria) para los tests que usan `Db`.
+    pub fn de_conexion(conexion: Connection) -> Self {
+        Db(Mutex::new(conexion))
+    }
+}
+
 /// Base en memoria, ya migrada. Solo para los tests.
 #[cfg(test)]
 pub fn en_memoria() -> Connection {
