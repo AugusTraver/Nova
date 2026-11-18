@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Barra de texto tipo línea de comandos. Sin botón de micrófono: desde v0.5
- * Nova escucha sola al abrir el panel (ver SPEC 5.1). En v0.1 todavía no
- * hace nada con lo que escribís.
+ * Donde le escribís a Nova. Sin botón de micrófono: desde v0.5 Nova escucha
+ * sola al abrir el panel (ver SPEC 5.1). En v0.1 todavía no hace nada con lo
+ * que escribís.
  */
 export function BarraEntrada({ abierto }: { abierto: boolean }) {
   const [texto, setTexto] = useState("");
@@ -24,28 +24,17 @@ export function BarraEntrada({ abierto }: { abierto: boolean }) {
         e.preventDefault();
         setTexto("");
       }}
-      className="flex w-full max-w-3xl cursor-text items-baseline gap-3 border-b border-linea-fuerte pb-3 font-mono text-[15px]"
+      className="w-full max-w-[34rem] cursor-text"
     >
-      <span className="text-acento">&gt;</span>
-      <div className="relative min-w-0 flex-1">
-        <input
-          ref={campo}
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          aria-label="Pedile algo a Nova"
-          className={`w-full bg-transparent text-texto outline-none ${texto === "" ? "caret-transparent" : "caret-acento"}`}
-          spellCheck={false}
-        />
-        {/* Mientras está vacío: cursor de bloque que parpadea + texto de ayuda
-            (el cursor nativo se oculta para no ver dos) */}
-        {texto === "" && (
-          <span className="pointer-events-none absolute inset-0 flex items-baseline text-texto-3">
-            <span className="cursor-parpadeo mr-2 inline-block h-[1.05em] w-[0.6em] translate-y-[0.15em] bg-acento" />
-            pedile algo a nova
-          </span>
-        )}
-      </div>
-      <span className="shrink-0 text-[11px] tracking-[0.12em] text-texto-3">ESC CIERRA</span>
+      <input
+        ref={campo}
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        aria-label="Pedile algo a Nova"
+        placeholder="Pedile algo a Nova"
+        spellCheck={false}
+        className="w-full border-b border-tinta-4 bg-transparent pb-2.5 text-center font-display text-[24px] font-[350] text-tinta caret-tinta-2 outline-none transition-colors duration-200 placeholder:italic placeholder:text-tinta-3 focus:border-tinta-3 focus-visible:outline-none"
+      />
     </form>
   );
 }

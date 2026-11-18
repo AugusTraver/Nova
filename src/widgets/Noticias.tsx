@@ -1,23 +1,20 @@
-import { Bloque } from "../components/Bloque";
+import { Seccion } from "../components/Seccion";
 import { noticias } from "../mocks/datos";
+
+const VISIBLES = 3;
 
 export function Noticias() {
   return (
-    <Bloque etiqueta="NOTICIAS" className="flex-1">
-      <ol>
-        {noticias.map((n, i) => (
+    <Seccion titulo="Noticias" className="shrink-0">
+      <ul className="flex flex-col gap-1">
+        {noticias.slice(0, VISIBLES).map((n) => (
           // En v0.4 el clic abre la nota en el navegador
-          <li key={n.id} className="fila -mx-2 flex gap-3 px-2 py-1.5">
-            <span className="w-5 shrink-0 pt-px font-mono text-[11px] text-texto-3">
-              {String(i + 1).padStart(2, "0")}
-            </span>
-            <div className="min-w-0">
-              <p className="line-clamp-2 text-[14px] leading-snug">{n.titulo}</p>
-              <p className="mt-0.5 truncate font-mono text-[11px] text-texto-3">{n.fuente.toUpperCase()}</p>
-            </div>
+          <li key={n.id} className="fila -mx-2 px-2 py-1.5">
+            <p className="line-clamp-2 text-[16px] leading-snug">{n.titulo}</p>
+            <p className="mt-0.5 text-[13px] text-tinta-3">{n.fuente}</p>
           </li>
         ))}
-      </ol>
-    </Bloque>
+      </ul>
+    </Seccion>
   );
 }

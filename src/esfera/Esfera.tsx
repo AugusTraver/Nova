@@ -1,13 +1,14 @@
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { Color, type Mesh } from "three";
+import type { Momento } from "../theme/cielo";
 import { fragmentShader, vertexShader } from "./shaders";
 
-/** Lee un color de los tokens CSS (ej. "--color-acento") como THREE.Color. */
+/** Lee un color de los tokens CSS (ej. "--color-luz") como THREE.Color. */
 function colorDeToken(token: string): Color {
   const valor = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
-  // Los tokens usan la sintaxis "rgb(122 146 255)", que THREE.Color no entiende:
-  // se extraen los tres números a mano.
+  if (valor.startsWith("#")) return new Color(valor);
+  // "rgb(122 146 255)": THREE.Color no entiende esa sintaxis, se extraen los números.
   const [r, g, b] = (valor.match(/\d+(\.\d+)?/g) ?? ["255", "255", "255"]).map(Number);
   return new Color(r / 255, g / 255, b / 255);
 }
@@ -34,23 +35,36 @@ function amortiguar(actual: number, objetivo: number, velocidad: number, delta: 
   return actual + (objetivo - actual) * (1 - Math.exp(-velocidad * delta));
 }
 
-function Orbe({ activa, reducido }: { activa: boolean; reducido: boolean }) {
+interface OrbeProps {
+  activa: boolean;
+  reducido: boolean;
+  momento: Momento;
+}
+
+function Orbe({ activa, reducido, momento }: OrbeProps) {
   const malla = useRef<Mesh>(null);
   const puntero = usePunteroGlobal();
 
   const uniforms = useMemo(
     () => ({
       uTiempo: { value: 0 },
-      uAmplitud: { value: reducido ? 0.05 : 0.09 },
-      uRespiracion: { value: reducido ? 0 : 0.025 },
+      uAmplitud: { value: reducido ? 0.015 : 0.028 },
+      uRespiracion: { value: reducido ? 0 : 0.018 },
       uImpulso: { value: 0 },
-      uLuzCalida: { value: colorDeToken("--color-luz-calida") },
-      uLuzFria: { value: colorDeToken("--color-luz-fria") },
+      uLuz: { value: new Color() },
+      uBorde: { value: new Color() },
     }),
     [reducido],
   );
 
-  // Cada vez que se abre el panel: "salpicón" que decae solo.
+  // Los colores dependen del cielo: se vuelven a leer cuando cambia el momento
+  // (el atributo data-cielo ya está puesto cuando corre este efecto).
+  useEffect(() => {
+    uniforms.uLuz.value.copy(colorDeToken("--color-luz"));
+    uniforms.uBorde.value.copy(colorDeToken("--color-luz-borde"));
+  }, [momento, uniforms]);
+
+  // Cada vez que se abre el panel: un pulso de luz que decae solo.
   useEffect(() => {
     if (activa && !reducido) uniforms.uImpulso.value = 1;
   }, [activa, reducido, uniforms]);
@@ -63,8 +77,8 @@ function Orbe({ activa, reducido }: { activa: boolean; reducido: boolean }) {
 
     const orbe = malla.current;
     if (!orbe) return;
-    // Se inclina apenas hacia el mouse, con inercia (efecto resorte)
-    const inclinacion = reducido ? 0 : 0.35;
+    // Se inclina apenas hacia el mouse, con inercia
+    const inclinacion = reducido ? 0 : 0.3;
     orbe.rotation.x = amortiguar(orbe.rotation.x, puntero.current.y * inclinacion, 2.5, delta);
     orbe.rotation.y = amortiguar(orbe.rotation.y, puntero.current.x * inclinacion, 2.5, delta);
   });
@@ -73,7 +87,13 @@ function Orbe({ activa, reducido }: { activa: boolean; reducido: boolean }) {
     <mesh ref={malla}>
       {/* Icosaedro muy subdividido: se ve como una esfera y deforma parejo */}
       <icosahedronGeometry args={[1, 96]} />
-      <shaderMaterial vertexShader={vertexShader} fragmentShader={fragmentShader} uniforms={uniforms} />
+      <shaderMaterial
+        vertexShader={vertexShader}
+        fragmentShader={fragmentShader}
+        uniforms={uniforms}
+        transparent
+        depthWrite={false}
+      />
     </mesh>
   );
 }
@@ -81,9 +101,10 @@ function Orbe({ activa, reducido }: { activa: boolean; reducido: boolean }) {
 interface EsferaProps {
   /** Si es false, se pausa el render para no gastar CPU/GPU con el panel cerrado. */
   activa: boolean;
+  momento: Momento;
 }
 
-export function Esfera({ activa }: EsferaProps) {
+export function Esfera({ activa, momento }: EsferaProps) {
   const reducido = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   return (
     <Canvas
@@ -93,7 +114,7 @@ export function Esfera({ activa }: EsferaProps) {
       dpr={[1, 2]}
       style={{ background: "transparent" }}
     >
-      <Orbe activa={activa} reducido={reducido} />
+      <Orbe activa={activa} reducido={reducido} momento={momento} />
     </Canvas>
   );
 }

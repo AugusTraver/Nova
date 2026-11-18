@@ -46,6 +46,16 @@ export const varianteEsfera: Variants = {
   saliendo: { opacity: 0, scale: 0.96, transition: salida },
 };
 
+/**
+ * El halo se "enciende" un poco más lento que la esfera, como una luz que
+ * se expande por el cielo. No bloquea nada: el resto ya es usable.
+ */
+export const varianteHalo: Variants = {
+  oculto: { opacity: 0, scale: 0.7 },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.7, ease: EASE_SALIDA } },
+  saliendo: { opacity: 0, transition: salida },
+};
+
 /** Versión sin movimiento para "reducir movimiento" de Windows. */
 export const varianteSoloOpacidad: Variants = {
   oculto: { opacity: 0 },

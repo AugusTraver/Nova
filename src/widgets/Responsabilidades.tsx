@@ -1,4 +1,4 @@
-import { Bloque } from "../components/Bloque";
+import { Seccion } from "../components/Seccion";
 import { diasEntre, etiquetaDia } from "../lib/fechas";
 import type { Responsabilidad } from "../lib/tipos";
 import { responsabilidades } from "../mocks/datos";
@@ -10,12 +10,12 @@ function desdeFecha(fecha: string): Date {
 }
 
 function vencimiento(r: Responsabilidad, ahora: Date): { texto: string; clase: string } {
-  if (!r.fechaLimite) return { texto: "——", clase: "text-texto-3" };
+  if (!r.fechaLimite) return { texto: "", clase: "" };
   const fecha = desdeFecha(r.fechaLimite);
   const dias = diasEntre(ahora, fecha);
-  if (dias < 0) return { texto: "VENCIDA", clase: "text-alerta" };
-  if (dias === 0) return { texto: "HOY", clase: "text-acento" };
-  return { texto: etiquetaDia(fecha, ahora).toUpperCase(), clase: "text-texto-2" };
+  if (dias < 0) return { texto: "Venció", clase: "text-aviso" };
+  if (dias === 0) return { texto: "Hoy", clase: "text-aviso" };
+  return { texto: etiquetaDia(fecha, ahora), clase: "text-tinta-3" };
 }
 
 export function Responsabilidades({ ahora }: { ahora: Date }) {
@@ -24,23 +24,20 @@ export function Responsabilidades({ ahora }: { ahora: Date }) {
   const pendientes = responsabilidades.filter((r) => r.estado === "pendiente");
 
   return (
-    <Bloque etiqueta="PENDIENTES" meta={String(pendientes.length).padStart(2, "0")} className="shrink-0">
-      <ul>
+    <Seccion titulo="Pendientes" detalle={pendientes.length} className="shrink-0">
+      <ul className="flex flex-col">
         {pendientes.map((r) => {
           const v = vencimiento(r, ahora);
           return (
-            <li key={r.id} className="fila -mx-2 flex items-center gap-3 px-2 py-1 text-[14px]">
-              {/* En v0.2 este cuadrado se marca con un clic */}
-              <span className="h-3 w-3 shrink-0 border border-linea-fuerte" />
+            <li key={r.id} className="fila -mx-2 flex items-center gap-3 px-2 py-1 text-[16px]">
+              {/* En v0.2 este círculo se marca con un clic */}
+              <span className="h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] border-tinta-3" />
               <span className="min-w-0 flex-1 truncate">{r.titulo}</span>
-              {r.origen === "auto" && (
-                <span className="shrink-0 font-mono text-[10px] tracking-[0.1em] text-texto-3">AUTO</span>
-              )}
-              <span className={`w-16 shrink-0 text-right font-mono text-[12px] ${v.clase}`}>{v.texto}</span>
+              <span className={`shrink-0 text-[14px] ${v.clase}`}>{v.texto}</span>
             </li>
           );
         })}
       </ul>
-    </Bloque>
+    </Seccion>
   );
 }

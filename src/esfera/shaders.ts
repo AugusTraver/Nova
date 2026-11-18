@@ -1,14 +1,13 @@
-// Shaders de la esfera de metal líquido.
+// Shaders de la esfera: la fuente de luz del cielo (un sol de día, una luna de noche).
 //
-// Vértice: cada punto de la esfera se empuja hacia afuera según un ruido 3D de
-// varias capas que fluye con el tiempo (el "líquido"), más una onda que la
-// recorre y una respiración lenta. Como la forma cambia, las normales se
-// recalculan midiendo el desplazamiento en dos puntos vecinos.
+// Vértice: cada punto de la esfera se empuja hacia afuera según un ruido 3D
+// que fluye con el tiempo, más una onda que la recorre y una respiración lenta.
+// Como la forma cambia, las normales se recalculan midiendo el desplazamiento
+// en dos puntos vecinos.
 //
-// Fragmento: es un metal, así que su color es lo que refleja. No hay una imagen
-// de entorno: el "estudio de fotos" que se refleja (caja de luz arriba, línea de
-// horizonte, una luz cálida y una fría) se calcula en el shader. Encima, un
-// toque iridiscente en los bordes, como una película de aceite.
+// Fragmento: la esfera emite luz propia. El centro es el color más claro y
+// hacia el borde va tomando el color del "borde"; adentro se mueven nubes de
+// luz suaves (ruido). El contorno se desvanece para fundirse con el halo.
 
 const ruidoSimplex = /* glsl */ `
 // Simplex noise 3D — Ian McEwan, Ashima Arts (licencia MIT)
@@ -69,6 +68,7 @@ uniform float uImpulso;     // 1 justo al abrir el panel, decae a 0 (salpicón)
 
 varying vec3 vNormal;
 varying vec3 vVista;
+varying vec3 vDir;
 
 ${ruidoSimplex}
 
@@ -105,6 +105,7 @@ void main() {
   vec3 pb = superficie(normalize(dir + bitangente * e));
   vec3 normal = normalize(cross(pt - p, pb - p));
 
+  vDir = dir;
   vNormal = normalize(normalMatrix * normal);
   vec4 posVista = modelViewMatrix * vec4(p, 1.0);
   vVista = normalize(-posVista.xyz);
@@ -114,50 +115,38 @@ void main() {
 
 export const fragmentShader = /* glsl */ `
 uniform float uTiempo;
-uniform vec3 uLuzCalida;
-uniform vec3 uLuzFria;
+uniform float uImpulso;
+uniform vec3 uLuz;      // centro (token --color-luz)
+uniform vec3 uBorde;    // hacia el contorno (token --color-luz-borde)
 
 varying vec3 vNormal;
 varying vec3 vVista;
+varying vec3 vDir;
 
-// El "estudio" que se refleja en el metal, en función de la dirección reflejada.
-vec3 entorno(vec3 r) {
-  // Fondo: gris muy oscuro que aclara apenas hacia arriba
-  vec3 color = mix(vec3(0.012), vec3(0.05), smoothstep(-1.0, 1.0, r.y));
-
-  // Caja de luz rectangular arriba
-  float caja = smoothstep(0.55, 0.72, r.y) * smoothstep(0.75, 0.35, abs(r.x));
-  color += vec3(1.0) * caja * 1.4;
-
-  // Línea de horizonte fina y brillante
-  color += vec3(0.85) * exp(-pow((r.y + 0.04) * 16.0, 2.0)) * 0.55;
-
-  // Luz cálida (ámbar) desde la izquierda y luz fría desde la derecha
-  color += uLuzCalida * pow(max(dot(r, normalize(vec3(-0.85, 0.15, 0.5))), 0.0), 22.0) * 2.2;
-  color += uLuzFria * pow(max(dot(r, normalize(vec3(0.9, -0.25, 0.35))), 0.0), 16.0) * 1.1;
-  return color;
-}
+${ruidoSimplex}
 
 void main() {
   vec3 n = normalize(vNormal);
   vec3 v = normalize(vVista);
-  vec3 r = reflect(-v, n);
 
-  float borde = 1.0 - max(dot(n, v), 0.0);
+  // 1 mirando de frente, 0 en el contorno
+  float frente = max(dot(n, v), 0.0);
 
-  // Metal: el color es el reflejo, levemente cálido
-  vec3 color = entorno(r) * vec3(0.96, 0.95, 0.93);
+  // Nubes de luz que fluyen despacio por adentro
+  float t = uTiempo;
+  float nubes = snoise(vDir * 1.6 + vec3(t * 0.08, -t * 0.11, t * 0.05)) * 0.6
+              + snoise(vDir * 3.2 - vec3(0.0, t * 0.16, t * 0.07)) * 0.4;
 
-  // Iridiscencia sutil en los bordes (película fina)
-  vec3 iris = 0.5 + 0.5 * cos(6.2831 * (borde * 1.4 + uTiempo * 0.04 + vec3(0.0, 0.33, 0.67)));
-  color *= mix(vec3(1.0), iris * 1.3, 0.3 * pow(borde, 1.5));
+  // Del borde al centro; las nubes corren el límite un poco
+  float mezcla = smoothstep(0.05, 0.95, pow(frente, 0.75) + nubes * 0.12);
+  vec3 color = mix(uBorde, uLuz, mezcla);
 
-  // Brillo de borde (Fresnel)
-  color += vec3(pow(borde, 4.0) * 0.22);
+  // Más brillo justo al abrir el panel
+  color *= 1.0 + uImpulso * 0.12 + nubes * 0.04;
 
-  // Compresión de luces para que los brillos no "quemen"
-  color = 1.0 - exp(-color * 1.35);
+  // El contorno se desvanece: la esfera se funde con su halo
+  float alfa = smoothstep(0.0, 0.32, frente);
 
-  gl_FragColor = vec4(color, 1.0);
+  gl_FragColor = vec4(color, alfa);
 }
 `;
