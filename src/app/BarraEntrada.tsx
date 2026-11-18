@@ -24,7 +24,7 @@ export function BarraEntrada({ abierto }: { abierto: boolean }) {
         e.preventDefault();
         setTexto("");
       }}
-      className="w-full max-w-[34rem] cursor-text"
+      className="w-full max-w-[30rem] cursor-text"
     >
       <input
         ref={campo}

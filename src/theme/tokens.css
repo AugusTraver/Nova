@@ -42,6 +42,11 @@
   --spacing-margen: 4.5rem;
 }
 
+/* Cuánto tapa el cielo al escritorio (el resto se ve desenfocado detrás). */
+:root {
+  --opacidad-cielo: 74%;
+}
+
 /* 0 a 6 h: índigo casi negro, luz de luna fría */
 :root[data-cielo="madrugada"] {
   --color-cielo-alto: #070a22;

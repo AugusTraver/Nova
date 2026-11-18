@@ -18,12 +18,12 @@ export function ResumenDelDia({ ahora }: { ahora: Date }) {
   const juegaBocaHoy = diasEntre(ahora, new Date(proximoPartidoBoca.fecha)) === 0;
 
   return (
-    <section onClick={(e) => e.stopPropagation()} className="shrink-0">
-      <h1 className="font-display text-[64px] font-[350] leading-[0.95] tracking-[-0.02em]">{saludo(ahora)}.</h1>
+    <section onClick={(e) => e.stopPropagation()} className="text-center">
+      <h1 className="font-display text-[56px] font-[350] leading-[0.95] tracking-[-0.02em]">{saludo(ahora)}.</h1>
       <p className="mt-3 text-[17px] text-tinta-2">
         {fechaLarga(ahora)}, {formatearHora(ahora)}
       </p>
-      <p className="mt-5 max-w-[36ch] text-[17px] leading-relaxed text-tinta-2">
+      <p className="mx-auto mt-4 max-w-[46ch] text-[17px] leading-relaxed text-tinta-2">
         Hoy tenés <span className="text-tinta">{plural(eventosHoy.length, "evento", "eventos", "ningún evento")}</span>
         {eventosHoy[0] && <> desde las {formatearHora(new Date(eventosHoy[0].inicio))}</>} y{" "}
         <span className="text-tinta">{plural(paraHoy.length, "cosa pendiente", "cosas pendientes", "nada pendiente")}</span> para hoy.
