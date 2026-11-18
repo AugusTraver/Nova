@@ -7,6 +7,7 @@ mod comandos;
 mod db;
 mod dominio;
 mod error;
+mod fondo;
 mod futbol;
 mod llavero;
 mod repos;
@@ -48,6 +49,11 @@ pub fn run() {
             comandos::guardar_ajustes_ia,
             comandos::guardar_api_key,
             comandos::probar_conexion,
+            comandos::obtener_futbol,
+            comandos::buscar_jugadores,
+            comandos::obtener_jugadores,
+            comandos::guardar_jugadores,
+            comandos::refrescar_externos,
         ])
         .setup(|app| {
             // La base va en la carpeta de datos de la app
@@ -66,6 +72,8 @@ pub fn run() {
             }; // acá se suelta el candado de la conexión
             app.manage(db);
             app.manage(Asistente::default());
+            app.manage(fondo::Fondo::default());
+            fondo::arrancar(app.handle());
 
             if let Some(panel) = app.get_webview_window(ventana::VENTANA_PANEL) {
                 ventana::aplicar_vidrio(&panel);

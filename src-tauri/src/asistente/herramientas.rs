@@ -27,6 +27,9 @@ pub enum Fuente {
     Agenda,
     Responsabilidades,
     Materias,
+    Futbol,
+    Noticias,
+    Clima,
 }
 
 /// Algo destructivo que espera el "sí" del usuario. Lo ejecuta Rust cuando el

@@ -115,6 +115,13 @@ pub fn vencer(conexion: &Connection, clave: &str, ahora: &Ahora) -> Resultado<()
     Ok(())
 }
 
+/// Cambia solo cuándo vence (por ejemplo, reintentar pronto un partido en
+/// vivo aunque haya fallado).
+pub fn cambiar_vencimiento(conexion: &Connection, clave: &str, vence_en: DateTime<FixedOffset>) -> Resultado<()> {
+    conexion.execute("UPDATE cache_externa SET vence_en = ?2 WHERE clave = ?1", params![clave, marca(vence_en)])?;
+    Ok(())
+}
+
 /// Hace que venzan ya todas las claves que empiezan con `prefijo`
 /// (por ejemplo, al cambiar los feeds o los jugadores en Ajustes).
 pub fn vencer_prefijo(conexion: &Connection, prefijo: &str, ahora: &Ahora) -> Resultado<()> {
@@ -125,9 +132,9 @@ pub fn vencer_prefijo(conexion: &Connection, prefijo: &str, ahora: &Ahora) -> Re
     Ok(())
 }
 
-/// Suma un pedido al contador del día y dice si todavía entra en el tope.
-/// Si ya se llegó al tope, no suma y devuelve `false`.
-pub fn contar_pedido(conexion: &Connection, servicio: &str, tope: u32, ahora: &Ahora) -> Resultado<bool> {
+/// Suma `cantidad` pedidos al contador del día y dice si todavía entran en
+/// el tope. Si no entran, no suma nada y devuelve `false`.
+pub fn contar_pedidos(conexion: &Connection, servicio: &str, cantidad: u32, tope: u32, ahora: &Ahora) -> Resultado<bool> {
     let fecha = texto_fecha(ahora.hoy);
     let hechos: u32 = conexion
         .query_row(
@@ -137,13 +144,13 @@ pub fn contar_pedido(conexion: &Connection, servicio: &str, tope: u32, ahora: &A
         )
         .optional()?
         .unwrap_or(0);
-    if hechos >= tope {
+    if hechos + cantidad > tope {
         return Ok(false);
     }
     conexion.execute(
-        "INSERT INTO pedidos_por_dia (servicio, fecha, cantidad) VALUES (?1, ?2, 1)
-         ON CONFLICT (servicio, fecha) DO UPDATE SET cantidad = cantidad + 1",
-        params![servicio, fecha],
+        "INSERT INTO pedidos_por_dia (servicio, fecha, cantidad) VALUES (?1, ?2, ?3)
+         ON CONFLICT (servicio, fecha) DO UPDATE SET cantidad = cantidad + excluded.cantidad",
+        params![servicio, fecha, cantidad],
     )?;
     // Los días viejos no sirven para nada.
     conexion.execute("DELETE FROM pedidos_por_dia WHERE fecha < date(?1, '-7 days')", [fecha])?;
@@ -228,11 +235,12 @@ mod tests {
     fn el_tope_diario_de_pedidos() {
         let base = db::en_memoria();
         let hoy = Ahora::fijo("2026-11-17");
-        assert!(contar_pedido(&base, "espn", 2, &hoy).unwrap());
-        assert!(contar_pedido(&base, "espn", 2, &hoy).unwrap());
-        assert!(!contar_pedido(&base, "espn", 2, &hoy).unwrap());
+        assert!(contar_pedidos(&base, "espn", 1, 3, &hoy).unwrap());
+        assert!(contar_pedidos(&base, "espn", 2, 3, &hoy).unwrap());
+        assert!(!contar_pedidos(&base, "espn", 1, 3, &hoy).unwrap());
         // Otro servicio y otro día cuentan aparte.
-        assert!(contar_pedido(&base, "feeds", 2, &hoy).unwrap());
-        assert!(contar_pedido(&base, "espn", 2, &Ahora::fijo("2026-11-18")).unwrap());
+        assert!(contar_pedidos(&base, "feeds", 2, 3, &hoy).unwrap());
+        assert!(contar_pedidos(&base, "espn", 3, 3, &Ahora::fijo("2026-11-18")).unwrap());
+        assert!(!contar_pedidos(&base, "espn", 4, 3, &Ahora::fijo("2026-11-19")).unwrap());
     }
 }

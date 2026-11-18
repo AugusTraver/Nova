@@ -14,6 +14,12 @@ use crate::asistente::mensajes::{Mensaje, RespuestaModelo};
 use crate::asistente::openai::ClienteCompatible;
 use crate::asistente::proveedor::{AjustesIa, ProveedorIa, TipoProveedor};
 use crate::db::Db;
+use crate::fondo::Fondo;
+use crate::futbol::{self, JugadorEncontrado, JugadorSeguido};
+use crate::futbol::espn::ClienteEspn;
+use crate::futbol::proveedor::ProveedorFutbol;
+use crate::futbol::vista::VistaFutbol;
+use crate::repos::cache::Cacheado;
 use crate::dominio::lenguaje::interpretar_confirmacion;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
@@ -273,6 +279,62 @@ pub fn guardar_api_key(key: String) -> Resultado<bool> {
 pub async fn probar_conexion(db: State<'_, Db>) -> Resultado<()> {
     let cliente = cliente_ia(&db)?;
     cliente.probar().await
+}
+
+// ---------- Datos de internet ----------
+
+/// Lo que muestra el widget de fútbol (siempre desde la caché).
+#[tauri::command]
+pub fn obtener_futbol(db: State<'_, Db>) -> Resultado<Cacheado<VistaFutbol>> {
+    futbol::vista::vista(&db.conexion(), &Ahora::del_sistema())
+}
+
+/// El panel se abrió: que la tarea de fondo mire si algo venció.
+#[tauri::command]
+pub fn refrescar_externos(fondo: State<'_, Fondo>) {
+    fondo.despertar();
+}
+
+/// El buscador de jugadores de Ajustes.
+#[tauri::command]
+pub async fn buscar_jugadores(texto: String) -> Resultado<Vec<JugadorEncontrado>> {
+    let texto = texto.trim();
+    if texto.chars().count() < 3 {
+        return Ok(Vec::new());
+    }
+    ClienteEspn::nuevo()?.buscar_jugadores(texto).await
+}
+
+#[tauri::command]
+pub fn obtener_jugadores(db: State<'_, Db>) -> Resultado<Vec<JugadorSeguido>> {
+    preferencias::jugadores(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_jugadores(
+    app: AppHandle,
+    db: State<'_, Db>,
+    fondo: State<'_, Fondo>,
+    jugadores: Vec<JugadorSeguido>,
+) -> Resultado<Vec<JugadorSeguido>> {
+    if jugadores.len() > 20 {
+        return invalido("Seguí como mucho 20 jugadores.");
+    }
+    let mut limpios: Vec<JugadorSeguido> = Vec::new();
+    for j in jugadores {
+        let nombre = j.nombre.trim().to_string();
+        let id = j.id.trim().to_string();
+        if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) || nombre.is_empty() {
+            return invalido("Hay un jugador sin datos válidos.");
+        }
+        if !limpios.iter().any(|l| l.id == id) {
+            limpios.push(JugadorSeguido { id, nombre });
+        }
+    }
+    preferencias::guardar(&db.conexion(), preferencias::JUGADORES, &limpios)?;
+    fondo.despertar(); // los nuevos se descargan ya
+    let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Futbol]);
+    Ok(limpios)
 }
 
 /// Para el "sí" a una confirmación: nunca llega a llamar al modelo.

@@ -14,6 +14,13 @@ pub const IA: &str = "proveedor_ia";
 
 pub const ATAJO_POR_DEFECTO: &str = "Ctrl+Shift+Space";
 
+/// Jugadores seguidos (`Vec<JugadorSeguido>`).
+pub const JUGADORES: &str = "jugadores_seguidos";
+
+pub fn jugadores(conexion: &Connection) -> Resultado<Vec<crate::futbol::JugadorSeguido>> {
+    Ok(leer(conexion, JUGADORES)?.unwrap_or_else(crate::futbol::jugadores_por_defecto))
+}
+
 pub fn ajustes_ia(conexion: &Connection) -> Resultado<crate::asistente::proveedor::AjustesIa> {
     Ok(leer(conexion, IA)?.unwrap_or_default())
 }

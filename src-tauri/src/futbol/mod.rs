@@ -9,6 +9,7 @@
 
 pub mod espn;
 pub mod proveedor;
+pub mod vista;
 
 use serde::{Deserialize, Serialize};
 
