@@ -28,8 +28,8 @@
 - Los modelos de Whisper y Piper se descargan en una carpeta de datos de la app, no dentro del repo.
 
 ## Estado actual
-- Versión en curso: **v0.2** (implementada, falta el criterio de terminado: cargar la semana real y usarla un par de días)
-- Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón)
+- Versión en curso: **v0.3** (por empezar)
+- Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón), v0.2 (datos reales locales)
 - Notas:
   - Dirección visual aprobada: **"Atmósfera"**. Cielo translúcido que cambia según la hora (`src/theme/cielo.ts` + bloques `data-cielo` en `tokens.css`), esfera de luz en el centro y widgets sin tarjetas que la orbitan (`src/app/Orbita.tsx`). Tipografías Fraunces + Instrument Sans. Nada de etiquetas en mayúsculas ni monoespaciadas. Los widgets nuevos tienen que seguir esta estética.
   - Se descartaron dos estéticas: vidrio con violeta (v0.1) y negro con ámbar tipo "instrumento".
