@@ -559,4 +559,66 @@ mod tests {
         let error = serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
         assert_eq!(error, json!({ "tipo": "validacion", "mensaje": "Ponele un título." }));
     }
+
+    #[test]
+    fn contrato_de_internet() {
+        use crate::clima::{AjustesClima, Clima};
+        use crate::dominio::futbol::tests::partido;
+        use crate::futbol::{EstadoJugador, EstadoPartido, EventoPartido, TipoEventoPartido};
+
+        // Cacheado<T>, Partido, EventoPartido, EstadoPartido (src/lib/tipos.ts)
+        let mut p = partido("1", "2026-11-17T23:30:00Z", EstadoPartido::EnJuego, Some((1, 0)));
+        p.eventos.push(EventoPartido { minuto: "12'".into(), tipo: TipoEventoPartido::GolEnContra, equipo_id: "5".into(), jugador: None });
+        let c = Cacheado { datos: Some(p), obtenido_en: None, error: None };
+        let v = serde_json::to_value(&c).unwrap();
+        assert_eq!(claves(&v), ["datos", "error", "obtenidoEn"]);
+        assert_eq!(
+            claves(&v["datos"]),
+            [
+                "competencia", "estado", "eventos", "fase", "fecha", "golesLocal", "golesVisitante", "id", "liga", "local",
+                "minuto", "penalesLocal", "penalesVisitante", "visitante"
+            ]
+        );
+        assert_eq!(v["datos"]["estado"], "en_juego");
+        assert_eq!(claves(&v["datos"]["local"]), ["abreviatura", "escudo", "id", "nombre"]);
+        assert_eq!(v["datos"]["eventos"][0], json!({ "minuto": "12'", "tipo": "gol_en_contra", "equipoId": "5", "jugador": null }));
+
+        // VistaFutbol, ResumenEquipo, EstadoJugador
+        let vista = VistaFutbol {
+            equipos: vec![crate::dominio::futbol::ResumenEquipo {
+                clave: "boca".into(),
+                id: "5".into(),
+                nombre: "Boca".into(),
+                proximo: None,
+                ultimo: None,
+                en_vivo: None,
+                posicion: None,
+            }],
+            jugadores: vec![EstadoJugador { id: "1".into(), nombre: "M".into(), club: None, ultimo: None, partidos: 1, goles: 0, asistencias: 0 }],
+        };
+        let v = serde_json::to_value(&vista).unwrap();
+        assert_eq!(claves(&v["equipos"][0]), ["clave", "enVivo", "id", "nombre", "posicion", "proximo", "ultimo"]);
+        assert_eq!(claves(&v["jugadores"][0]), ["asistencias", "club", "goles", "id", "nombre", "partidos", "ultimo"]);
+
+        // Noticia, AjustesNoticias, VistaClima, AjustesClima, AvisoGol, Fuente
+        let n = Noticia { id: "a".into(), titulo: "T".into(), resumen: "".into(), fuente: "Olé".into(), url: "https://x".into(), publicado: None };
+        assert_eq!(claves(&serde_json::to_value(&n).unwrap()), ["fuente", "id", "publicado", "resumen", "titulo", "url"]);
+        let a = serde_json::to_value(AjustesNoticias::default()).unwrap();
+        assert_eq!(claves(&a), ["feeds", "intereses"]);
+        assert_eq!(claves(&a["feeds"][0]), ["nombre", "url"]);
+        let clima = Clima {
+            ciudad: "BA".into(), temperatura: 20.0, sensacion: None, codigo: 0, descripcion: "despejado".into(),
+            es_de_dia: true, maxima: None, minima: None, lluvia: None,
+        };
+        let v = serde_json::to_value(VistaClima { mostrar: true, clima: Cacheado { datos: Some(clima), obtenido_en: None, error: None } }).unwrap();
+        assert_eq!(claves(&v), ["clima", "mostrar"]);
+        assert_eq!(
+            claves(&v["clima"]["datos"]),
+            ["ciudad", "codigo", "descripcion", "esDeDia", "lluvia", "maxima", "minima", "sensacion", "temperatura"]
+        );
+        assert_eq!(claves(&serde_json::to_value(AjustesClima::default()).unwrap()), ["ciudad", "latitud", "longitud", "mostrar"]);
+        let gol = serde_json::to_value(crate::fondo::AvisoGol { equipo: "boca".into(), goles: 1 }).unwrap();
+        assert_eq!(gol, json!({ "equipo": "boca", "goles": 1 }));
+        assert_eq!(serde_json::to_value([Fuente::Futbol, Fuente::Noticias, Fuente::Clima]).unwrap(), json!(["futbol", "noticias", "clima"]));
+    }
 }

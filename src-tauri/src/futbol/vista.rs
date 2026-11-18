@@ -27,7 +27,6 @@ pub fn clave_vivo(equipo_id: &str) -> String {
     format!("futbol:vivo:{equipo_id}")
 }
 
-pub const PREFIJO_JUGADORES: &str = "futbol:jugador:";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

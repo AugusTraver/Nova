@@ -30,12 +30,6 @@ impl<T> Cacheado<T> {
     pub fn vacio() -> Self {
         Cacheado { datos: None, obtenido_en: None, error: None }
     }
-
-    /// Transforma el dato sin perder el estado (`map` de un Option, pero
-    /// conservando cuándo se obtuvo y el error).
-    pub fn mapear<U>(self, f: impl FnOnce(T) -> U) -> Cacheado<U> {
-        Cacheado { datos: self.datos.map(f), obtenido_en: self.obtenido_en, error: self.error }
-    }
 }
 
 fn marca(momento: DateTime<FixedOffset>) -> String {
@@ -128,16 +122,6 @@ pub fn cambiar_vencimiento(conexion: &Connection, clave: &str, vence_en: DateTim
     Ok(())
 }
 
-/// Hace que venzan ya todas las claves que empiezan con `prefijo`
-/// (por ejemplo, al cambiar los feeds o los jugadores en Ajustes).
-pub fn vencer_prefijo(conexion: &Connection, prefijo: &str, ahora: &Ahora) -> Resultado<()> {
-    conexion.execute(
-        "UPDATE cache_externa SET vence_en = ?2 WHERE substr(clave, 1, length(?1)) = ?1",
-        params![prefijo, ahora.marca],
-    )?;
-    Ok(())
-}
-
 /// Suma `cantidad` pedidos al contador del día y dice si todavía entran en
 /// el tope. Si no entran, no suma nada y devuelve `false`.
 pub fn contar_pedidos(conexion: &Connection, servicio: &str, cantidad: u32, tope: u32, ahora: &Ahora) -> Resultado<bool> {
@@ -224,17 +208,17 @@ mod tests {
     }
 
     #[test]
-    fn vence_por_prefijo() {
+    fn borrar_y_vencer() {
         let base = db::en_memoria();
         let ahora = Ahora::fijo_a_las("2026-11-17", "14:00");
         let luego = ahora.momento + Duration::hours(5);
-        guardar(&base, "noticias:a", &1, luego, &ahora).unwrap();
-        guardar(&base, "noticias:b", &1, luego, &ahora).unwrap();
-        guardar(&base, "futbol:a", &1, luego, &ahora).unwrap();
-        vencer_prefijo(&base, "noticias:", &ahora).unwrap();
-        assert!(vencida(&base, "noticias:a", &ahora).unwrap());
-        assert!(vencida(&base, "noticias:b", &ahora).unwrap());
-        assert!(!vencida(&base, "futbol:a", &ahora).unwrap());
+        guardar(&base, "a", &1, luego, &ahora).unwrap();
+        guardar(&base, "b", &1, luego, &ahora).unwrap();
+        vencer(&base, "a", &ahora).unwrap();
+        assert!(vencida(&base, "a", &ahora).unwrap());
+        assert!(!vencida(&base, "b", &ahora).unwrap());
+        borrar(&base, "b").unwrap();
+        assert_eq!(leer::<u32>(&base, "b").unwrap().datos, None);
     }
 
     #[test]
