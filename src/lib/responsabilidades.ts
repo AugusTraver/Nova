@@ -48,3 +48,10 @@ export function visibles(
     hoy,
   );
 }
+
+/** Las hechas, de la más reciente a la más vieja (para revisar o deshacer). */
+export function hechas(lista: readonly Responsabilidad[]): Responsabilidad[] {
+  return lista
+    .filter((r) => r.estado === "hecha")
+    .sort((a, b) => (b.hechaEn ?? "").localeCompare(a.hechaEn ?? "") || b.id - a.id);
+}

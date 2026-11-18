@@ -112,7 +112,16 @@ export function FormularioEvento({ ocurrencia, ahora, alTerminar }: Props) {
 
       <div className="grid grid-cols-[1fr_auto_auto] items-end gap-x-4 gap-y-3">
         <Campo etiqueta="Día" type="date" valor={form.fecha} alCambiar={(v) => cambiar("fecha", v)} />
-        {!form.todoElDia && (
+        {form.todoElDia ? (
+          <Campo
+            etiqueta="Último día (opcional)"
+            type="date"
+            valor={form.fechaFin}
+            alCambiar={(v) => cambiar("fechaFin", v)}
+            min={form.fecha}
+            className="col-span-2"
+          />
+        ) : (
           <>
             <Campo etiqueta="Desde" type="time" valor={form.horaInicio} alCambiar={(v) => cambiar("horaInicio", v)} className="w-[5.5rem]" />
             <Campo etiqueta="Hasta" type="time" valor={form.horaFin} alCambiar={(v) => cambiar("horaFin", v)} className="w-[5.5rem]" />

@@ -59,6 +59,26 @@ describe("formulario de eventos", () => {
     expect(r.datos.fin).toBeNull();
   });
 
+  it("todo el día puede durar varios días, con el último incluido", () => {
+    const f = { ...formEventoNuevo(hoy), titulo: "Semana de parciales", tipo: "otro" as const, todoElDia: true, fechaFin: "2026-11-21" };
+    const r = datosDesdeFormEvento(f);
+    if (!r.ok) throw new Error(r.error);
+    expect([r.datos.inicio, r.datos.fin]).toEqual(["2026-11-17", "2026-11-21"]);
+    expect(datosDesdeFormEvento({ ...f, fechaFin: "2026-11-16" }).ok).toBe(false);
+    // Mismo día que el inicio = un solo día, sin fin
+    const mismo = datosDesdeFormEvento({ ...f, fechaFin: "2026-11-17" });
+    expect(mismo.ok && mismo.datos.fin).toBeNull();
+  });
+
+  it("editar un evento de varios días conserva su fin", () => {
+    const evento: Evento = {
+      id: 9, titulo: "Viaje", tipo: "otro", inicio: "2026-12-01", fin: "2026-12-05", todoElDia: true,
+      materiaId: null, persona: null, notas: null, recurrencia: "ninguna", repetirHasta: null, excepciones: [],
+    };
+    const r = datosDesdeFormEvento(formDesdeEvento(evento));
+    expect(r.ok && r.datos.fin).toBe("2026-12-05");
+  });
+
   it("limpia lo que no corresponde al tipo", () => {
     const f = { ...formEventoNuevo(hoy), titulo: "Cumple", tipo: "cumpleanos" as const, materiaId: 3, persona: " Juan " };
     const r = datosDesdeFormEvento(f);

@@ -4,7 +4,7 @@ import { EASE_SALIDA } from "../app/animaciones";
 import { AccionTitulo, ErrorWidget } from "../components/Formulario";
 import { Seccion } from "../components/Seccion";
 import { desdeFecha, etiquetaDia } from "../lib/fechas";
-import { grupoDe, visibles } from "../lib/responsabilidades";
+import { grupoDe, hechas, visibles } from "../lib/responsabilidades";
 import type { Responsabilidad } from "../lib/tipos";
 import { useDatos } from "../store/datos";
 import { usePanel } from "../store/panel";
@@ -41,6 +41,9 @@ export function Responsabilidades({ ahora }: { ahora: Date }) {
   const [recienHechas, setRecienHechas] = useState<ReadonlySet<number>>(new Set());
   const temporizadores = useRef(new Map<number, number>());
   const [error, setError] = useState<string | null>(null);
+  // Qué lista se ve y si se muestran todas o solo las primeras.
+  const [vista, setVista] = useState<"pendientes" | "hechas">("pendientes");
+  const [expandida, setExpandida] = useState(false);
 
   useEffect(() => {
     const t = temporizadores.current;
@@ -81,14 +84,19 @@ export function Responsabilidades({ ahora }: { ahora: Date }) {
     editar("responsabilidades");
   };
 
-  const todas = visibles(lista, recienHechas, ahora);
-  const mostradas = todas.slice(0, MAXIMO_VISIBLES);
+  const todas = vista === "hechas" ? hechas(lista) : visibles(lista, recienHechas, ahora);
+  const mostradas = expandida ? todas : todas.slice(0, MAXIMO_VISIBLES);
   const pendientes = lista.filter((r) => r.estado === "pendiente").length;
+  const cantidadHechas = lista.length - pendientes;
+  const cambiarVista = () => {
+    setVista((v) => (v === "hechas" ? "pendientes" : "hechas"));
+    setExpandida(false);
+  };
 
   return (
     <Seccion
-      titulo="Pendientes"
-      detalle={fuente.cargada && !editando ? pendientes : undefined}
+      titulo={vista === "hechas" && !editando ? "Hechas" : "Pendientes"}
+      detalle={fuente.cargada && !editando ? (vista === "hechas" ? cantidadHechas : pendientes) : undefined}
       className="shrink-0"
       accion={!editando && <AccionTitulo onClick={() => abrir(null)}>Agregar</AccionTitulo>}
     >
@@ -102,8 +110,13 @@ export function Responsabilidades({ ahora }: { ahora: Date }) {
             {fuente.error && !fuente.cargada && (
               <ErrorWidget mensaje="No pude leer tus pendientes." alReintentar={() => void recargar("responsabilidades")} />
             )}
-            {fuente.cargada && todas.length === 0 && <p className="text-[15px] text-tinta-3">No tenés nada pendiente.</p>}
-            <ul className="flex flex-col">
+            {fuente.cargada && todas.length === 0 && (
+              <p className="text-[15px] text-tinta-3">
+                {vista === "hechas" ? "Todavía no marcaste nada como hecho." : "No tenés nada pendiente."}
+              </p>
+            )}
+            {/* Expandida, la lista se desplaza en vez de pisar las noticias */}
+            <ul className={`flex flex-col ${expandida ? "max-h-[36cqh] overflow-y-auto pr-1" : ""}`}>
               <AnimatePresence initial={false}>
                 {mostradas.map((r) => (
                   <Fila
@@ -117,9 +130,16 @@ export function Responsabilidades({ ahora }: { ahora: Date }) {
                 ))}
               </AnimatePresence>
             </ul>
-            {todas.length > MAXIMO_VISIBLES && (
-              <p className="mt-1 text-[13px] text-tinta-3">y {todas.length - MAXIMO_VISIBLES} más</p>
-            )}
+            <div className="mt-2 flex gap-4 text-[13px]">
+              {todas.length > MAXIMO_VISIBLES && (
+                <AccionTitulo onClick={() => setExpandida((e) => !e)} aria-expanded={expandida}>
+                  {expandida ? "Ver menos" : `Ver ${todas.length - MAXIMO_VISIBLES} más`}
+                </AccionTitulo>
+              )}
+              {(cantidadHechas > 0 || vista === "hechas") && (
+                <AccionTitulo onClick={cambiarVista}>{vista === "hechas" ? "Volver a pendientes" : "Ver hechas"}</AccionTitulo>
+              )}
+            </div>
             {error && <p className="mt-2 text-[14px] text-aviso">{error}</p>}
           </motion.div>
         )}

@@ -25,6 +25,8 @@ export interface FormEvento {
   horaInicio: string;
   /** "" = sin hora de fin */
   horaFin: string;
+  /** Solo para todo el día: último día incluido ("" = un solo día). */
+  fechaFin: string;
   recurrencia: Recurrencia;
   /** "" = sin fin */
   repetirHasta: string;
@@ -44,6 +46,7 @@ export function formEventoNuevo(dia: Date): FormEvento {
     todoElDia: false,
     horaInicio: "09:00",
     horaFin: "",
+    fechaFin: "",
     recurrencia: "semanal",
     repetirHasta: "",
     materiaId: null,
@@ -60,6 +63,7 @@ export function formDesdeEvento(e: Evento): FormEvento {
     todoElDia: e.todoElDia,
     horaInicio: e.todoElDia ? "09:00" : horaDe(e.inicio),
     horaFin: !e.todoElDia && e.fin ? horaDe(e.fin) : "",
+    fechaFin: e.todoElDia && e.fin ? e.fin.slice(0, 10) : "",
     recurrencia: e.recurrencia,
     repetirHasta: e.repetirHasta ?? "",
     materiaId: e.materiaId,
@@ -92,6 +96,10 @@ export function datosDesdeFormEvento(f: FormEvento): Resultado<DatosEvento> {
 
   let inicio = f.fecha;
   let fin: string | null = null;
+  if (f.todoElDia && f.fechaFin && f.fechaFin !== f.fecha) {
+    if (f.fechaFin < f.fecha) return { ok: false, error: "Tiene que terminar después de empezar." };
+    fin = f.fechaFin;
+  }
   if (!f.todoElDia) {
     if (!/^\d{2}:\d{2}$/.test(f.horaInicio)) return { ok: false, error: "Elegí a qué hora empieza." };
     inicio = aIsoLocal(f.fecha, f.horaInicio);

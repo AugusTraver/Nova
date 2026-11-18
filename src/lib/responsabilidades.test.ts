@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { grupoDe, ordenar, visibles } from "./responsabilidades";
+import { grupoDe, hechas, ordenar, visibles } from "./responsabilidades";
 import type { Prioridad, Responsabilidad } from "./tipos";
 
 const hoy = new Date(2026, 10, 17, 10, 30); // martes 17/11/2026
@@ -69,5 +69,14 @@ describe("visibles", () => {
     const pendiente = r("pendiente", null);
     const lista = visibles([hecha, vieja, pendiente], new Set([hecha.id]), hoy);
     expect(lista.map((x) => x.titulo)).toEqual(["recién hecha", "pendiente"]);
+  });
+});
+
+describe("hechas", () => {
+  it("solo las hechas, la más reciente primero", () => {
+    const vieja = r("vieja", null, "media", { estado: "hecha", hechaEn: "2026-11-10T10:00:00-03:00" });
+    const nueva = r("nueva", null, "media", { estado: "hecha", hechaEn: "2026-11-17T09:00:00-03:00" });
+    const pendiente = r("pendiente", null);
+    expect(hechas([vieja, pendiente, nueva]).map((x) => x.titulo)).toEqual(["nueva", "vieja"]);
   });
 });
