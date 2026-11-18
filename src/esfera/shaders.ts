@@ -65,6 +65,7 @@ uniform float uTiempo;
 uniform float uAmplitud;    // cuánto se deforma en reposo (después: el audio)
 uniform float uRespiracion; // intensidad del "respirar"
 uniform float uImpulso;     // 1 justo al abrir el panel, decae a 0 (salpicón)
+uniform float uPensando;    // 0 a 1 mientras el asistente piensa
 
 varying vec3 vNormal;
 varying vec3 vVista;
@@ -83,7 +84,7 @@ float desplazamiento(vec3 dir) {
   vec3 polo = normalize(vec3(sin(t * 0.3), cos(t * 0.21), 0.5));
   float onda = sin(dot(dir, polo) * 6.0 - t * 2.0) * 0.006;
 
-  float amplitud = uAmplitud * (1.0 + uImpulso * 1.2);
+  float amplitud = uAmplitud * (1.0 + uImpulso * 1.2 + uPensando * 0.5);
   return liquido * amplitud + onda * (1.0 + uImpulso * 2.0) + sin(t * 1.05) * uRespiracion;
 }
 
@@ -118,6 +119,9 @@ uniform float uTiempo;
 uniform float uImpulso;
 uniform vec3 uLuz;      // centro (token --color-luz)
 uniform vec3 uBorde;    // hacia el contorno (token --color-luz-borde)
+uniform vec3 uAviso;    // destello de error (token --color-aviso)
+uniform float uPensando;
+uniform float uError;
 
 varying vec3 vNormal;
 varying vec3 vVista;
@@ -143,6 +147,12 @@ void main() {
 
   // Más brillo justo al abrir el panel
   color *= 1.0 + uImpulso * 0.12 + nubes * 0.04;
+
+  // Pensando: late despacio, más fuerte donde hay nubes
+  color *= 1.0 + uPensando * (0.05 + 0.05 * sin(t * 3.0) + nubes * 0.06);
+
+  // Error: el borde se tiñe un instante con el color de aviso
+  color = mix(color, uAviso, uError * (1.0 - mezcla * 0.6) * 0.75);
 
   // El contorno se desvanece: la esfera se funde con su halo
   float alfa = smoothstep(0.0, 0.32, frente);

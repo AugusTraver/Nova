@@ -9,7 +9,14 @@ use crate::error::Resultado;
 pub const ATAJO: &str = "atajo";
 pub const REGLAS: &str = "reglas_auto_responsabilidades";
 
+/// Proveedor y modelo de IA (`AjustesIa`). La API key va en el llavero.
+pub const IA: &str = "proveedor_ia";
+
 pub const ATAJO_POR_DEFECTO: &str = "Ctrl+Shift+Space";
+
+pub fn ajustes_ia(conexion: &Connection) -> Resultado<crate::asistente::proveedor::AjustesIa> {
+    Ok(leer(conexion, IA)?.unwrap_or_default())
+}
 
 /// Lee una preferencia. `None` si todavía no se guardó.
 ///

@@ -168,6 +168,15 @@ Reglas:
 - Interfaz común (`LLMProvider`) con al menos dos implementaciones: una API con plan gratuito y Ollama local.
 - Se elige en configuración. Cambiar de proveedor no debe tocar el resto del código.
 
+### 5.5 Decisiones de v0.3
+- **Proveedores:** Groq (plan gratis, por defecto `openai/gpt-oss-120b`) y Ollama local (`qwen3:8b`). Los dos hablan el formato de OpenAI, así que el trait `ProveedorIa` tiene una implementación compatible que sirve para ambos. La API key va en el llavero de Windows (`keyring-core`) y nunca llega al webview.
+- **El ciclo corre en Rust** (`src-tauri/src/asistente/`): las herramientas llaman a los mismos `repos::*` que la interfaz. Como mucho son 6 vueltas modelo ↔ herramientas por turno.
+- **Sin streaming token a token:** la respuesta llega entera y el progreso ("Anotando el evento…") llega por un `Channel` de Tauri.
+- **Fechas:** el modelo copia lo que dijo el usuario ("el jueves", "a las 9") y Rust lo resuelve (`dominio/fechas_relativas.rs`). Los días de la semana van siempre para adelante. Una hora de 1 a 7 sin aclarar es de la tarde, y la hora de fin se lee según la de inicio.
+- **Borrar:** `borrar_evento` deja la acción pendiente en Rust. Se confirma con los botones debajo de la esfera o escribiendo "sí", y nunca la confirma el modelo. Cerrar el panel la cancela.
+- **Historial:** se mandan los últimos 12 mensajes de las últimas 2 horas, con los resultados de herramientas recortados. Se borra desde Ajustes. La migración 2 agrega `mensajes.datos_json` para guardar las llamadas a herramientas.
+- **Widgets en vivo:** Rust emite `datos-cambiados` con las fuentes afectadas apenas termina cada herramienta.
+
 ### 5.4 Proactividad (v0.6+)
 - Notificaciones del sistema: "En 30 minutos tenés clase", "Vence hoy: estudiar para Análisis", "Arranca el partido".
 - Configurables y silenciables.

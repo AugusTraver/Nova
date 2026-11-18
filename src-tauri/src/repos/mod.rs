@@ -4,10 +4,11 @@
 pub mod automaticas;
 pub mod eventos;
 pub mod materias;
+pub mod mensajes;
 pub mod preferencias;
 pub mod responsabilidades;
 
-use chrono::{Local, NaiveDate, SecondsFormat};
+use chrono::{DateTime, FixedOffset, Local, NaiveDate, SecondsFormat};
 
 /// "Ahora" se pasa como parámetro en vez de leer el reloj adentro de cada
 /// función: así los tests pueden fijar el día y los resultados no cambian.
@@ -17,23 +18,37 @@ pub struct Ahora {
     pub hoy: NaiveDate,
     /// Marca de tiempo ISO 8601 con zona, para `creado_en` y similares.
     pub marca: String,
+    /// El momento exacto con la zona del sistema (para la hora y para armar
+    /// fechas con hora desde lo que dice el usuario).
+    pub momento: DateTime<FixedOffset>,
 }
 
 impl Ahora {
     pub fn del_sistema() -> Self {
-        let ahora = Local::now();
+        // `fixed_offset()` se queda con el huso actual (-03:00) en vez de
+        // la zona "Local", que no se puede guardar ni comparar fácil.
+        Self::desde(Local::now().fixed_offset())
+    }
+
+    pub fn desde(momento: DateTime<FixedOffset>) -> Self {
         Ahora {
-            hoy: ahora.date_naive(),
-            marca: ahora.to_rfc3339_opts(SecondsFormat::Secs, false),
+            hoy: momento.date_naive(),
+            marca: momento.to_rfc3339_opts(SecondsFormat::Secs, false),
+            momento,
         }
     }
 
+    /// Martes 17 de noviembre de 2026 a las 12:00 en Argentina, salvo que se
+    /// pida otro día.
     #[cfg(test)]
     pub fn fijo(hoy: &str) -> Self {
-        Ahora {
-            hoy: fecha(hoy).expect("fecha de test"),
-            marca: format!("{hoy}T12:00:00-03:00"),
-        }
+        Self::fijo_a_las(hoy, "12:00")
+    }
+
+    #[cfg(test)]
+    pub fn fijo_a_las(hoy: &str, hora: &str) -> Self {
+        let momento = DateTime::parse_from_rfc3339(&format!("{hoy}T{hora}:00-03:00")).expect("fecha de test");
+        Self::desde(momento)
     }
 }
 

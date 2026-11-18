@@ -13,6 +13,7 @@ import { ResumenDelDia } from "../widgets/ResumenDelDia";
 import { Ajustes } from "./Ajustes";
 import { varianteEsfera, varianteHalo, varianteSoloOpacidad, varianteVelo, varianteZona } from "./animaciones";
 import { BarraEntrada } from "./BarraEntrada";
+import { Respuesta } from "./Respuesta";
 import { cambioDeVista } from "../widgets/animacionWidget";
 import { Orbita, usePunteroSuave } from "./Orbita";
 
@@ -23,14 +24,6 @@ interface PanelProps {
   onSalidaCompleta: () => void;
 }
 
-/** Qué dice debajo de la esfera. En reposo no dice nada. */
-const ESTADOS_ESFERA = {
-  reposo: "",
-  escuchando: "Te escucho",
-  pensando: "Pensando…",
-  hablando: "",
-  error: "Algo falló. Probá de nuevo.",
-} as const;
 
 /*
  * Geometría de la órbita. Todo se mide desde el centro de la esfera para que
@@ -226,7 +219,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
           className="pointer-events-auto absolute inset-0"
           onClick={(e) => e.stopPropagation()}
         >
-          <Esfera activa={abierto} momento={momento} />
+          <Esfera activa={abierto} momento={momento} estado={estadoEsfera} />
         </motion.div>
       </div>
 
@@ -234,10 +227,8 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
         className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center"
         style={{ top: `calc(${CENTRO_Y} + ${RADIO} + 8px)`, width: `min(30rem, calc(2 * ${RADIO} + 4cqw))` }}
       >
-        <p aria-live="polite" className="h-6 font-display text-[17px] italic text-tinta-2">
-          {ESTADOS_ESFERA[estadoEsfera]}
-        </p>
-        <motion.div className="pointer-events-auto mt-6 flex w-full justify-center" variants={reducido ? varianteSoloOpacidad : varianteZona(0.1)}>
+        <Respuesta />
+        <motion.div className="pointer-events-auto mt-1 flex w-full justify-center" variants={reducido ? varianteSoloOpacidad : varianteZona(0.1)}>
           <BarraEntrada abierto={abierto} />
         </motion.div>
       </div>

@@ -11,7 +11,10 @@ use crate::error::Error;
 
 /// `include_str!` copia el contenido del .sql adentro del ejecutable al
 /// compilar, así no hay que distribuir los archivos aparte.
-const MIGRACIONES: &[&str] = &[include_str!("../../migraciones/001_inicial.sql")];
+const MIGRACIONES: &[&str] = &[
+    include_str!("../../migraciones/001_inicial.sql"),
+    include_str!("../../migraciones/002_mensajes_datos.sql"),
+];
 
 pub fn migrar(conexion: &mut Connection) -> Result<(), Error> {
     // SQLite guarda enteros con signo (i64); lo pasamos a usize para indexar.

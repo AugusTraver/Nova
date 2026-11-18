@@ -1,6 +1,7 @@
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { Color, type Mesh } from "three";
+import type { EstadoEsfera } from "../store/panel";
 import type { Momento } from "../theme/cielo";
 import { fragmentShader, vertexShader } from "./shaders";
 
@@ -39,9 +40,10 @@ interface OrbeProps {
   activa: boolean;
   reducido: boolean;
   momento: Momento;
+  estado: EstadoEsfera;
 }
 
-function Orbe({ activa, reducido, momento }: OrbeProps) {
+function Orbe({ activa, reducido, momento, estado }: OrbeProps) {
   const malla = useRef<Mesh>(null);
   const puntero = usePunteroGlobal();
 
@@ -51,8 +53,13 @@ function Orbe({ activa, reducido, momento }: OrbeProps) {
       uAmplitud: { value: reducido ? 0.015 : 0.028 },
       uRespiracion: { value: reducido ? 0 : 0.018 },
       uImpulso: { value: 0 },
+      // 0 → 1 mientras el asistente piensa (se acerca suave, no salta)
+      uPensando: { value: 0 },
+      // 1 al fallar algo, decae solo: un destello en el color de aviso
+      uError: { value: 0 },
       uLuz: { value: new Color() },
       uBorde: { value: new Color() },
+      uAviso: { value: new Color() },
     }),
     [reducido],
   );
@@ -62,7 +69,16 @@ function Orbe({ activa, reducido, momento }: OrbeProps) {
   useEffect(() => {
     uniforms.uLuz.value.copy(colorDeToken("--color-luz"));
     uniforms.uBorde.value.copy(colorDeToken("--color-luz-borde"));
+    uniforms.uAviso.value.copy(colorDeToken("--color-aviso"));
   }, [momento, uniforms]);
+
+  useEffect(() => {
+    if (estado === "error") uniforms.uError.value = 1;
+  }, [estado, uniforms]);
+
+  // Se lee en cada cuadro sin volver a renderizar.
+  const pensando = useRef(false);
+  pensando.current = estado === "pensando";
 
   // Cada vez que se abre el panel: un pulso de luz que decae solo.
   useEffect(() => {
@@ -72,8 +88,12 @@ function Orbe({ activa, reducido, momento }: OrbeProps) {
   useFrame((_, deltaReal) => {
     // Al volver de estar pausada, el primer delta puede ser enorme: se limita.
     const delta = Math.min(deltaReal, 0.05);
-    uniforms.uTiempo.value += delta * (reducido ? 0.4 : 1);
+    uniforms.uPensando.value = amortiguar(uniforms.uPensando.value, pensando.current ? 1 : 0, 3, delta);
+    // Pensando, el interior fluye más rápido (con movimiento reducido, no).
+    const ritmo = reducido ? 0.4 : 1 + uniforms.uPensando.value * 1.4;
+    uniforms.uTiempo.value += delta * ritmo;
     uniforms.uImpulso.value = amortiguar(uniforms.uImpulso.value, 0, 2.2, delta);
+    uniforms.uError.value = amortiguar(uniforms.uError.value, 0, 1.6, delta);
 
     const orbe = malla.current;
     if (!orbe) return;
@@ -102,9 +122,10 @@ interface EsferaProps {
   /** Si es false, se pausa el render para no gastar CPU/GPU con el panel cerrado. */
   activa: boolean;
   momento: Momento;
+  estado: EstadoEsfera;
 }
 
-export function Esfera({ activa, momento }: EsferaProps) {
+export function Esfera({ activa, momento, estado }: EsferaProps) {
   const reducido = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   return (
     <Canvas
@@ -114,7 +135,7 @@ export function Esfera({ activa, momento }: EsferaProps) {
       dpr={[1, 2]}
       style={{ background: "transparent" }}
     >
-      <Orbe activa={activa} reducido={reducido} momento={momento} />
+      <Orbe activa={activa} reducido={reducido} momento={momento} estado={estado} />
     </Canvas>
   );
 }

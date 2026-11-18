@@ -100,6 +100,36 @@ export interface ErrorNova {
   mensaje: string;
 }
 
+// ---- Asistente (ver src-tauri/src/asistente) ----
+
+/** Qué datos cambió el asistente; los widgets recargan solo eso. */
+export type FuenteDatos = "agenda" | "responsabilidades" | "materias";
+
+/** Cómo terminó un turno con el asistente. */
+export interface Turno {
+  respuesta: string;
+  /** Si quedó un borrado esperando el "sí": la pregunta para los botones. */
+  confirmacion: string | null;
+}
+
+/** Avisos mientras el asistente trabaja. */
+export type Progreso = { tipo: "pensando" } | { tipo: "herramienta"; nombre: string };
+
+export type TipoProveedor = "groq" | "ollama";
+
+export interface AjustesIa {
+  proveedor: TipoProveedor;
+  modeloGroq: string;
+  modeloOllama: string;
+  urlOllama: string;
+}
+
+/** Ajustes de IA y si hay una API key guardada (la key nunca sale de Rust). */
+export interface VistaAjustesIa {
+  ajustes: AjustesIa;
+  tieneKey: boolean;
+}
+
 // ---- Datos externos (de ejemplo hasta v0.4) ----
 
 export interface Partido {

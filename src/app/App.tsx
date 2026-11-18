@@ -1,8 +1,9 @@
 import { useEffect } from "react";
+import { useAsistente } from "../store/asistente";
 import { useDatos } from "../store/datos";
 import { usePanel } from "../store/panel";
 import { Panel } from "./Panel";
-import { enTauri, escucharPanel, ocultarVentana } from "./puenteTauri";
+import { enTauri, escucharCambios, escucharPanel, ocultarVentana } from "./puenteTauri";
 
 export function App() {
   const abierto = usePanel((s) => s.abierto);
@@ -25,6 +26,26 @@ export function App() {
       quitar?.();
     };
   }, [abrir, cerrar]);
+
+  // El asistente cambió algo: recargan solo los widgets afectados, apenas
+  // pasa (sin esperar a que termine de responder).
+  useEffect(() => {
+    let quitar: (() => void) | undefined;
+    let cancelado = false;
+    escucharCambios((fuentes) => void useDatos.getState().recargar(...fuentes)).then((fn) => {
+      if (cancelado) fn();
+      else quitar = fn;
+    });
+    return () => {
+      cancelado = true;
+      quitar?.();
+    };
+  }, []);
+
+  // Al cerrar, la respuesta se va: la próxima vez la esfera arranca limpia.
+  useEffect(() => {
+    if (!abierto) useAsistente.getState().limpiar();
+  }, [abierto]);
 
   // Cada vez que se abre: automáticas al día y datos frescos. Mientras tanto se
   // ven los datos de la vez anterior, así que abrir sigue siendo instantáneo.

@@ -5,6 +5,7 @@ import type {
   DatosEvento,
   DatosMateria,
   DatosResponsabilidad,
+  FuenteDatos,
   Materia,
   Ocurrencia,
   Responsabilidad,
@@ -13,7 +14,7 @@ import type {
 /** Cuántos días hacia adelante se cargan (la agenda muestra 4; Facu cuenta hasta acá). */
 export const DIAS_CARGADOS = 90;
 
-export type Fuente = "agenda" | "responsabilidades" | "materias";
+export type Fuente = FuenteDatos;
 
 export interface EstadoFuente {
   /** Ya se cargó alguna vez (hay datos para mostrar aunque falle la próxima). */

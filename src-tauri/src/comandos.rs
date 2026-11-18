@@ -5,10 +5,18 @@
 //! `app.manage(...)` al arrancar; Tauri se la pasa a cada comando.
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::ipc::Channel;
+use tauri::{AppHandle, Emitter, State};
 
-use crate::atajos;
+use crate::asistente::ciclo::{self, Asistente, Avisos, Progreso, Turno};
+use crate::asistente::herramientas::Fuente;
+use crate::asistente::mensajes::{Mensaje, RespuestaModelo};
+use crate::asistente::openai::ClienteCompatible;
+use crate::asistente::proveedor::{AjustesIa, ProveedorIa, TipoProveedor};
 use crate::db::Db;
+use crate::dominio::lenguaje::interpretar_confirmacion;
+use crate::repos::mensajes;
+use crate::{atajos, llavero};
 use crate::dominio::reglas::Reglas;
 use crate::dominio::texto::OrigenResponsabilidad;
 use crate::error::{Error, Resultado, invalido};
@@ -145,6 +153,137 @@ pub fn guardar_ajustes(app: AppHandle, db: State<'_, Db>, ajustes: Ajustes) -> R
     Ok(Ajustes { atajo, reglas: ajustes.reglas })
 }
 
+// ---------- Asistente ----------
+
+/// Avisos del turno hacia la interfaz. El progreso va por un `Channel` (un
+/// caño directo al `invoke` que lo pidió); los cambios de datos van como
+/// evento global `datos-cambiados`, así los escucha cualquier ventana, aunque
+/// el cambio no venga de la barra de texto.
+struct AvisosTauri {
+    app: AppHandle,
+    canal: Channel<Progreso>,
+}
+
+pub const EVENTO_DATOS_CAMBIADOS: &str = "datos-cambiados";
+
+impl Avisos for AvisosTauri {
+    fn progreso(&self, progreso: Progreso) {
+        // Si la ventana ya no escucha, no pasa nada.
+        let _ = self.canal.send(progreso);
+    }
+
+    fn cambios(&self, fuentes: &[Fuente]) {
+        let _ = self.app.emit(EVENTO_DATOS_CAMBIADOS, fuentes);
+    }
+}
+
+fn cliente_ia(db: &Db) -> Resultado<ClienteCompatible> {
+    let ajustes = preferencias::ajustes_ia(&db.conexion())?;
+    let key = match ajustes.proveedor.cuenta_llavero() {
+        Some(cuenta) => llavero::leer(cuenta)?,
+        None => None,
+    };
+    ajustes.cliente(key)
+}
+
+/// Un turno con el asistente. Es `async`: mientras se espera al modelo, el
+/// resto de los comandos (los widgets) siguen andando.
+#[tauri::command]
+pub async fn enviar_mensaje(
+    app: AppHandle,
+    db: State<'_, Db>,
+    asistente: State<'_, Asistente>,
+    texto: String,
+    progreso: Channel<Progreso>,
+) -> Resultado<Turno> {
+    let avisos = AvisosTauri { app, canal: progreso };
+    let ahora = Ahora::del_sistema();
+    // Un "sí" a un borrado pendiente no necesita al modelo (ni la key).
+    if asistente.hay_pendiente() && interpretar_confirmacion(&texto).is_some() {
+        return ciclo::responder(&SinModelo, &db, &asistente, &texto, &avisos, &ahora).await;
+    }
+    let cliente = cliente_ia(&db)?;
+    ciclo::responder(&cliente, &db, &asistente, &texto, &avisos, &ahora).await
+}
+
+/// Los botones "Sí, borralo" / "No" debajo de la esfera.
+#[tauri::command]
+pub fn confirmar_accion(
+    app: AppHandle,
+    db: State<'_, Db>,
+    asistente: State<'_, Asistente>,
+    aceptar: bool,
+    progreso: Channel<Progreso>,
+) -> Resultado<Turno> {
+    let avisos = AvisosTauri { app, canal: progreso };
+    ciclo::resolver_pendiente(&db, &asistente, aceptar, &avisos, &Ahora::del_sistema())
+}
+
+#[tauri::command]
+pub fn borrar_historial(db: State<'_, Db>) -> Resultado<()> {
+    mensajes::borrar_todo(&db.conexion())
+}
+
+/// Lo que ve Ajustes: los ajustes y si hay una key guardada (nunca la key).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VistaAjustesIa {
+    pub ajustes: AjustesIa,
+    pub tiene_key: bool,
+}
+
+fn vista_ia(ajustes: AjustesIa) -> Resultado<VistaAjustesIa> {
+    let tiene_key = match TipoProveedor::Groq.cuenta_llavero() {
+        Some(cuenta) => llavero::leer(cuenta)?.is_some(),
+        None => false,
+    };
+    Ok(VistaAjustesIa { ajustes, tiene_key })
+}
+
+#[tauri::command]
+pub fn obtener_ajustes_ia(db: State<'_, Db>) -> Resultado<VistaAjustesIa> {
+    vista_ia(preferencias::ajustes_ia(&db.conexion())?)
+}
+
+#[tauri::command]
+pub fn guardar_ajustes_ia(db: State<'_, Db>, ajustes: AjustesIa) -> Resultado<VistaAjustesIa> {
+    let ajustes = ajustes.validar().map_err(Error::Validacion)?;
+    preferencias::guardar(&db.conexion(), preferencias::IA, &ajustes)?;
+    vista_ia(ajustes)
+}
+
+/// Guarda la API key de Groq en el llavero. Vacía = borrarla.
+#[tauri::command]
+pub fn guardar_api_key(key: String) -> Resultado<bool> {
+    let cuenta = TipoProveedor::Groq.cuenta_llavero().unwrap_or_default();
+    let key = key.trim();
+    if key.is_empty() {
+        llavero::borrar(cuenta)?;
+        return Ok(false);
+    }
+    if key.len() > 300 || key.chars().any(char::is_whitespace) {
+        return invalido("Esa key no parece válida.");
+    }
+    llavero::guardar(cuenta, key)?;
+    Ok(true)
+}
+
+/// "Probar conexión" en Ajustes: un pedido mínimo al proveedor elegido.
+#[tauri::command]
+pub async fn probar_conexion(db: State<'_, Db>) -> Resultado<()> {
+    let cliente = cliente_ia(&db)?;
+    cliente.probar().await
+}
+
+/// Para el "sí" a una confirmación: nunca llega a llamar al modelo.
+struct SinModelo;
+
+impl ProveedorIa for SinModelo {
+    async fn completar(&self, _: &[Mensaje], _: &serde_json::Value) -> Resultado<RespuestaModelo> {
+        Err(Error::Sistema("No hay modelo configurado.".into()))
+    }
+}
+
 /// Contrato con el frontend: los JSON que arma `src/lib/api.ts` (con los
 /// nombres en camelCase de `src/lib/tipos.ts`) tienen que leerse bien acá, y lo
 /// que devolvemos tiene que traer esos mismos nombres. Si alguien renombra un
@@ -196,6 +335,14 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(ajustes.reglas.entrega.dias_antes, 2);
+
+        let ia: AjustesIa = serde_json::from_value(json!({
+            "proveedor": "ollama", "modeloGroq": "openai/gpt-oss-120b", "modeloOllama": "qwen3:8b",
+            "urlOllama": "http://localhost:11434"
+        }))
+        .unwrap();
+        assert_eq!(ia.proveedor, TipoProveedor::Ollama);
+        assert_eq!(ia.modelo_ollama, "qwen3:8b");
     }
 
     #[test]
@@ -231,6 +378,23 @@ mod tests {
         assert_eq!(resp["origen"], "auto");
 
         assert_eq!(claves(&serde_json::to_value(&fisica).unwrap()), ["color", "id", "nombre"]);
+
+        // Asistente (src/lib/tipos.ts: Turno, Progreso, Fuente, VistaAjustesIa).
+        let turno = Turno { respuesta: "Listo.".into(), confirmacion: Some("¿Borro?".into()) };
+        assert_eq!(claves(&serde_json::to_value(&turno).unwrap()), ["confirmacion", "respuesta"]);
+        assert_eq!(serde_json::to_value(Progreso::Pensando).unwrap(), json!({ "tipo": "pensando" }));
+        assert_eq!(
+            serde_json::to_value(Progreso::Herramienta { nombre: "crear_evento".into() }).unwrap(),
+            json!({ "tipo": "herramienta", "nombre": "crear_evento" })
+        );
+        assert_eq!(
+            serde_json::to_value([Fuente::Agenda, Fuente::Responsabilidades, Fuente::Materias]).unwrap(),
+            json!(["agenda", "responsabilidades", "materias"])
+        );
+        let vista = serde_json::to_value(VistaAjustesIa { ajustes: AjustesIa::default(), tiene_key: false }).unwrap();
+        assert_eq!(claves(&vista), ["ajustes", "tieneKey"]);
+        assert_eq!(claves(&vista["ajustes"]), ["modeloGroq", "modeloOllama", "proveedor", "urlOllama"]);
+        assert_eq!(vista["ajustes"]["proveedor"], "groq");
 
         let error = serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
         assert_eq!(error, json!({ "tipo": "validacion", "mensaje": "Ponele un título." }));
