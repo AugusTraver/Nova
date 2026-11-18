@@ -14,6 +14,7 @@ mod llavero;
 mod noticias;
 mod repos;
 mod ventana;
+mod voz;
 
 use tauri::{Manager, WindowEvent};
 
