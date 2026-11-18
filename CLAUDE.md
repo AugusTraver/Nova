@@ -28,7 +28,7 @@
 - Los modelos de Whisper y Piper se descargan en una carpeta de datos de la app, no dentro del repo.
 
 ## Estado actual
-- Versión en curso: **v0.3** (por empezar)
+- Versión en curso: **v0.3** (implementada en la rama `v0.3`; falta probarla con un modelo real antes de fusionar)
 - Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón), v0.2 (datos reales locales)
 - Notas:
   - Dirección visual aprobada: **"Atmósfera"**. Cielo translúcido que cambia según la hora (`src/theme/cielo.ts` + bloques `data-cielo` en `tokens.css`), esfera de luz en el centro y widgets sin tarjetas que la orbitan (`src/app/Orbita.tsx`). Tipografías Fraunces + Instrument Sans. Nada de etiquetas en mayúsculas ni monoespaciadas. Los widgets nuevos tienen que seguir esta estética.
@@ -41,3 +41,5 @@
   - Los formularios se abren dentro de cada widget; mientras se edita, el resto del panel se apaga (`edicion` en `src/store/panel.ts`).
   - En PowerShell 5.1 no reescribir archivos con `Get-Content`/`Set-Content`: rompen los acentos (leen como ANSI).
   - La ventana del panel se crea una vez y se muestra u oculta; el frontend nunca se desmonta (para abrir en menos de 300 ms).
+  - Asistente (v0.3, detalle en SPEC 5.5): el ciclo, las herramientas y el proveedor están en `src-tauri/src/asistente/`; el historial, en `repos/mensajes.rs`; las fechas relativas, en `dominio/fechas_relativas.rs`. En el frontend están `store/asistente.ts` y `app/Respuesta.tsx`, que va debajo de la esfera. En el navegador, `apiMemoria` trae un asistente de prueba que entiende "parcial" y "borrá".
+  - Para correr los tests de Rust con `tauri dev` abierto: `CARGO_TARGET_DIR` en otra carpeta, así no se pisan los builds.
