@@ -3,11 +3,14 @@
 // no hacen nada: así se puede iterar la interfaz sin compilar Rust.
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { FuenteDatos } from "../lib/tipos";
 
 /** Eventos que emite Rust hacia el frontend. */
 export const EVENTOS = {
   abrir: "panel:abrir",
   cerrar: "panel:cerrar",
+  /** El asistente cambió datos (ver comandos.rs, EVENTO_DATOS_CAMBIADOS). */
+  datosCambiados: "datos-cambiados",
 } as const;
 
 export const enTauri = isTauri();
@@ -29,5 +32,25 @@ export async function escucharPanel(handlers: {
   return () => {
     quitarAbrir();
     quitarCerrar();
+  };
+}
+
+type OyenteCambios = (fuentes: FuenteDatos[]) => void;
+const oyentesLocales = new Set<OyenteCambios>();
+
+/** Para la API en memoria del navegador: avisa cambios como lo haría Rust. */
+export function avisarCambiosLocal(fuentes: FuenteDatos[]): void {
+  for (const oyente of oyentesLocales) oyente(fuentes);
+}
+
+/** Escucha cuando el asistente cambia datos (en Tauri o en el navegador). */
+export async function escucharCambios(oyente: OyenteCambios): Promise<UnlistenFn> {
+  oyentesLocales.add(oyente);
+  const quitarLocal = () => oyentesLocales.delete(oyente);
+  if (!enTauri) return quitarLocal;
+  const quitarTauri = await listen<FuenteDatos[]>(EVENTOS.datosCambiados, (e) => oyente(e.payload));
+  return () => {
+    quitarLocal();
+    quitarTauri();
   };
 }

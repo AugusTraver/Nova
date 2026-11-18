@@ -1,9 +1,14 @@
 // Versión en memoria de la API, SOLO para ver la interfaz en el navegador sin
 // Tauri. No replica toda la lógica de Rust (las automáticas, por ejemplo, no
 // se generan): la fuente de verdad es src-tauri.
+import { avisarCambiosLocal } from "../app/puenteTauri";
 import type { Api } from "../lib/api";
 import { aFecha, aIsoLocal, desdeFecha, sumarDias } from "../lib/fechas";
-import type { Ajustes, Evento, Materia, Ocurrencia, Responsabilidad } from "../lib/tipos";
+import type { Ajustes, AjustesIa, Evento, Materia, Ocurrencia, Progreso, Responsabilidad, Turno } from "../lib/tipos";
+
+function pausa(ms: number): Promise<void> {
+  return new Promise((ok) => window.setTimeout(ok, ms));
+}
 
 function esperar<T>(valor: T): Promise<T> {
   return new Promise((ok) => window.setTimeout(() => ok(structuredClone(valor)), 60));
@@ -74,6 +79,66 @@ export function crearApiMemoria(): Api {
       cumpleanos: { activa: true, diasAntes: 3, plantilla: "Comprar regalo para {persona}" },
     },
   };
+
+  let ajustesIa: AjustesIa = {
+    proveedor: "groq",
+    modeloGroq: "openai/gpt-oss-120b",
+    modeloOllama: "qwen3:8b",
+    urlOllama: "http://localhost:11434",
+  };
+  let tieneKey = false;
+  /** Evento esperando el "sí" para borrarse. */
+  let pendiente: Evento | null = null;
+
+  function confirmar(aceptar: boolean): Turno {
+    const evento = pendiente;
+    pendiente = null;
+    if (!evento) throw { tipo: "validacion", mensaje: "No hay nada esperando confirmación." };
+    if (!aceptar) return { respuesta: "Dale, no toco nada.", confirmacion: null };
+    eventos = eventos.filter((e) => e.id !== evento.id);
+    responsabilidades = responsabilidades.filter((r) => r.eventoId !== evento.id);
+    avisarCambiosLocal(["agenda", "responsabilidades"]);
+    return { respuesta: `Listo, borré «${evento.titulo}».`, confirmacion: null };
+  }
+
+  /**
+   * Un "asistente" de mentira para ver la interfaz: entiende un parcial y un
+   * borrado, y para lo demás avisa que en el navegador no hay modelo.
+   */
+  async function turnoDePrueba(texto: string, alProgreso: (p: Progreso) => void): Promise<Turno> {
+    alProgreso({ tipo: "pensando" });
+    await pausa(900);
+    const t = texto.toLowerCase().trim();
+    if (pendiente && /^(s[ií]|dale|ok)/.test(t)) return confirmar(true);
+    if (pendiente && /^no/.test(t)) return confirmar(false);
+    pendiente = null;
+
+    if (t.includes("borr") && eventos.length > 0) {
+      pendiente = eventos[eventos.length - 1];
+      return { respuesta: "¿Seguro?", confirmacion: `¿Borro «${pendiente.titulo}»?` };
+    }
+    if (t.includes("parcial") || t.includes("examen")) {
+      alProgreso({ tipo: "herramienta", nombre: "crear_evento" });
+      await pausa(600);
+      const id = siguiente++;
+      eventos = [...eventos, evento(id, { titulo: "Parcial de Análisis", tipo: "examen", inicio: aIsoLocal(dia(2), "09:00"), materiaId: 1 })];
+      responsabilidades = [
+        ...responsabilidades,
+        resp(siguiente++, { titulo: "Estudiar para Análisis Matemático II", fechaLimite: dia(1), prioridad: "alta", origen: "auto", eventoId: id, materiaId: 1 }),
+      ];
+      avisarCambiosLocal(["agenda", "responsabilidades"]);
+      alProgreso({ tipo: "pensando" });
+      await pausa(500);
+      return {
+        respuesta: "Listo, parcial de Análisis pasado mañana a las 9. Te anoté «Estudiar para Análisis Matemático II» para mañana.",
+        confirmacion: null,
+      };
+    }
+    return {
+      respuesta: "Acá en el navegador no tengo modelo: soy una respuesta de prueba. Abrime desde Nova para hablar en serio.",
+      confirmacion: null,
+    };
+  }
 
   /** Repeticiones aproximadas (sin eventos de varios días en series). */
   function repeticiones(e: Evento, desde: string, hasta: string): Ocurrencia[] {
@@ -168,6 +233,28 @@ export function crearApiMemoria(): Api {
     guardarAjustes: (nuevos) => {
       ajustes = nuevos;
       return esperar(ajustes);
+    },
+
+    enviarMensaje: turnoDePrueba,
+    confirmarAccion: async (aceptar) => {
+      await pausa(300);
+      return confirmar(aceptar);
+    },
+    borrarHistorial: () => esperar(undefined),
+    obtenerAjustesIa: () => esperar({ ajustes: ajustesIa, tieneKey }),
+    guardarAjustesIa: (nuevos) => {
+      ajustesIa = nuevos;
+      return esperar({ ajustes: ajustesIa, tieneKey });
+    },
+    guardarApiKey: (key) => {
+      tieneKey = key.trim() !== "";
+      return esperar(tieneKey);
+    },
+    probarConexion: async () => {
+      await pausa(700);
+      if (ajustesIa.proveedor === "groq" && !tieneKey) {
+        throw { tipo: "validacion", mensaje: "Falta la API key de Groq. Cargala en Ajustes." };
+      }
     },
   };
 }
