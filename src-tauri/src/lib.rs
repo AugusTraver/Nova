@@ -2,6 +2,10 @@
 
 mod atajos;
 mod bandeja;
+mod db;
+mod dominio;
+mod error;
+mod repos;
 mod ventana;
 
 use tauri::{Manager, WindowEvent};
