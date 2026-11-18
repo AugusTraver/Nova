@@ -13,7 +13,9 @@ use crate::asistente::herramientas::Fuente;
 use crate::asistente::mensajes::{Mensaje, RespuestaModelo};
 use crate::asistente::openai::ClienteCompatible;
 use crate::asistente::proveedor::{AjustesIa, ProveedorIa, TipoProveedor};
+use crate::clima::{AjustesClima, CiudadEncontrada, ClienteClima, VistaClima};
 use crate::db::Db;
+use crate::noticias::{self, AjustesNoticias, Noticia};
 use crate::fondo::Fondo;
 use crate::futbol::{self, JugadorEncontrado, JugadorSeguido};
 use crate::futbol::espn::ClienteEspn;
@@ -335,6 +337,102 @@ pub fn guardar_jugadores(
     fondo.despertar(); // los nuevos se descargan ya
     let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Futbol]);
     Ok(limpios)
+}
+
+// ---------- Noticias ----------
+
+#[tauri::command]
+pub fn obtener_noticias(db: State<'_, Db>) -> Resultado<Cacheado<Vec<Noticia>>> {
+    noticias::vista(&db.conexion())
+}
+
+#[tauri::command]
+pub fn obtener_ajustes_noticias(db: State<'_, Db>) -> Resultado<AjustesNoticias> {
+    preferencias::noticias(&db.conexion())
+}
+
+/// Guarda intereses y feeds, y fuerza a elegir de nuevo (con lo nuevo).
+#[tauri::command]
+pub fn guardar_ajustes_noticias(
+    app: AppHandle,
+    db: State<'_, Db>,
+    fondo: State<'_, Fondo>,
+    ajustes: AjustesNoticias,
+) -> Resultado<AjustesNoticias> {
+    let ajustes = ajustes.validar().map_err(Error::Validacion)?;
+    {
+        let conexion = db.conexion();
+        let ahora = Ahora::del_sistema();
+        let anteriores = preferencias::noticias(&conexion)?;
+        preferencias::guardar(&conexion, preferencias::NOTICIAS, &ajustes)?;
+        // Feeds distintos: hay que bajarlos. Intereses distintos: alcanza con
+        // volver a elegir entre lo que ya está.
+        if anteriores.feeds != ajustes.feeds {
+            crate::repos::cache::vencer(&conexion, noticias::CLAVE_TITULARES, &ahora)?;
+        }
+        crate::repos::cache::borrar(&conexion, noticias::CLAVE_ELEGIDAS)?;
+    }
+    fondo.despertar();
+    let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Noticias]);
+    Ok(ajustes)
+}
+
+/// Abre una nota en el navegador. Solo direcciones web: un feed no puede
+/// hacer que se abra un programa o un archivo.
+#[tauri::command]
+pub fn abrir_enlace(app: AppHandle, url: String) -> Resultado<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = url.trim();
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return invalido("Esa dirección no se puede abrir.");
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| Error::Sistema(format!("No pude abrir el navegador: {e}")))
+}
+
+// ---------- Clima ----------
+
+#[tauri::command]
+pub fn obtener_clima(db: State<'_, Db>) -> Resultado<VistaClima> {
+    let conexion = db.conexion();
+    let ajustes = preferencias::clima(&conexion)?;
+    Ok(VistaClima { mostrar: ajustes.mostrar, clima: crate::repos::cache::leer(&conexion, crate::clima::CLAVE)? })
+}
+
+#[tauri::command]
+pub fn obtener_ajustes_clima(db: State<'_, Db>) -> Resultado<AjustesClima> {
+    preferencias::clima(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_ajustes_clima(
+    app: AppHandle,
+    db: State<'_, Db>,
+    fondo: State<'_, Fondo>,
+    ajustes: AjustesClima,
+) -> Resultado<AjustesClima> {
+    let ajustes = ajustes.validar().map_err(Error::Validacion)?;
+    {
+        let conexion = db.conexion();
+        let anteriores = preferencias::clima(&conexion)?;
+        preferencias::guardar(&conexion, preferencias::CLIMA, &ajustes)?;
+        if anteriores.latitud != ajustes.latitud || anteriores.longitud != ajustes.longitud {
+            // Otra ciudad: lo guardado ya no sirve.
+            crate::repos::cache::borrar(&conexion, crate::clima::CLAVE)?;
+        }
+    }
+    fondo.despertar();
+    let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Clima]);
+    Ok(ajustes)
+}
+
+#[tauri::command]
+pub async fn buscar_ciudades(texto: String) -> Resultado<Vec<CiudadEncontrada>> {
+    if texto.trim().chars().count() < 2 {
+        return Ok(Vec::new());
+    }
+    ClienteClima::nuevo()?.buscar(&texto).await
 }
 
 /// Para el "sí" a una confirmación: nunca llega a llamar al modelo.

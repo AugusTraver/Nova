@@ -21,6 +21,19 @@ pub fn jugadores(conexion: &Connection) -> Resultado<Vec<crate::futbol::JugadorS
     Ok(leer(conexion, JUGADORES)?.unwrap_or_else(crate::futbol::jugadores_por_defecto))
 }
 
+/// Intereses y feeds de noticias (`AjustesNoticias`).
+pub const NOTICIAS: &str = "noticias";
+/// Ciudad del clima y si se muestra (`AjustesClima`).
+pub const CLIMA: &str = "clima";
+
+pub fn noticias(conexion: &Connection) -> Resultado<crate::noticias::AjustesNoticias> {
+    Ok(leer(conexion, NOTICIAS)?.unwrap_or_default())
+}
+
+pub fn clima(conexion: &Connection) -> Resultado<crate::clima::AjustesClima> {
+    Ok(leer(conexion, CLIMA)?.unwrap_or_default())
+}
+
 pub fn ajustes_ia(conexion: &Connection) -> Resultado<crate::asistente::proveedor::AjustesIa> {
     Ok(leer(conexion, IA)?.unwrap_or_default())
 }

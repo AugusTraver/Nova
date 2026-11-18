@@ -19,15 +19,20 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Notify;
 
 use crate::asistente::herramientas::Fuente;
+use crate::clima::{self as servicio_clima, ClienteClima};
 use crate::comandos::EVENTO_DATOS_CAMBIADOS;
 use crate::db::Db;
 use crate::dominio::futbol as logica;
+use crate::dominio::noticias as eleccion;
 use crate::dominio::refresco;
-use crate::error::Resultado;
+use crate::error::{Error, Resultado};
 use crate::futbol::espn::ClienteEspn;
 use crate::futbol::proveedor::{PEDIDOS_CALENDARIO, ProveedorFutbol};
 use crate::futbol::vista::{clave_calendario, clave_jugador, clave_tabla, clave_vivo};
 use crate::futbol::{EQUIPOS, EstadoPartido, Partido};
+use crate::llavero;
+use crate::noticias::rss::ClienteNoticias;
+use crate::noticias::{self as servicio_noticias, Elegidas, Titular};
 use crate::repos::cache;
 use crate::repos::{Ahora, preferencias};
 use crate::ventana;
@@ -86,12 +91,12 @@ pub fn arrancar(app: &AppHandle) {
     // `spawn` la deja corriendo en el motor async de Tauri (tokio), sin
     // bloquear la interfaz. `async move` le pasa `app` a la tarea.
     tauri::async_runtime::spawn(async move {
-        let espn = match ClienteEspn::nuevo() {
+        let clientes = match Clientes::nuevos() {
             Ok(c) => c,
             Err(e) => return eprintln!("No arranca la tarea de fondo: {e}"),
         };
         loop {
-            let espera = vuelta(&app, &espn).await;
+            let espera = vuelta(&app, &clientes).await;
             let fondo = app.state::<Fondo>();
             // `select!` espera lo primero que pase: que se cumpla el tiempo o
             // que alguien toque el timbre.
@@ -103,15 +108,35 @@ pub fn arrancar(app: &AppHandle) {
     });
 }
 
+/// Los clientes HTTP se arman una vez y se reusan (cada uno guarda sus
+/// conexiones abiertas).
+struct Clientes {
+    espn: ClienteEspn,
+    noticias: ClienteNoticias,
+    clima: ClienteClima,
+}
+
+impl Clientes {
+    fn nuevos() -> Resultado<Self> {
+        Ok(Clientes { espn: ClienteEspn::nuevo()?, noticias: ClienteNoticias::nuevo()?, clima: ClienteClima::nuevo()? })
+    }
+}
+
 /// Una vuelta: refresca lo vencido y devuelve cuánto dormir.
-async fn vuelta(app: &AppHandle, espn: &ClienteEspn) -> DuracionStd {
+async fn vuelta(app: &AppHandle, clientes: &Clientes) -> DuracionStd {
     let db = app.state::<Db>();
     let panel_abierto = ventana::abierto(app);
     let mut cambios: Vec<Fuente> = Vec::new();
 
-    let (hubo, espera) = futbol(app, &db, espn, panel_abierto).await;
+    let (hubo, espera) = futbol(app, &db, &clientes.espn, panel_abierto).await;
     if hubo {
         cambios.push(Fuente::Futbol);
+    }
+    if noticias(&db, &clientes.noticias).await {
+        cambios.push(Fuente::Noticias);
+    }
+    if clima(&db, &clientes.clima).await {
+        cambios.push(Fuente::Clima);
     }
 
     if !cambios.is_empty() {
@@ -220,4 +245,106 @@ fn partidos_guardados(db: &Db, equipo_id: &str) -> Vec<Partido> {
     con_base(db, |c| cache::leer::<Vec<Partido>>(c, &clave_calendario(equipo_id)))
         .and_then(|l| l.datos)
         .unwrap_or_default()
+}
+
+/// Noticias: baja los feeds cada media hora y, si hay titulares nuevos,
+/// vuelve a elegir (con IA como mucho cada 2 horas; si no hay IA, por
+/// palabras clave). Devuelve si cambió algo.
+async fn noticias(db: &Db, cliente: &ClienteNoticias) -> bool {
+    let ahora = Ahora::del_sistema();
+    let ajustes = con_base(db, preferencias::noticias).unwrap_or_default();
+    let mut cambio = false;
+
+    if vencida(db, servicio_noticias::CLAVE_TITULARES, &ahora) {
+        let mut todos: Vec<Titular> = Vec::new();
+        for feed in &ajustes.feeds {
+            match cliente.bajar(feed).await {
+                Ok(titulares) => todos.extend(titulares),
+                // Un feed caído no frena a los demás.
+                Err(e) => eprintln!("Noticias: {e}"),
+            }
+        }
+        let resultado: Resultado<Vec<Titular>> = if todos.is_empty() && !ajustes.feeds.is_empty() {
+            Err(Error::Sistema("Sin conexión con las fuentes de noticias.".into()))
+        } else {
+            Ok(todos)
+        };
+        let despues = Ahora::del_sistema();
+        anotar(
+            db,
+            servicio_noticias::CLAVE_TITULARES,
+            &resultado,
+            |_| despues.momento + Duration::minutes(eleccion::MINUTOS_ENTRE_FEEDS),
+            &despues,
+        );
+        cambio = true;
+    }
+
+    let titulares: Vec<Titular> = con_base(db, |c| cache::leer(c, servicio_noticias::CLAVE_TITULARES))
+        .and_then(|l| l.datos)
+        .unwrap_or_default();
+    if titulares.is_empty() {
+        return cambio;
+    }
+    let previas: Option<Elegidas> =
+        con_base(db, |c| cache::leer(c, servicio_noticias::CLAVE_ELEGIDAS)).and_then(|l| l.datos);
+    if previas.is_some() && !vencida(db, servicio_noticias::CLAVE_ELEGIDAS, &ahora) {
+        return cambio;
+    }
+    let candidatos = eleccion::candidatos(&titulares, ahora.momento);
+    let novedades = previas.as_ref().is_none_or(|p| eleccion::hay_novedades(&p.candidatos, &candidatos));
+    if !novedades {
+        // Nada nuevo: lo elegido sigue valiendo un rato más.
+        let siguiente = ahora.momento + Duration::minutes(eleccion::MINUTOS_ENTRE_FEEDS);
+        con_base(db, |c| cache::cambiar_vencimiento(c, servicio_noticias::CLAVE_ELEGIDAS, siguiente));
+        return cambio;
+    }
+
+    let con_ia = match cliente_ia(db) {
+        Ok(ia) => match ia.texto(&eleccion::armar_pedido(&candidatos, &ajustes.intereses)).await {
+            Ok(texto) => eleccion::leer_respuesta(&texto, &candidatos),
+            Err(e) => {
+                eprintln!("Noticias sin IA: {e}");
+                None
+            }
+        },
+        Err(_) => None, // sin key o sin proveedor: orden por palabras clave
+    };
+    let ahora = Ahora::del_sistema();
+    let (lista, usada_ia, minutos) = match con_ia {
+        Some(lista) => (lista, true, eleccion::MINUTOS_ENTRE_IA),
+        None => (
+            eleccion::ordenar_sin_ia(&candidatos, &eleccion::intereses(&ajustes.intereses), ahora.momento),
+            false,
+            eleccion::MINUTOS_ENTRE_FEEDS,
+        ),
+    };
+    let elegidas = Elegidas { noticias: lista, con_ia: usada_ia, candidatos: candidatos.iter().map(|t| t.id.clone()).collect() };
+    con_base(db, |c| {
+        cache::guardar(c, servicio_noticias::CLAVE_ELEGIDAS, &elegidas, ahora.momento + Duration::minutes(minutos), &ahora)
+    });
+    true
+}
+
+/// El mismo proveedor de IA que usa el asistente (con su key del llavero).
+/// El llavero se lee sin tener tomada la base.
+fn cliente_ia(db: &Db) -> Resultado<crate::asistente::openai::ClienteCompatible> {
+    let ajustes = con_base(db, preferencias::ajustes_ia).unwrap_or_default();
+    let key = match ajustes.proveedor.cuenta_llavero() {
+        Some(cuenta) => llavero::leer(cuenta)?,
+        None => None,
+    };
+    ajustes.cliente(key)
+}
+
+/// Clima: cada media hora, si está a la vista.
+async fn clima(db: &Db, cliente: &ClienteClima) -> bool {
+    let ahora = Ahora::del_sistema();
+    let ajustes = con_base(db, preferencias::clima).unwrap_or_default();
+    if !ajustes.mostrar || !vencida(db, servicio_clima::CLAVE, &ahora) {
+        return false;
+    }
+    let resultado = cliente.pronostico(&ajustes).await;
+    anotar(db, servicio_clima::CLAVE, &resultado, |_| ahora.momento + Duration::minutes(30), &ahora);
+    true
 }

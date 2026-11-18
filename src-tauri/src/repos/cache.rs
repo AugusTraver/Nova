@@ -110,6 +110,12 @@ pub fn anotar_error(conexion: &Connection, clave: &str, error: &str, ahora: &Aho
 }
 
 /// Hace que `clave` venza ya (por ejemplo, la tabla cuando termina un partido).
+/// Borra un dato (cuando ya no corresponde, ej. cambió la ciudad).
+pub fn borrar(conexion: &Connection, clave: &str) -> Resultado<()> {
+    conexion.execute("DELETE FROM cache_externa WHERE clave = ?1", [clave])?;
+    Ok(())
+}
+
 pub fn vencer(conexion: &Connection, clave: &str, ahora: &Ahora) -> Resultado<()> {
     conexion.execute("UPDATE cache_externa SET vence_en = ?2 WHERE clave = ?1", params![clave, ahora.marca])?;
     Ok(())
