@@ -14,6 +14,7 @@ use crate::error::Error;
 const MIGRACIONES: &[&str] = &[
     include_str!("../../migraciones/001_inicial.sql"),
     include_str!("../../migraciones/002_mensajes_datos.sql"),
+    include_str!("../../migraciones/003_cache_externa.sql"),
 ];
 
 pub fn migrar(conexion: &mut Connection) -> Result<(), Error> {
@@ -49,11 +50,12 @@ mod tests {
         let tablas: i64 = conexion
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN
-                 ('materias','eventos','eventos_excepciones','responsabilidades','mensajes','preferencias')",
+                 ('materias','eventos','eventos_excepciones','responsabilidades','mensajes','preferencias',
+                  'cache_externa','pedidos_por_dia')",
                 [],
                 |f| f.get(0),
             )
             .unwrap();
-        assert_eq!(tablas, 6);
+        assert_eq!(tablas, 8);
     }
 }
