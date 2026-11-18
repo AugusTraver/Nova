@@ -8,6 +8,7 @@ import type { Ocurrencia } from "../lib/tipos";
 import { useDatos } from "../store/datos";
 import { usePanel } from "../store/panel";
 import { tipoDestacado } from "../theme/eventos";
+import { IconoEvento } from "../theme/IconoEvento";
 import { cambioDeVista } from "./animacionWidget";
 import { FormularioEvento } from "./calendario/FormularioEvento";
 
@@ -70,12 +71,8 @@ export function Calendario({ ahora }: { ahora: Date }) {
                         <span className="w-12 shrink-0 font-display text-[18px] text-tinta-2">
                           {o.evento.todoElDia ? "·" : horaDe(o.inicio)}
                         </span>
-                        {/* Punto del color de la materia; sin materia ocupa el lugar igual, para alinear */}
-                        <span
-                          aria-hidden
-                          className="h-1.5 w-1.5 shrink-0 -translate-y-0.5 self-center rounded-full"
-                          style={{ backgroundColor: colorMateria(o.evento.materiaId) ?? "transparent" }}
-                        />
+                        {/* El tipo por la forma del ícono; la materia, por su color */}
+                        <IconoEvento tipo={o.evento.tipo} color={colorMateria(o.evento.materiaId)} className="self-center" />
                         <span className={`min-w-0 flex-1 truncate text-[16px] ${tipoDestacado[o.evento.tipo] ? "text-aviso" : ""}`}>
                           {o.evento.titulo}
                         </span>
