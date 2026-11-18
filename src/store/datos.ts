@@ -72,6 +72,10 @@ export const useDatos = create<EstadoDatos>()((set, get) => {
     },
     responsabilidades: () => cargar("responsabilidades", "responsabilidades", () => api.listarResponsabilidades()),
     materias: () => cargar("materias", "materias", () => api.listarMaterias()),
+    // Los widgets de internet se conectan en los próximos pasos de v0.4.
+    futbol: async () => {},
+    noticias: async () => {},
+    clima: async () => {},
   };
 
   /** Ejecuta una escritura y recarga lo afectado. */
@@ -90,7 +94,14 @@ export const useDatos = create<EstadoDatos>()((set, get) => {
     materias: [],
     ocurrencias: [],
     responsabilidades: [],
-    fuentes: { agenda: sinCargar, responsabilidades: sinCargar, materias: sinCargar },
+    fuentes: {
+      agenda: sinCargar,
+      responsabilidades: sinCargar,
+      materias: sinCargar,
+      futbol: sinCargar,
+      noticias: sinCargar,
+      clima: sinCargar,
+    },
 
     async cargarTodo() {
       try {

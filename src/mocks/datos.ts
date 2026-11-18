@@ -1,7 +1,20 @@
 // Datos de ejemplo de fútbol y noticias, hasta que lleguen las integraciones
 // reales en v0.4. Las fechas se calculan a partir de "ahora" para que el panel
 // siempre se vea vigente. (Agenda, pendientes y materias ya son reales: SQLite.)
-import type { Noticia, Partido, ResultadoPartido } from "../lib/tipos";
+import type { Noticia } from "../lib/tipos";
+
+// Formas viejas de ejemplo: el widget pasa a los tipos reales en v0.4.
+interface Partido {
+  rival: string;
+  competencia: string;
+  fecha: string;
+  local: boolean;
+}
+
+interface ResultadoPartido extends Partido {
+  golesBoca: number;
+  golesRival: number;
+}
 
 /** Fecha relativa a hoy: `en(2, 9, 30)` = pasado mañana a las 9:30. */
 function en(dias: number, hora = 0, minutos = 0): Date {

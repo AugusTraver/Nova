@@ -256,5 +256,12 @@ export function crearApiMemoria(): Api {
         throw { tipo: "validacion", mensaje: "Falta la API key de Groq. Cargala en Ajustes." };
       }
     },
+
+    // Fútbol de prueba: llega en el próximo paso de v0.4.
+    obtenerFutbol: () => esperar({ datos: null, obtenidoEn: null, error: null }),
+    refrescarExternos: async () => {},
+    buscarJugadores: () => esperar([]),
+    obtenerJugadores: () => esperar([]),
+    guardarJugadores: (jugadores) => esperar(jugadores),
   };
 }

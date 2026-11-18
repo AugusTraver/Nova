@@ -7,17 +7,21 @@ import { crearApiMemoria } from "../mocks/apiMemoria";
 import type {
   Ajustes,
   AjustesIa,
+  Cacheado,
   DatosEvento,
   DatosMateria,
   DatosResponsabilidad,
   ErrorNova,
   Evento,
+  JugadorEncontrado,
+  JugadorSeguido,
   Materia,
   Ocurrencia,
   Progreso,
   Responsabilidad,
   Turno,
   VistaAjustesIa,
+  VistaFutbol,
 } from "./tipos";
 
 export interface Api {
@@ -53,6 +57,14 @@ export interface Api {
   /** Guarda la API key en el llavero ("" la borra). Devuelve si quedó una. */
   guardarApiKey(key: string): Promise<boolean>;
   probarConexion(): Promise<void>;
+
+  /** Fútbol desde la caché (la tarea de fondo de Rust es la que descarga). */
+  obtenerFutbol(): Promise<Cacheado<VistaFutbol>>;
+  /** Se abrió el panel: que Rust mire si algo de internet venció. */
+  refrescarExternos(): Promise<void>;
+  buscarJugadores(texto: string): Promise<JugadorEncontrado[]>;
+  obtenerJugadores(): Promise<JugadorSeguido[]>;
+  guardarJugadores(jugadores: JugadorSeguido[]): Promise<JugadorSeguido[]>;
 }
 
 /** Un `Channel` de Tauri: Rust manda mensajes mientras el comando corre. */
@@ -93,6 +105,12 @@ const apiTauri: Api = {
   guardarAjustesIa: (ajustes) => invoke("guardar_ajustes_ia", { ajustes }),
   guardarApiKey: (key) => invoke("guardar_api_key", { key }),
   probarConexion: () => invoke("probar_conexion"),
+
+  obtenerFutbol: () => invoke("obtener_futbol"),
+  refrescarExternos: () => invoke("refrescar_externos"),
+  buscarJugadores: (texto) => invoke("buscar_jugadores", { texto }),
+  obtenerJugadores: () => invoke("obtener_jugadores"),
+  guardarJugadores: (jugadores) => invoke("guardar_jugadores", { jugadores }),
 };
 
 export const api: Api = enTauri ? apiTauri : crearApiMemoria();
