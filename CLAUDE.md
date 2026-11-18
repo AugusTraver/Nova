@@ -28,8 +28,8 @@
 - Los modelos de Whisper y Piper se descargan en una carpeta de datos de la app, no dentro del repo.
 
 ## Estado actual
-- Versión en curso: **v0.4** (por empezar)
-- Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón), v0.2 (datos reales locales), v0.3 (asistente por texto con Groq u Ollama)
+- Versión en curso: **v0.5** (voz)
+- Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón), v0.2 (datos reales locales), v0.3 (asistente por texto con Groq u Ollama), v0.4 (fútbol, noticias, resumen del día y clima)
 - Notas:
   - Dirección visual aprobada: **"Atmósfera"**. Cielo translúcido que cambia según la hora (`src/theme/cielo.ts` + bloques `data-cielo` en `tokens.css`), esfera de luz en el centro y widgets sin tarjetas que la orbitan (`src/app/Orbita.tsx`). Tipografías Fraunces + Instrument Sans. Nada de etiquetas en mayúsculas ni monoespaciadas. Los widgets nuevos tienen que seguir esta estética.
   - Se descartaron dos estéticas: vidrio con violeta (v0.1) y negro con ámbar tipo "instrumento".
@@ -43,3 +43,4 @@
   - La ventana del panel se crea una vez y se muestra u oculta; el frontend nunca se desmonta (para abrir en menos de 300 ms).
   - Asistente (v0.3, detalle en SPEC 5.5): el ciclo, las herramientas y el proveedor están en `src-tauri/src/asistente/`; el historial, en `repos/mensajes.rs`; las fechas relativas, en `dominio/fechas_relativas.rs`. En el frontend están `store/asistente.ts` y `app/Respuesta.tsx`, que va debajo de la esfera. En el navegador, `apiMemoria` trae un asistente de prueba que entiende "parcial" y "borrá".
   - Para correr los tests de Rust con `tauri dev` abierto: `CARGO_TARGET_DIR` en otra carpeta, así no se pisan los builds.
+  - Datos de internet (v0.4, detalle en SPEC 4.8): `src-tauri/src/futbol/` (ESPN), `noticias/` (RSS), `clima/` (Open-Meteo); la caché en `repos/cache.rs` y la tarea de fondo en `fondo.rs`. En el navegador, `src/mocks/externos.ts` trae datos de ejemplo: `?vivo` pone a Boca jugando, `?sinred` muestra los avisos y `?gol` festeja un gol a los 3 segundos.

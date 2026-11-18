@@ -1,0 +1,270 @@
+{
+ "team": {
+  "id": "5",
+  "displayName": "Boca Juniors",
+  "abbreviation": "CABJ"
+ },
+ "events": [
+  {
+   "id": "401913961",
+   "date": "2026-11-21T22:30Z",
+   "name": "Boca Juniors at Atlético-MG",
+   "league": {
+    "name": "CONMEBOL Sudamericana",
+    "abbreviation": "CONMEBOL Sudamericana",
+    "slug": "conmebol.sudamericana"
+   },
+   "seasonType": {
+    "id": "7",
+    "type": 13912,
+    "name": "Final",
+    "abbreviation": "Final"
+   },
+   "competitions": [
+    {
+     "id": "401913961",
+     "date": "2026-11-21T22:30Z",
+     "status": {
+      "clock": 0.0,
+      "addedClock": 0.0,
+      "displayClock": "0'",
+      "period": 0,
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Sat, November 21st at 5:30 PM EST",
+       "shortDetail": "11/21 - 5:30 PM EST"
+      }
+     },
+     "competitors": [
+      {
+       "id": "7632",
+       "homeAway": "home",
+       "winner": false,
+       "team": {
+        "id": "7632",
+        "displayName": "Atlético-MG",
+        "shortDisplayName": "Atlético-MG",
+        "abbreviation": "CAM",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/7632.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2019-05-08T16:07Z"
+         }
+        ]
+       }
+      },
+      {
+       "id": "5",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "5",
+        "displayName": "Boca Juniors",
+        "shortDisplayName": "Boca ",
+        "abbreviation": "CABJ",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-27T13:49Z"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401933757",
+   "date": "2026-11-26T00:00Z",
+   "name": "Independiente Rivadavia at Boca Juniors",
+   "league": {
+    "name": "Argentine Liga Profesional de Fútbol",
+    "abbreviation": "Argentine LPF",
+    "slug": "arg.1"
+   },
+   "seasonType": {
+    "id": "7",
+    "type": 13899,
+    "name": "Clausura - Round of 16",
+    "abbreviation": "Clausura - Round of 16"
+   },
+   "competitions": [
+    {
+     "id": "401933757",
+     "date": "2026-11-26T00:00Z",
+     "status": {
+      "clock": 0.0,
+      "addedClock": 0.0,
+      "displayClock": "0'",
+      "period": 0,
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "Wed, November 25th at 7:00 PM EST",
+       "shortDetail": "11/25 - 7:00 PM EST"
+      }
+     },
+     "competitors": [
+      {
+       "id": "5",
+       "homeAway": "home",
+       "winner": false,
+       "team": {
+        "id": "5",
+        "displayName": "Boca Juniors",
+        "shortDisplayName": "Boca ",
+        "abbreviation": "CABJ",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-27T13:49Z"
+         }
+        ]
+       }
+      },
+      {
+       "id": "9744",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "9744",
+        "displayName": "Independiente Rivadavia",
+        "shortDisplayName": "Ind. Rivadavia",
+        "abbreviation": "RIV",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/9744.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2019-05-08T16:07Z"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "401932277",
+   "date": "2026-12-02T20:00Z",
+   "name": "Platense at Boca Juniors",
+   "league": {
+    "name": "Copa Argentina",
+    "abbreviation": "Copa Argentina",
+    "slug": "arg.copa"
+   },
+   "seasonType": {
+    "id": "6",
+    "type": 13986,
+    "name": "Final",
+    "abbreviation": "Final"
+   },
+   "competitions": [
+    {
+     "id": "401932277",
+     "date": "2026-12-02T20:00Z",
+     "status": {
+      "clock": 0.0,
+      "addedClock": 0.0,
+      "displayClock": "0'",
+      "period": 0,
+      "type": {
+       "id": "1",
+       "name": "STATUS_SCHEDULED",
+       "state": "pre",
+       "completed": false,
+       "description": "Scheduled",
+       "detail": "12/2 - TBD",
+       "shortDetail": "TBD"
+      }
+     },
+     "competitors": [
+      {
+       "id": "5",
+       "homeAway": "home",
+       "winner": false,
+       "team": {
+        "id": "5",
+        "displayName": "Boca Juniors",
+        "shortDisplayName": "Boca ",
+        "abbreviation": "CABJ",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-27T13:49Z"
+         }
+        ]
+       }
+      },
+      {
+       "id": "7764",
+       "homeAway": "away",
+       "winner": false,
+       "team": {
+        "id": "7764",
+        "displayName": "Platense",
+        "shortDisplayName": "Platense",
+        "abbreviation": "PLA",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/7764.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2019-05-08T16:07Z"
+         }
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

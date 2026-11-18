@@ -3,11 +3,15 @@
 mod asistente;
 mod atajos;
 mod bandeja;
+mod clima;
 mod comandos;
 mod db;
 mod dominio;
 mod error;
+mod fondo;
+mod futbol;
 mod llavero;
+mod noticias;
 mod repos;
 mod ventana;
 
@@ -47,6 +51,19 @@ pub fn run() {
             comandos::guardar_ajustes_ia,
             comandos::guardar_api_key,
             comandos::probar_conexion,
+            comandos::obtener_futbol,
+            comandos::buscar_jugadores,
+            comandos::obtener_jugadores,
+            comandos::guardar_jugadores,
+            comandos::refrescar_externos,
+            comandos::obtener_noticias,
+            comandos::obtener_ajustes_noticias,
+            comandos::guardar_ajustes_noticias,
+            comandos::abrir_enlace,
+            comandos::obtener_clima,
+            comandos::obtener_ajustes_clima,
+            comandos::guardar_ajustes_clima,
+            comandos::buscar_ciudades,
         ])
         .setup(|app| {
             // La base va en la carpeta de datos de la app
@@ -65,6 +82,8 @@ pub fn run() {
             }; // acá se suelta el candado de la conexión
             app.manage(db);
             app.manage(Asistente::default());
+            app.manage(fondo::Fondo::default());
+            fondo::arrancar(app.handle());
 
             if let Some(panel) = app.get_webview_window(ventana::VENTANA_PANEL) {
                 ventana::aplicar_vidrio(&panel);

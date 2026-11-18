@@ -66,6 +66,7 @@ uniform float uAmplitud;    // cuánto se deforma en reposo (después: el audio)
 uniform float uRespiracion; // intensidad del "respirar"
 uniform float uImpulso;     // 1 justo al abrir el panel, decae a 0 (salpicón)
 uniform float uPensando;    // 0 a 1 mientras el asistente piensa
+uniform float uGol;         // 1 en un gol de Boca, decae a 0
 
 varying vec3 vNormal;
 varying vec3 vVista;
@@ -84,8 +85,10 @@ float desplazamiento(vec3 dir) {
   vec3 polo = normalize(vec3(sin(t * 0.3), cos(t * 0.21), 0.5));
   float onda = sin(dot(dir, polo) * 6.0 - t * 2.0) * 0.006;
 
-  float amplitud = uAmplitud * (1.0 + uImpulso * 1.2 + uPensando * 0.5);
-  return liquido * amplitud + onda * (1.0 + uImpulso * 2.0) + sin(t * 1.05) * uRespiracion;
+  float amplitud = uAmplitud * (1.0 + uImpulso * 1.2 + uPensando * 0.5 + uGol * 2.2);
+  // Gol: además, late rápido como un corazón
+  float festejo = uGol * 0.035 * max(sin(t * 9.0), 0.0);
+  return liquido * amplitud + onda * (1.0 + uImpulso * 2.0) + sin(t * 1.05) * uRespiracion + festejo;
 }
 
 vec3 superficie(vec3 dir) {
@@ -122,6 +125,9 @@ uniform vec3 uBorde;    // hacia el contorno (token --color-luz-borde)
 uniform vec3 uAviso;    // destello de error (token --color-aviso)
 uniform float uPensando;
 uniform float uError;
+uniform float uGol;     // gol de Boca: se pinta de azul con la franja de oro
+uniform vec3 uGolAzul;  // token --color-gol-azul
+uniform vec3 uGolOro;   // token --color-gol-oro
 
 varying vec3 vNormal;
 varying vec3 vVista;
@@ -153,6 +159,12 @@ void main() {
 
   // Error: el borde se tiñe un instante con el color de aviso
   color = mix(color, uAviso, uError * (1.0 - mezcla * 0.6) * 0.75);
+
+  // Gol: azul, con una franja horizontal de oro que ondula como una bandera
+  float altura = vDir.y + sin(vDir.x * 4.0 + t * 3.0) * 0.06;
+  float franja = 1.0 - smoothstep(0.17, 0.24, abs(altura));
+  vec3 camiseta = mix(uGolAzul, uGolOro, franja) * (0.85 + mezcla * 0.35);
+  color = mix(color, camiseta, smoothstep(0.0, 0.35, uGol) * 0.92);
 
   // El contorno se desvanece: la esfera se funde con su halo
   float alfa = smoothstep(0.0, 0.32, frente);

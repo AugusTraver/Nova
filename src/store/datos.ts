@@ -2,13 +2,17 @@ import { create } from "zustand";
 import { api, mensajeDeError } from "../lib/api";
 import { aFecha, sumarDias } from "../lib/fechas";
 import type {
+  Cacheado,
+  VistaClima,
   DatosEvento,
   DatosMateria,
   DatosResponsabilidad,
   FuenteDatos,
   Materia,
+  Noticia,
   Ocurrencia,
   Responsabilidad,
+  VistaFutbol,
 } from "../lib/tipos";
 
 /** Cuántos días hacia adelante se cargan (la agenda muestra 4; Facu cuenta hasta acá). */
@@ -29,6 +33,10 @@ interface EstadoDatos {
   materias: Materia[];
   ocurrencias: Ocurrencia[];
   responsabilidades: Responsabilidad[];
+  /** Datos de internet: vienen de la caché de Rust (`null` = todavía no se leyó). */
+  futbol: Cacheado<VistaFutbol> | null;
+  noticias: Cacheado<Noticia[]> | null;
+  clima: VistaClima | null;
   fuentes: Record<Fuente, EstadoFuente>;
 
   /** Pone al día las automáticas y recarga todo. Se llama al abrir el panel. */
@@ -51,7 +59,7 @@ const sinCargar: EstadoFuente = { cargada: false, error: null };
 
 export const useDatos = create<EstadoDatos>()((set, get) => {
   /** Carga una fuente sin tocar las demás: si una falla, las otras siguen. */
-  async function cargar<K extends "ocurrencias" | "responsabilidades" | "materias">(
+  async function cargar<K extends "ocurrencias" | "responsabilidades" | "materias" | "futbol" | "noticias" | "clima">(
     fuente: Fuente,
     clave: K,
     leer: () => Promise<EstadoDatos[K]>,
@@ -72,6 +80,10 @@ export const useDatos = create<EstadoDatos>()((set, get) => {
     },
     responsabilidades: () => cargar("responsabilidades", "responsabilidades", () => api.listarResponsabilidades()),
     materias: () => cargar("materias", "materias", () => api.listarMaterias()),
+    // Leen la caché de Rust (no la red): la tarea de fondo la mantiene al día.
+    futbol: () => cargar("futbol", "futbol", () => api.obtenerFutbol()),
+    noticias: () => cargar("noticias", "noticias", () => api.obtenerNoticias()),
+    clima: () => cargar("clima", "clima", () => api.obtenerClima()),
   };
 
   /** Ejecuta una escritura y recarga lo afectado. */
@@ -90,7 +102,17 @@ export const useDatos = create<EstadoDatos>()((set, get) => {
     materias: [],
     ocurrencias: [],
     responsabilidades: [],
-    fuentes: { agenda: sinCargar, responsabilidades: sinCargar, materias: sinCargar },
+    futbol: null,
+    noticias: null,
+    clima: null,
+    fuentes: {
+      agenda: sinCargar,
+      responsabilidades: sinCargar,
+      materias: sinCargar,
+      futbol: sinCargar,
+      noticias: sinCargar,
+      clima: sinCargar,
+    },
 
     async cargarTodo() {
       try {
@@ -98,7 +120,10 @@ export const useDatos = create<EstadoDatos>()((set, get) => {
       } catch (e) {
         console.error("No se pudieron sincronizar las automáticas", e);
       }
-      await get().recargar("agenda", "responsabilidades", "materias");
+      // Despierta la tarea de fondo: si algo de internet venció, lo baja y
+      // avisa con `datos-cambiados`. Mientras, se muestra lo de la caché.
+      void api.refrescarExternos().catch((e) => console.error("No se pudo refrescar", e));
+      await get().recargar("agenda", "responsabilidades", "materias", "futbol", "noticias", "clima");
     },
 
     async recargar(...fuentes) {

@@ -1,0 +1,483 @@
+{
+ "name": "Argentine Liga Profesional de Fútbol",
+ "children": [
+  {
+   "name": "Group A",
+   "standings": {
+    "entries": [
+     {
+      "team": {
+       "id": "5",
+       "displayName": "Boca Juniors",
+       "shortDisplayName": "Boca ",
+       "abbreviation": "CABJ",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2023-03-27T13:49Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "losses",
+        "value": 1.0,
+        "displayValue": "1"
+       },
+       {
+        "name": "pointDifferential",
+        "value": 10.0,
+        "displayValue": "+10"
+       },
+       {
+        "name": "points",
+        "value": 33.0,
+        "displayValue": "33"
+       },
+       {
+        "name": "ties",
+        "value": 6.0,
+        "displayValue": "6"
+       },
+       {
+        "name": "wins",
+        "value": 9.0,
+        "displayValue": "9"
+       },
+       {
+        "name": "rank",
+        "value": 2.0,
+        "displayValue": "2"
+       }
+      ]
+     },
+     {
+      "team": {
+       "id": "8",
+       "displayName": "Estudiantes de La Plata",
+       "shortDisplayName": "Estudiantes",
+       "abbreviation": "EST",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/8.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2023-03-24T19:32Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "losses",
+        "value": 8.0,
+        "displayValue": "8"
+       },
+       {
+        "name": "pointDifferential",
+        "value": -1.0,
+        "displayValue": "-1"
+       },
+       {
+        "name": "points",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "ties",
+        "value": 4.0,
+        "displayValue": "4"
+       },
+       {
+        "name": "wins",
+        "value": 4.0,
+        "displayValue": "4"
+       },
+       {
+        "name": "rank",
+        "value": 12.0,
+        "displayValue": "12"
+       }
+      ]
+     },
+     {
+      "team": {
+       "id": "11",
+       "displayName": "Independiente",
+       "shortDisplayName": "Independiente",
+       "abbreviation": "IND",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/11.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2019-05-08T16:07Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "losses",
+        "value": 5.0,
+        "displayValue": "5"
+       },
+       {
+        "name": "pointDifferential",
+        "value": -1.0,
+        "displayValue": "-1"
+       },
+       {
+        "name": "points",
+        "value": 23.0,
+        "displayValue": "23"
+       },
+       {
+        "name": "ties",
+        "value": 5.0,
+        "displayValue": "5"
+       },
+       {
+        "name": "wins",
+        "value": 6.0,
+        "displayValue": "6"
+       },
+       {
+        "name": "rank",
+        "value": 7.0,
+        "displayValue": "7"
+       }
+      ]
+     },
+     {
+      "team": {
+       "id": "12",
+       "displayName": "Lanús",
+       "shortDisplayName": "Lanús ",
+       "abbreviation": "LAN",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/12.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2019-05-08T16:07Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 15.0,
+        "displayValue": "15"
+       },
+       {
+        "name": "losses",
+        "value": 4.0,
+        "displayValue": "4"
+       },
+       {
+        "name": "pointDifferential",
+        "value": 7.0,
+        "displayValue": "+7"
+       },
+       {
+        "name": "points",
+        "value": 25.0,
+        "displayValue": "25"
+       },
+       {
+        "name": "ties",
+        "value": 4.0,
+        "displayValue": "4"
+       },
+       {
+        "name": "wins",
+        "value": 7.0,
+        "displayValue": "7"
+       },
+       {
+        "name": "rank",
+        "value": 5.0,
+        "displayValue": "5"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "Group B",
+   "standings": {
+    "entries": [
+     {
+      "team": {
+       "id": "3",
+       "displayName": "Argentinos Juniors",
+       "shortDisplayName": "Argentinos ",
+       "abbreviation": "ARGJ",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/3.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2023-03-24T19:32Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "losses",
+        "value": 3.0,
+        "displayValue": "3"
+       },
+       {
+        "name": "pointDifferential",
+        "value": 6.0,
+        "displayValue": "+6"
+       },
+       {
+        "name": "points",
+        "value": 31.0,
+        "displayValue": "31"
+       },
+       {
+        "name": "ties",
+        "value": 4.0,
+        "displayValue": "4"
+       },
+       {
+        "name": "wins",
+        "value": 9.0,
+        "displayValue": "9"
+       },
+       {
+        "name": "rank",
+        "value": 2.0,
+        "displayValue": "2"
+       }
+      ]
+     },
+     {
+      "team": {
+       "id": "4",
+       "displayName": "Belgrano (Córdoba)",
+       "shortDisplayName": "Belgrano ",
+       "abbreviation": "BEL",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/4.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2019-05-08T16:07Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "losses",
+        "value": 5.0,
+        "displayValue": "5"
+       },
+       {
+        "name": "pointDifferential",
+        "value": 2.0,
+        "displayValue": "+2"
+       },
+       {
+        "name": "points",
+        "value": 23.0,
+        "displayValue": "23"
+       },
+       {
+        "name": "ties",
+        "value": 5.0,
+        "displayValue": "5"
+       },
+       {
+        "name": "wins",
+        "value": 6.0,
+        "displayValue": "6"
+       },
+       {
+        "name": "rank",
+        "value": 6.0,
+        "displayValue": "6"
+       }
+      ]
+     },
+     {
+      "team": {
+       "id": "9",
+       "displayName": "Gimnasia La Plata",
+       "shortDisplayName": "Gimnasia LP",
+       "abbreviation": "GLP",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/9.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2023-03-24T19:32Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "losses",
+        "value": 3.0,
+        "displayValue": "3"
+       },
+       {
+        "name": "pointDifferential",
+        "value": 5.0,
+        "displayValue": "+5"
+       },
+       {
+        "name": "points",
+        "value": 31.0,
+        "displayValue": "31"
+       },
+       {
+        "name": "ties",
+        "value": 4.0,
+        "displayValue": "4"
+       },
+       {
+        "name": "wins",
+        "value": 9.0,
+        "displayValue": "9"
+       },
+       {
+        "name": "rank",
+        "value": 3.0,
+        "displayValue": "3"
+       }
+      ]
+     },
+     {
+      "team": {
+       "id": "10",
+       "displayName": "Huracán",
+       "shortDisplayName": "Huracán ",
+       "abbreviation": "HUR",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/10.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2019-05-08T16:07Z"
+        }
+       ]
+      },
+      "stats": [
+       {
+        "name": "gamesPlayed",
+        "value": 16.0,
+        "displayValue": "16"
+       },
+       {
+        "name": "losses",
+        "value": 6.0,
+        "displayValue": "6"
+       },
+       {
+        "name": "pointDifferential",
+        "value": -2.0,
+        "displayValue": "-2"
+       },
+       {
+        "name": "points",
+        "value": 22.0,
+        "displayValue": "22"
+       },
+       {
+        "name": "ties",
+        "value": 4.0,
+        "displayValue": "4"
+       },
+       {
+        "name": "wins",
+        "value": 6.0,
+        "displayValue": "6"
+       },
+       {
+        "name": "rank",
+        "value": 8.0,
+        "displayValue": "8"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ]
+}

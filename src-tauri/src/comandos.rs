@@ -13,7 +13,15 @@ use crate::asistente::herramientas::Fuente;
 use crate::asistente::mensajes::{Mensaje, RespuestaModelo};
 use crate::asistente::openai::ClienteCompatible;
 use crate::asistente::proveedor::{AjustesIa, ProveedorIa, TipoProveedor};
+use crate::clima::{AjustesClima, CiudadEncontrada, ClienteClima, VistaClima};
 use crate::db::Db;
+use crate::noticias::{self, AjustesNoticias, Noticia};
+use crate::fondo::Fondo;
+use crate::futbol::{self, JugadorEncontrado, JugadorSeguido};
+use crate::futbol::espn::ClienteEspn;
+use crate::futbol::proveedor::ProveedorFutbol;
+use crate::futbol::vista::VistaFutbol;
+use crate::repos::cache::Cacheado;
 use crate::dominio::lenguaje::interpretar_confirmacion;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
@@ -275,6 +283,158 @@ pub async fn probar_conexion(db: State<'_, Db>) -> Resultado<()> {
     cliente.probar().await
 }
 
+// ---------- Datos de internet ----------
+
+/// Lo que muestra el widget de fútbol (siempre desde la caché).
+#[tauri::command]
+pub fn obtener_futbol(db: State<'_, Db>) -> Resultado<Cacheado<VistaFutbol>> {
+    futbol::vista::vista(&db.conexion(), &Ahora::del_sistema())
+}
+
+/// El panel se abrió: que la tarea de fondo mire si algo venció.
+#[tauri::command]
+pub fn refrescar_externos(fondo: State<'_, Fondo>) {
+    fondo.despertar();
+}
+
+/// El buscador de jugadores de Ajustes.
+#[tauri::command]
+pub async fn buscar_jugadores(texto: String) -> Resultado<Vec<JugadorEncontrado>> {
+    let texto = texto.trim();
+    if texto.chars().count() < 3 {
+        return Ok(Vec::new());
+    }
+    ClienteEspn::nuevo()?.buscar_jugadores(texto).await
+}
+
+#[tauri::command]
+pub fn obtener_jugadores(db: State<'_, Db>) -> Resultado<Vec<JugadorSeguido>> {
+    preferencias::jugadores(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_jugadores(
+    app: AppHandle,
+    db: State<'_, Db>,
+    fondo: State<'_, Fondo>,
+    jugadores: Vec<JugadorSeguido>,
+) -> Resultado<Vec<JugadorSeguido>> {
+    if jugadores.len() > 20 {
+        return invalido("Seguí como mucho 20 jugadores.");
+    }
+    let mut limpios: Vec<JugadorSeguido> = Vec::new();
+    for j in jugadores {
+        let nombre = j.nombre.trim().to_string();
+        let id = j.id.trim().to_string();
+        if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) || nombre.is_empty() {
+            return invalido("Hay un jugador sin datos válidos.");
+        }
+        if !limpios.iter().any(|l| l.id == id) {
+            limpios.push(JugadorSeguido { id, nombre });
+        }
+    }
+    preferencias::guardar(&db.conexion(), preferencias::JUGADORES, &limpios)?;
+    fondo.despertar(); // los nuevos se descargan ya
+    let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Futbol]);
+    Ok(limpios)
+}
+
+// ---------- Noticias ----------
+
+#[tauri::command]
+pub fn obtener_noticias(db: State<'_, Db>) -> Resultado<Cacheado<Vec<Noticia>>> {
+    noticias::vista(&db.conexion())
+}
+
+#[tauri::command]
+pub fn obtener_ajustes_noticias(db: State<'_, Db>) -> Resultado<AjustesNoticias> {
+    preferencias::noticias(&db.conexion())
+}
+
+/// Guarda intereses y feeds, y fuerza a elegir de nuevo (con lo nuevo).
+#[tauri::command]
+pub fn guardar_ajustes_noticias(
+    app: AppHandle,
+    db: State<'_, Db>,
+    fondo: State<'_, Fondo>,
+    ajustes: AjustesNoticias,
+) -> Resultado<AjustesNoticias> {
+    let ajustes = ajustes.validar().map_err(Error::Validacion)?;
+    {
+        let conexion = db.conexion();
+        let ahora = Ahora::del_sistema();
+        let anteriores = preferencias::noticias(&conexion)?;
+        preferencias::guardar(&conexion, preferencias::NOTICIAS, &ajustes)?;
+        // Feeds distintos: hay que bajarlos. Intereses distintos: alcanza con
+        // volver a elegir entre lo que ya está.
+        if anteriores.feeds != ajustes.feeds {
+            crate::repos::cache::vencer(&conexion, noticias::CLAVE_TITULARES, &ahora)?;
+        }
+        crate::repos::cache::borrar(&conexion, noticias::CLAVE_ELEGIDAS)?;
+    }
+    fondo.despertar();
+    let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Noticias]);
+    Ok(ajustes)
+}
+
+/// Abre una nota en el navegador. Solo direcciones web: un feed no puede
+/// hacer que se abra un programa o un archivo.
+#[tauri::command]
+pub fn abrir_enlace(app: AppHandle, url: String) -> Resultado<()> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = url.trim();
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return invalido("Esa dirección no se puede abrir.");
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| Error::Sistema(format!("No pude abrir el navegador: {e}")))
+}
+
+// ---------- Clima ----------
+
+#[tauri::command]
+pub fn obtener_clima(db: State<'_, Db>) -> Resultado<VistaClima> {
+    let conexion = db.conexion();
+    let ajustes = preferencias::clima(&conexion)?;
+    Ok(VistaClima { mostrar: ajustes.mostrar, clima: crate::repos::cache::leer(&conexion, crate::clima::CLAVE)? })
+}
+
+#[tauri::command]
+pub fn obtener_ajustes_clima(db: State<'_, Db>) -> Resultado<AjustesClima> {
+    preferencias::clima(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_ajustes_clima(
+    app: AppHandle,
+    db: State<'_, Db>,
+    fondo: State<'_, Fondo>,
+    ajustes: AjustesClima,
+) -> Resultado<AjustesClima> {
+    let ajustes = ajustes.validar().map_err(Error::Validacion)?;
+    {
+        let conexion = db.conexion();
+        let anteriores = preferencias::clima(&conexion)?;
+        preferencias::guardar(&conexion, preferencias::CLIMA, &ajustes)?;
+        if anteriores.latitud != ajustes.latitud || anteriores.longitud != ajustes.longitud {
+            // Otra ciudad: lo guardado ya no sirve.
+            crate::repos::cache::borrar(&conexion, crate::clima::CLAVE)?;
+        }
+    }
+    fondo.despertar();
+    let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Clima]);
+    Ok(ajustes)
+}
+
+#[tauri::command]
+pub async fn buscar_ciudades(texto: String) -> Resultado<Vec<CiudadEncontrada>> {
+    if texto.trim().chars().count() < 2 {
+        return Ok(Vec::new());
+    }
+    ClienteClima::nuevo()?.buscar(&texto).await
+}
+
 /// Para el "sí" a una confirmación: nunca llega a llamar al modelo.
 struct SinModelo;
 
@@ -398,5 +558,67 @@ mod tests {
 
         let error = serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
         assert_eq!(error, json!({ "tipo": "validacion", "mensaje": "Ponele un título." }));
+    }
+
+    #[test]
+    fn contrato_de_internet() {
+        use crate::clima::{AjustesClima, Clima};
+        use crate::dominio::futbol::tests::partido;
+        use crate::futbol::{EstadoJugador, EstadoPartido, EventoPartido, TipoEventoPartido};
+
+        // Cacheado<T>, Partido, EventoPartido, EstadoPartido (src/lib/tipos.ts)
+        let mut p = partido("1", "2026-11-17T23:30:00Z", EstadoPartido::EnJuego, Some((1, 0)));
+        p.eventos.push(EventoPartido { minuto: "12'".into(), tipo: TipoEventoPartido::GolEnContra, equipo_id: "5".into(), jugador: None });
+        let c = Cacheado { datos: Some(p), obtenido_en: None, error: None };
+        let v = serde_json::to_value(&c).unwrap();
+        assert_eq!(claves(&v), ["datos", "error", "obtenidoEn"]);
+        assert_eq!(
+            claves(&v["datos"]),
+            [
+                "competencia", "estado", "eventos", "fase", "fecha", "golesLocal", "golesVisitante", "id", "liga", "local",
+                "minuto", "penalesLocal", "penalesVisitante", "visitante"
+            ]
+        );
+        assert_eq!(v["datos"]["estado"], "en_juego");
+        assert_eq!(claves(&v["datos"]["local"]), ["abreviatura", "escudo", "id", "nombre"]);
+        assert_eq!(v["datos"]["eventos"][0], json!({ "minuto": "12'", "tipo": "gol_en_contra", "equipoId": "5", "jugador": null }));
+
+        // VistaFutbol, ResumenEquipo, EstadoJugador
+        let vista = VistaFutbol {
+            equipos: vec![crate::dominio::futbol::ResumenEquipo {
+                clave: "boca".into(),
+                id: "5".into(),
+                nombre: "Boca".into(),
+                proximo: None,
+                ultimo: None,
+                en_vivo: None,
+                posicion: None,
+            }],
+            jugadores: vec![EstadoJugador { id: "1".into(), nombre: "M".into(), club: None, ultimo: None, partidos: 1, goles: 0, asistencias: 0 }],
+        };
+        let v = serde_json::to_value(&vista).unwrap();
+        assert_eq!(claves(&v["equipos"][0]), ["clave", "enVivo", "id", "nombre", "posicion", "proximo", "ultimo"]);
+        assert_eq!(claves(&v["jugadores"][0]), ["asistencias", "club", "goles", "id", "nombre", "partidos", "ultimo"]);
+
+        // Noticia, AjustesNoticias, VistaClima, AjustesClima, AvisoGol, Fuente
+        let n = Noticia { id: "a".into(), titulo: "T".into(), resumen: "".into(), fuente: "Olé".into(), url: "https://x".into(), publicado: None };
+        assert_eq!(claves(&serde_json::to_value(&n).unwrap()), ["fuente", "id", "publicado", "resumen", "titulo", "url"]);
+        let a = serde_json::to_value(AjustesNoticias::default()).unwrap();
+        assert_eq!(claves(&a), ["feeds", "intereses"]);
+        assert_eq!(claves(&a["feeds"][0]), ["nombre", "url"]);
+        let clima = Clima {
+            ciudad: "BA".into(), temperatura: 20.0, sensacion: None, codigo: 0, descripcion: "despejado".into(),
+            es_de_dia: true, maxima: None, minima: None, lluvia: None,
+        };
+        let v = serde_json::to_value(VistaClima { mostrar: true, clima: Cacheado { datos: Some(clima), obtenido_en: None, error: None } }).unwrap();
+        assert_eq!(claves(&v), ["clima", "mostrar"]);
+        assert_eq!(
+            claves(&v["clima"]["datos"]),
+            ["ciudad", "codigo", "descripcion", "esDeDia", "lluvia", "maxima", "minima", "sensacion", "temperatura"]
+        );
+        assert_eq!(claves(&serde_json::to_value(AjustesClima::default()).unwrap()), ["ciudad", "latitud", "longitud", "mostrar"]);
+        let gol = serde_json::to_value(crate::fondo::AvisoGol { equipo: "boca".into(), goles: 1 }).unwrap();
+        assert_eq!(gol, json!({ "equipo": "boca", "goles": 1 }));
+        assert_eq!(serde_json::to_value([Fuente::Futbol, Fuente::Noticias, Fuente::Clima]).unwrap(), json!(["futbol", "noticias", "clima"]));
     }
 }

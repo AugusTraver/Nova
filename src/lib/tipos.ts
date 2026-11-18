@@ -103,7 +103,7 @@ export interface ErrorNova {
 // ---- Asistente (ver src-tauri/src/asistente) ----
 
 /** Qué datos cambió el asistente; los widgets recargan solo eso. */
-export type FuenteDatos = "agenda" | "responsabilidades" | "materias";
+export type FuenteDatos = "agenda" | "responsabilidades" | "materias" | "futbol" | "noticias" | "clima";
 
 /** Cómo terminó un turno con el asistente. */
 export interface Turno {
@@ -130,25 +130,184 @@ export interface VistaAjustesIa {
   tieneKey: boolean;
 }
 
-// ---- Datos externos (de ejemplo hasta v0.4) ----
+// ---- Datos de internet (ver src-tauri/src/futbol, noticias, clima) ----
 
-export interface Partido {
-  rival: string;
-  competencia: string;
-  /** ISO 8601 */
-  fecha: string;
-  local: boolean;
+/** Un dato de internet guardado en la caché de Rust. */
+export interface Cacheado<T> {
+  /** `null` si todavía no se pudo descargar nunca. */
+  datos: T | null;
+  /** Cuándo se obtuvo lo que se muestra (ISO 8601). */
+  obtenidoEn: string | null;
+  /** El error del último intento; con `datos`, se muestra lo viejo con un aviso. */
+  error: string | null;
 }
 
-export interface ResultadoPartido extends Partido {
-  golesBoca: number;
-  golesRival: number;
+export interface EquipoBreve {
+  id: string;
+  nombre: string;
+  abreviatura: string;
+  escudo: string | null;
+}
+
+export type EstadoPartido = "programado" | "en_juego" | "entretiempo" | "terminado" | "suspendido";
+
+export interface EventoPartido {
+  /** "45'+1'" */
+  minuto: string;
+  tipo: "gol" | "gol_en_contra" | "expulsion";
+  /** El equipo al que le suma el gol, o el del expulsado. */
+  equipoId: string;
+  jugador: string | null;
+}
+
+export interface Partido {
+  id: string;
+  liga: string;
+  /** "Liga Profesional", "Sudamericana"… */
+  competencia: string;
+  /** "final", "octavos de final"… */
+  fase: string | null;
+  /** ISO 8601 (UTC) */
+  fecha: string;
+  local: EquipoBreve;
+  visitante: EquipoBreve;
+  estado: EstadoPartido;
+  /** "34'" mientras se juega. */
+  minuto: string | null;
+  golesLocal: number | null;
+  golesVisitante: number | null;
+  penalesLocal: number | null;
+  penalesVisitante: number | null;
+  eventos: EventoPartido[];
+}
+
+export interface FilaTabla {
+  puesto: number;
+  equipo: EquipoBreve;
+  puntos: number;
+  jugados: number;
+  ganados: number;
+  empatados: number;
+  perdidos: number;
+  diferencia: number;
+}
+
+export interface Posicion {
+  torneo: string;
+  /** "Zona A" */
+  zona: string;
+  fila: FilaTabla;
+  equiposEnZona: number;
+}
+
+export interface ResumenEquipo {
+  clave: "boca" | "seleccion";
+  id: string;
+  nombre: string;
+  proximo: Partido | null;
+  ultimo: Partido | null;
+  enVivo: Partido | null;
+  posicion: Posicion | null;
+}
+
+export interface PartidoJugador {
+  fecha: string;
+  rival: string;
+  /** "2-1", desde el lado del jugador. */
+  resultado: string;
+  /** Ganó, empató o perdió. */
+  desenlace: "G" | "E" | "P" | null;
+  competencia: string | null;
+  goles: number;
+  asistencias: number;
+}
+
+export interface EstadoJugador {
+  id: string;
+  nombre: string;
+  club: string | null;
+  ultimo: PartidoJugador | null;
+  partidos: number;
+  goles: number;
+  asistencias: number;
+}
+
+export interface VistaFutbol {
+  /** Boca primero, después la Selección. */
+  equipos: ResumenEquipo[];
+  jugadores: EstadoJugador[];
+}
+
+/** Un jugador que sigo (Ajustes). */
+export interface JugadorSeguido {
+  id: string;
+  nombre: string;
+}
+
+/** Un resultado del buscador de jugadores. */
+export interface JugadorEncontrado {
+  id: string;
+  nombre: string;
+  club: string | null;
+}
+
+/** Evento `futbol:gol` de Rust. */
+export interface AvisoGol {
+  equipo: "boca" | "seleccion";
+  goles: number;
 }
 
 export interface Noticia {
-  id: number;
+  id: string;
   titulo: string;
+  /** Una línea (la escribe la IA o es la bajada del feed); puede venir vacío. */
   resumen: string;
   fuente: string;
   url: string;
+  publicado: string | null;
+}
+
+export interface Feed {
+  nombre: string;
+  url: string;
+}
+
+export interface AjustesNoticias {
+  /** Texto libre: "Boca, Selección Argentina, IA". */
+  intereses: string;
+  feeds: Feed[];
+}
+
+export interface Clima {
+  ciudad: string;
+  temperatura: number;
+  sensacion: number | null;
+  codigo: number;
+  /** "despejado", "lluvia leve"… */
+  descripcion: string;
+  esDeDia: boolean;
+  maxima: number | null;
+  minima: number | null;
+  /** Probabilidad de lluvia del día (%). */
+  lluvia: number | null;
+}
+
+export interface VistaClima {
+  mostrar: boolean;
+  clima: Cacheado<Clima>;
+}
+
+export interface AjustesClima {
+  mostrar: boolean;
+  ciudad: string;
+  latitud: number;
+  longitud: number;
+}
+
+export interface CiudadEncontrada {
+  nombre: string;
+  /** "Buenos Aires, Argentina" */
+  region: string;
+  latitud: number;
+  longitud: number;
 }

@@ -2,6 +2,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
 import { Esfera } from "../esfera/Esfera";
 import { useAhora } from "../lib/useAhora";
+import { useDatos } from "../store/datos";
 import { type Edicion, usePanel } from "../store/panel";
 import { useCielo } from "../theme/useCielo";
 import { Calendario } from "../widgets/Calendario";
@@ -33,6 +34,7 @@ interface PanelProps {
 const CENTRO_Y = "47%";
 const RADIO = "min(20cqh, 230px)";
 const ANCHO_WIDGET = "min(360px, 23cqw)";
+const ANCHO_EN_VIVO = "min(420px, 27cqw)";
 const aDistancia = (extra: string) => `calc(50% + ${RADIO} + ${extra})`;
 
 /**
@@ -65,6 +67,9 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
   const ahora = useAhora();
   const momento = useCielo(abierto);
   const estadoEsfera = usePanel((s) => s.estadoEsfera);
+  const goles = usePanel((s) => s.goles);
+  // En vivo, el widget de fútbol se ensancha un poco (hacia afuera de la órbita).
+  const futbolEnVivo = useDatos((s) => s.futbol?.datos?.equipos.some((e) => e.enVivo !== null) ?? false);
   const reducido = useReducedMotion() ?? false;
   const puntero = usePunteroSuave(abierto && !reducido);
   const orbita = { puntero, reducido };
@@ -137,7 +142,12 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       <Orbita
         {...orbita}
         lado="derecha"
-        posicion={{ top: "19%", left: aDistancia("6cqw"), width: ANCHO_WIDGET }}
+        posicion={{
+          top: "19%",
+          left: aDistancia("6cqw"),
+          width: futbolEnVivo ? ANCHO_EN_VIVO : ANCHO_WIDGET,
+          transition: "width 450ms cubic-bezier(0.22, 1, 0.36, 1)",
+        }}
         profundidad={11}
         retraso={0.09}
         vaiven={10}
@@ -170,7 +180,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
         vaiven={13}
       >
         <Atenuable {...estado()}>
-          <Noticias />
+          <Noticias ahora={ahora} />
         </Atenuable>
       </Orbita>
 
@@ -180,7 +190,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
           <motion.div
             key="ajustes"
             {...cambioDeVista}
-            className="absolute z-10 overflow-y-auto"
+            className="absolute z-10 overflow-y-auto overflow-x-hidden px-2"
             style={{ top: "22%", right: aDistancia("3cqw"), width: "min(440px, 30cqw)", maxHeight: "70cqh" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -219,7 +229,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
           className="pointer-events-auto absolute inset-0"
           onClick={(e) => e.stopPropagation()}
         >
-          <Esfera activa={abierto} momento={momento} estado={estadoEsfera} />
+          <Esfera activa={abierto} momento={momento} estado={estadoEsfera} goles={goles} />
         </motion.div>
       </div>
 

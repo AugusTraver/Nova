@@ -10,6 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use super::consultas;
 use crate::dominio::fechas_relativas::{combinar, nombre_dia_con_tilde, nombre_mes, resolver_fecha, resolver_hora, resolver_hora_fin};
 use crate::dominio::lenguaje::normalizar;
 use crate::dominio::momento::Momento;
@@ -27,6 +28,9 @@ pub enum Fuente {
     Agenda,
     Responsabilidades,
     Materias,
+    Futbol,
+    Noticias,
+    Clima,
 }
 
 /// Algo destructivo que espera el "sí" del usuario. Lo ejecuta Rust cuando el
@@ -157,6 +161,26 @@ pub fn definiciones() -> Value {
             vec!["nombre"],
         ),
         ("listar_materias", "Lista las materias.", json!({}), vec![]),
+        (
+            "consultar_partidos",
+            "Próximo partido, último resultado y si está jugando ahora.",
+            json!({ "equipo": { "type": "string", "enum": ["boca", "seleccion"] } }),
+            vec![],
+        ),
+        ("consultar_tabla", "Posición de Boca en el torneo local.", json!({}), vec![]),
+        (
+            "consultar_jugador",
+            "Último partido y temporada de un jugador seguido.",
+            json!({ "nombre": { "type": "string", "description": "Ej. 'Messi', 'Barco'." } }),
+            vec!["nombre"],
+        ),
+        ("consultar_noticias", "Los titulares elegidos para el usuario.", json!({}), vec![]),
+        (
+            "resumen_del_dia",
+            "El resumen de hoy (agenda, pendientes, fútbol, clima y una noticia). Para '¿qué tengo hoy?'.",
+            json!({}),
+            vec![],
+        ),
     ];
 
     Value::Array(
@@ -188,9 +212,19 @@ pub fn ejecutar(conexion: &mut Connection, nombre: &str, argumentos: &str, ahora
         "listar_responsabilidades" => leer(argumentos).and_then(|a| listar_responsabilidades(conexion, a, ahora)),
         "crear_materia" => leer(argumentos).and_then(|a| crear_materia(conexion, a, ahora)),
         "listar_materias" => listar_materias(conexion),
+        "consultar_partidos" => leer(argumentos).and_then(|a| consultas::consultar_partidos(conexion, a, ahora)).map(solo_lectura),
+        "consultar_tabla" => consultas::consultar_tabla(conexion, ahora).map(solo_lectura),
+        "consultar_jugador" => leer(argumentos).and_then(|a| consultas::consultar_jugador(conexion, a, ahora)).map(solo_lectura),
+        "consultar_noticias" => consultas::consultar_noticias(conexion).map(solo_lectura),
+        "resumen_del_dia" => consultas::resumen_del_dia(conexion, ahora).map(solo_lectura),
         otro => Err(format!("No existe la herramienta «{otro}».")),
     };
     resultado.unwrap_or_else(Salida::error)
+}
+
+/// Una consulta no cambia nada: ningún widget tiene que recargar.
+fn solo_lectura(valor: Value) -> Salida {
+    Salida::ok(valor, &[])
 }
 
 /// Lo que sale mal adentro de una herramienta: un texto para el modelo.
@@ -869,7 +903,7 @@ mod tests {
     }
 
     #[test]
-    fn las_definiciones_tienen_las_nueve_herramientas() {
+    fn las_definiciones_tienen_las_catorce_herramientas() {
         let nombres: Vec<String> = definiciones()
             .as_array()
             .unwrap()
@@ -880,8 +914,20 @@ mod tests {
             nombres,
             [
                 "crear_evento", "editar_evento", "borrar_evento", "listar_eventos", "crear_responsabilidad",
-                "completar_responsabilidad", "listar_responsabilidades", "crear_materia", "listar_materias"
+                "completar_responsabilidad", "listar_responsabilidades", "crear_materia", "listar_materias",
+                "consultar_partidos", "consultar_tabla", "consultar_jugador", "consultar_noticias", "resumen_del_dia"
             ]
         );
+        // Groq gratis tiene un límite de tokens por minuto: las definiciones
+        // van en cada pedido, así que tienen que seguir siendo cortas.
+        assert!(definiciones().to_string().len() < 6500, "{}", definiciones().to_string().len());
+    }
+
+    #[test]
+    fn las_consultas_no_cambian_nada() {
+        let mut base = db::en_memoria();
+        let (v, salida) = correr(&mut base, "resumen_del_dia", json!({}));
+        assert!(v["texto"].as_str().unwrap().contains("no tenés nada"));
+        assert!(salida.cambios.is_empty());
     }
 }

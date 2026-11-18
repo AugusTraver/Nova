@@ -41,9 +41,10 @@ interface OrbeProps {
   reducido: boolean;
   momento: Momento;
   estado: EstadoEsfera;
+  goles: number;
 }
 
-function Orbe({ activa, reducido, momento, estado }: OrbeProps) {
+function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
   const malla = useRef<Mesh>(null);
   const puntero = usePunteroGlobal();
 
@@ -57,6 +58,10 @@ function Orbe({ activa, reducido, momento, estado }: OrbeProps) {
       uPensando: { value: 0 },
       // 1 al fallar algo, decae solo: un destello en el color de aviso
       uError: { value: 0 },
+      // 1 en un gol de Boca: azul y oro durante unos segundos
+      uGol: { value: 0 },
+      uGolAzul: { value: new Color() },
+      uGolOro: { value: new Color() },
       uLuz: { value: new Color() },
       uBorde: { value: new Color() },
       uAviso: { value: new Color() },
@@ -70,7 +75,14 @@ function Orbe({ activa, reducido, momento, estado }: OrbeProps) {
     uniforms.uLuz.value.copy(colorDeToken("--color-luz"));
     uniforms.uBorde.value.copy(colorDeToken("--color-luz-borde"));
     uniforms.uAviso.value.copy(colorDeToken("--color-aviso"));
+    uniforms.uGolAzul.value.copy(colorDeToken("--color-gol-azul"));
+    uniforms.uGolOro.value.copy(colorDeToken("--color-gol-oro"));
   }, [momento, uniforms]);
+
+  // Cada gol nuevo suma 1 a `goles`: arranca el festejo.
+  useEffect(() => {
+    if (goles > 0) uniforms.uGol.value = 1;
+  }, [goles, uniforms]);
 
   useEffect(() => {
     if (estado === "error") uniforms.uError.value = 1;
@@ -94,6 +106,8 @@ function Orbe({ activa, reducido, momento, estado }: OrbeProps) {
     uniforms.uTiempo.value += delta * ritmo;
     uniforms.uImpulso.value = amortiguar(uniforms.uImpulso.value, 0, 2.2, delta);
     uniforms.uError.value = amortiguar(uniforms.uError.value, 0, 1.6, delta);
+    // El gol dura más: unos 4 segundos
+    uniforms.uGol.value = amortiguar(uniforms.uGol.value, 0, reducido ? 1.2 : 0.55, delta);
 
     const orbe = malla.current;
     if (!orbe) return;
@@ -123,9 +137,11 @@ interface EsferaProps {
   activa: boolean;
   momento: Momento;
   estado: EstadoEsfera;
+  /** Cuenta los goles de Boca festejados (cada vez que sube, hay festejo). */
+  goles?: number;
 }
 
-export function Esfera({ activa, momento, estado }: EsferaProps) {
+export function Esfera({ activa, momento, estado, goles = 0 }: EsferaProps) {
   const reducido = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   return (
     <Canvas
@@ -135,7 +151,7 @@ export function Esfera({ activa, momento, estado }: EsferaProps) {
       dpr={[1, 2]}
       style={{ background: "transparent" }}
     >
-      <Orbe activa={activa} reducido={reducido} momento={momento} estado={estado} />
+      <Orbe activa={activa} reducido={reducido} momento={momento} estado={estado} goles={goles} />
     </Canvas>
   );
 }

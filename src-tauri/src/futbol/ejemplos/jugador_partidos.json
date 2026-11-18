@@ -1,0 +1,179 @@
+{
+ "filters": [
+  {
+   "name": "season",
+   "value": "2026",
+   "options": [
+    {
+     "value": "2026",
+     "displayValue": "2026"
+    }
+   ]
+  },
+  {
+   "name": "team",
+   "value": "5",
+   "options": [
+    {
+     "value": "202",
+     "displayValue": "Argentina"
+    },
+    {
+     "value": "5",
+     "displayValue": "Boca Juniors"
+    }
+   ]
+  }
+ ],
+ "names": [
+  "totalGoals",
+  "goalAssists",
+  "totalShots",
+  "shotsOnTarget",
+  "foulsCommitted",
+  "foulsSuffered",
+  "offsides",
+  "yellowCards",
+  "redCards"
+ ],
+ "events": {
+  "401841505": {
+   "id": "401841505",
+   "gameDate": "2026-08-16T00:15:00.000+00:00",
+   "score": "1-1",
+   "homeTeamId": "7764",
+   "awayTeamId": "5",
+   "homeTeamScore": "1",
+   "awayTeamScore": "1",
+   "gameResult": "D",
+   "atVs": "@",
+   "opponent": {
+    "id": "7764",
+    "displayName": "Platense",
+    "abbreviation": "PLA"
+   },
+   "team": {
+    "id": "5",
+    "abbreviation": "CABJ"
+   },
+   "leagueName": "Argentine Liga Profesional de Fútbol",
+   "leagueAbbreviation": "Argentine LPF"
+  },
+  "401841517": {
+   "id": "401841517",
+   "gameDate": "2026-08-24T00:30:00.000+00:00",
+   "score": "1-1",
+   "homeTeamId": "15",
+   "awayTeamId": "5",
+   "homeTeamScore": "1",
+   "awayTeamScore": "1",
+   "gameResult": "D",
+   "atVs": "@",
+   "opponent": {
+    "id": "15",
+    "displayName": "Racing Club",
+    "abbreviation": "RAC"
+   },
+   "team": {
+    "id": "5",
+    "abbreviation": "CABJ"
+   },
+   "leagueName": "Argentine Liga Profesional de Fútbol",
+   "leagueAbbreviation": "Argentine LPF"
+  },
+  "401841669": {
+   "id": "401841669",
+   "gameDate": "2026-11-07T20:30:00.000+00:00",
+   "score": "1-0",
+   "homeTeamId": "5",
+   "awayTeamId": "8950",
+   "homeTeamScore": "1",
+   "awayTeamScore": "0",
+   "gameResult": "W",
+   "atVs": "vs",
+   "opponent": {
+    "id": "8950",
+    "displayName": "Defensa y Justicia",
+    "abbreviation": "DYJ"
+   },
+   "team": {
+    "id": "5",
+    "abbreviation": "CABJ"
+   },
+   "leagueName": "Argentine Liga Profesional de Fútbol",
+   "leagueAbbreviation": "Argentine LPF"
+  }
+ },
+ "seasonTypes": [
+  {
+   "displayName": "Torneo Apertura",
+   "categories": [
+    {
+     "type": "event",
+     "events": []
+    }
+   ]
+  },
+  {
+   "displayName": "Apertura - Round of 16",
+   "categories": [
+    {
+     "type": "event",
+     "events": []
+    }
+   ]
+  },
+  {
+   "displayName": "Torneo Clausura",
+   "categories": [
+    {
+     "type": "event",
+     "events": [
+      {
+       "eventId": "401841669",
+       "stats": [
+        "0",
+        "0",
+        "1",
+        "1",
+        "0",
+        "0",
+        "0",
+        "0",
+        "0"
+       ]
+      },
+      {
+       "eventId": "401841517",
+       "stats": [
+        "0",
+        "0",
+        "5",
+        "0",
+        "2",
+        "4",
+        "0",
+        "0",
+        "0"
+       ]
+      },
+      {
+       "eventId": "401841505",
+       "stats": [
+        "0",
+        "0",
+        "4",
+        "1",
+        "1",
+        "2",
+        "0",
+        "0",
+        "0"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

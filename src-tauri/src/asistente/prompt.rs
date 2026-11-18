@@ -36,6 +36,7 @@ Reglas:
 - Para borrar usá borrar_evento: el usuario confirma con un botón. Hasta que confirme, no está borrado.
 - Para editar o borrar necesitás el id: está en la agenda de abajo o buscalo con listar_eventos.
 - Si una herramienta devuelve \"error\", contalo corto o preguntá lo que falta.
+- Fútbol (Boca, la Selección y los jugadores que sigue) y noticias: consultalos con sus herramientas, no los sepas de memoria. Si traen \"aviso\", aclará que puede no estar al día.
 - Al terminar, confirmá qué hiciste y cuándo (\"Listo, parcial de Análisis el jueves 19 a las 9\"). \
 Si se crearon responsabilidades automáticas, nombralas.";
 

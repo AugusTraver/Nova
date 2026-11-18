@@ -64,12 +64,14 @@ pub fn pedir_cierre(app: &AppHandle) {
     }
 }
 
+/// ¿Está el panel a la vista? (la tarea de fondo consulta más seguido).
+pub fn abierto(app: &AppHandle) -> bool {
+    panel(app).and_then(|v| v.is_visible().ok()).unwrap_or(false)
+}
+
 /// Abre si está cerrado, cierra si está abierto (lo usa el atajo global).
 pub fn alternar(app: &AppHandle) {
-    let visible = panel(app)
-        .and_then(|v| v.is_visible().ok())
-        .unwrap_or(false);
-    if visible {
+    if abierto(app) {
         pedir_cierre(app);
     } else {
         mostrar(app);

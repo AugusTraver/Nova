@@ -1,0 +1,557 @@
+{
+ "header": {
+  "id": "401926286",
+  "league": {
+   "name": "Copa Argentina",
+   "abbreviation": "Copa Argentina",
+   "slug": "arg.copa"
+  },
+  "competitions": [
+   {
+    "id": "401926286",
+    "date": "2026-11-14T22:00Z",
+    "status": {
+     "type": {
+      "id": "28",
+      "name": "STATUS_FULL_TIME",
+      "state": "post",
+      "completed": true,
+      "description": "Full Time",
+      "detail": "FT",
+      "shortDetail": "FT"
+     }
+    },
+    "competitors": [
+     {
+      "id": "235",
+      "homeAway": "home",
+      "winner": false,
+      "score": "0",
+      "team": {
+       "id": "235",
+       "displayName": "Banfield",
+       "shortDisplayName": "Banfield",
+       "abbreviation": "BAN",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/235.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2019-05-08T16:07Z"
+        }
+       ]
+      }
+     },
+     {
+      "id": "5",
+      "homeAway": "away",
+      "winner": true,
+      "score": "3",
+      "team": {
+       "id": "5",
+       "displayName": "Boca Juniors",
+       "shortDisplayName": "Boca ",
+       "abbreviation": "CABJ",
+       "logos": [
+        {
+         "href": "https://a.espncdn.com/i/teamlogos/soccer/500/5.png",
+         "width": 500,
+         "height": 500,
+         "alt": "",
+         "rel": [
+          "full",
+          "default"
+         ],
+         "lastUpdated": "2023-03-27T13:49Z"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "keyEvents": [
+  {
+   "id": "55281519",
+   "type": {
+    "id": "94",
+    "text": "Yellow Card",
+    "type": "yellow-card"
+   },
+   "clock": {
+    "value": 2547.0,
+    "displayValue": "43'"
+   },
+   "team": {
+    "id": "235",
+    "displayName": "Banfield"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "208638",
+      "displayName": "Adrián Balboa"
+     }
+    }
+   ],
+   "shortText": "Adrián Balboa Yellow Card"
+  },
+  {
+   "id": "55281612",
+   "type": {
+    "id": "94",
+    "text": "Yellow Card",
+    "type": "yellow-card"
+   },
+   "clock": {
+    "value": 2677.0,
+    "displayValue": "45'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "259166",
+      "displayName": "Malcom Braida"
+     }
+    }
+   ],
+   "shortText": "Malcom Braida Yellow Card"
+  },
+  {
+   "id": "55281629",
+   "type": {
+    "id": "70",
+    "text": "Goal",
+    "type": "goal"
+   },
+   "clock": {
+    "value": 2700.0,
+    "displayValue": "45'+1'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": true,
+   "participants": [
+    {
+     "athlete": {
+      "id": "233734",
+      "displayName": "Santiago Ascacibar"
+     }
+    }
+   ],
+   "shortText": "Santiago Ascacibar Goal"
+  },
+  {
+   "id": "55282436",
+   "type": {
+    "id": "94",
+    "text": "Yellow Card",
+    "type": "yellow-card"
+   },
+   "clock": {
+    "value": 3008.0,
+    "displayValue": "51'"
+   },
+   "team": {
+    "id": "235",
+    "displayName": "Banfield"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "302033",
+      "displayName": "Nicolás Meriano"
+     }
+    }
+   ],
+   "shortText": "Nicolás Meriano Yellow Card"
+  },
+  {
+   "id": "55282630",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 3328.0,
+    "displayValue": "56'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "171771",
+      "displayName": "Enner Valencia"
+     }
+    },
+    {
+     "athlete": {
+      "id": "260812",
+      "displayName": "Miguel Merentiel"
+     }
+    }
+   ],
+   "shortText": "Enner Valencia Substitution"
+  },
+  {
+   "id": "55282631",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 3347.0,
+    "displayValue": "56'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "400359",
+      "displayName": "Tomás Aranda"
+     }
+    },
+    {
+     "athlete": {
+      "id": "286516",
+      "displayName": "Alan Velasco"
+     }
+    }
+   ],
+   "shortText": "Tomás Aranda Substitution"
+  },
+  {
+   "id": "55282651",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 3415.0,
+    "displayValue": "57'"
+   },
+   "team": {
+    "id": "235",
+    "displayName": "Banfield"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "283756",
+      "displayName": "Santiago López Garcia"
+     }
+    },
+    {
+     "athlete": {
+      "id": "215564",
+      "displayName": "Juan Alfaro"
+     }
+    }
+   ],
+   "shortText": "Santiago López Garcia Substituti"
+  },
+  {
+   "id": "55282702",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 3429.0,
+    "displayValue": "58'"
+   },
+   "team": {
+    "id": "235",
+    "displayName": "Banfield"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "189800",
+      "displayName": "Nehuén Paz"
+     }
+    },
+    {
+     "athlete": {
+      "id": "302033",
+      "displayName": "Nicolás Meriano"
+     }
+    }
+   ],
+   "shortText": "Nehuén Paz Substitution"
+  },
+  {
+   "id": "55282971",
+   "type": {
+    "id": "70",
+    "text": "Goal",
+    "type": "goal"
+   },
+   "clock": {
+    "value": 3762.0,
+    "displayValue": "63'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": true,
+   "participants": [
+    {
+     "athlete": {
+      "id": "141790",
+      "displayName": "Sebastián Villa"
+     }
+    }
+   ],
+   "shortText": "Sebastián Villa Goal"
+  },
+  {
+   "id": "55283028",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 3842.0,
+    "displayValue": "65'"
+   },
+   "team": {
+    "id": "235",
+    "displayName": "Banfield"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "163064",
+      "displayName": "David Salazar"
+     }
+    },
+    {
+     "athlete": {
+      "id": "384351",
+      "displayName": "Lautaro Gómez"
+     }
+    }
+   ],
+   "shortText": "David Salazar Substitution"
+  },
+  {
+   "id": "55283029",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 3847.0,
+    "displayValue": "65'"
+   },
+   "team": {
+    "id": "235",
+    "displayName": "Banfield"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "390387",
+      "displayName": "Lisandro Piñero"
+     }
+    },
+    {
+     "athlete": {
+      "id": "379901",
+      "displayName": "Federico Medina"
+     }
+    }
+   ],
+   "shortText": "Lisandro Piñero Substitution"
+  },
+  {
+   "id": "55283148",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 3850.0,
+    "displayValue": "65'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "286902",
+      "displayName": "Ayrton Costa"
+     }
+    },
+    {
+     "athlete": {
+      "id": "259166",
+      "displayName": "Malcom Braida"
+     }
+    }
+   ],
+   "shortText": "Ayrton Costa Substitution"
+  },
+  {
+   "id": "55283289",
+   "type": {
+    "id": "70",
+    "text": "Goal",
+    "type": "goal"
+   },
+   "clock": {
+    "value": 4387.0,
+    "displayValue": "74'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": true,
+   "participants": [
+    {
+     "athlete": {
+      "id": "338991",
+      "displayName": "Leandro Lozano"
+     }
+    }
+   ],
+   "shortText": "Leandro Lozano Goal"
+  },
+  {
+   "id": "55283378",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 4491.0,
+    "displayValue": "75'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "256199",
+      "displayName": "Tomás Belmonte"
+     }
+    },
+    {
+     "athlete": {
+      "id": "153115",
+      "displayName": "Leandro Paredes"
+     }
+    }
+   ],
+   "shortText": "Tomás Belmonte Substitution"
+  },
+  {
+   "id": "55283379",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 4498.0,
+    "displayValue": "75'"
+   },
+   "team": {
+    "id": "235",
+    "displayName": "Banfield"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "184817",
+      "displayName": "Favio Álvarez"
+     }
+    },
+    {
+     "athlete": {
+      "id": "288722",
+      "displayName": "Alexander Machado"
+     }
+    }
+   ],
+   "shortText": "Favio Álvarez Substitution"
+  },
+  {
+   "id": "55283380",
+   "type": {
+    "id": "76",
+    "text": "Substitution",
+    "type": "substitution"
+   },
+   "clock": {
+    "value": 4503.0,
+    "displayValue": "76'"
+   },
+   "team": {
+    "id": "5",
+    "displayName": "Boca Juniors"
+   },
+   "scoringPlay": false,
+   "participants": [
+    {
+     "athlete": {
+      "id": "400360",
+      "displayName": "Leonel Flores"
+     }
+    },
+    {
+     "athlete": {
+      "id": "141790",
+      "displayName": "Sebastián Villa"
+     }
+    }
+   ],
+   "shortText": "Leonel Flores Substitution"
+  }
+ ]
+}

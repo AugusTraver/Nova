@@ -48,6 +48,17 @@ impl ClienteCompatible {
         self.pedir(armar_pedido(&self.modelo, &mensajes, None)).await.map(|_| ())
     }
 
+    /// Un pedido sin herramientas que devuelve solo el texto (para tareas
+    /// internas, como elegir noticias). Con gpt-oss pide razonar poco: es más
+    /// rápido y gasta menos del límite de tokens.
+    pub async fn texto(&self, mensajes: &[Mensaje]) -> Resultado<String> {
+        let mut cuerpo = armar_pedido(&self.modelo, mensajes, None);
+        if self.modelo.contains("gpt-oss") {
+            cuerpo["reasoning_effort"] = json!("low");
+        }
+        self.pedir(cuerpo).await.map(|r| r.texto)
+    }
+
     async fn pedir(&self, cuerpo: Value) -> Resultado<RespuestaModelo> {
         let mut pedido = self.http.post(format!("{}/chat/completions", self.base)).json(&cuerpo);
         if let Some(key) = &self.api_key {
