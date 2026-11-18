@@ -1,5 +1,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { pistaDeVoz } from "../lib/voz";
 import { useAsistente } from "../store/asistente";
+import { useVoz } from "../store/voz";
 
 /**
  * Debajo de la esfera (SPEC 3.2): lo que pediste, qué está haciendo Nova y su
@@ -21,6 +23,18 @@ export function Respuesta() {
   // Si espera un "sí", se muestra la pregunta exacta que armó Rust (con el
   // título y la fecha reales), no la versión del modelo.
   const texto = confirmacion ?? respuesta;
+  const voz = useVoz((s) => s.estado);
+  const parcial = useVoz((s) => s.parcial);
+  const errorDeVoz = useVoz((s) => (s.estado === "error" ? s.mensaje : null));
+  // Mientras hablás, lo que vas diciendo ocupa el lugar del pedido.
+  const oyendo = (voz === "oyendo" || voz === "transcribiendo") && parcial !== null;
+  const lineaDeArriba = oyendo
+    ? `«${parcial}»`
+    : pedido && confirmacion === null
+      ? `«${pedido}»`
+      : paso === null && texto === null && error === null
+        ? (errorDeVoz ?? pistaDeVoz(voz) ?? "")
+        : "";
   // Una sola "vista" a la vez; la clave hace que se crucen con un fundido.
   const clave = paso !== null ? "paso" : error !== null ? "error" : texto !== null ? `r:${texto}` : "nada";
   const aparecer = reducido
@@ -34,8 +48,12 @@ export function Respuesta() {
   return (
     <div className="flex h-[6.25rem] w-full flex-col items-center text-center">
       {/* Con una pregunta pendiente, la pregunta manda: el pedido se oculta. */}
-      <p className="h-5 max-w-full shrink-0 truncate text-[14px] text-tinta-3">
-        {pedido && confirmacion === null ? `«${pedido}»` : ""}
+      <p
+        className={`h-5 max-w-full shrink-0 truncate text-[14px] transition-colors duration-200 ${
+          oyendo ? "italic text-tinta-2" : errorDeVoz && !pedido ? "text-aviso" : "text-tinta-3"
+        }`}
+      >
+        {lineaDeArriba}
       </p>
 
       {/* Lo que lee un lector de pantalla: el paso y después la respuesta. */}

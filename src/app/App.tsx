@@ -3,7 +3,9 @@ import { useAsistente } from "../store/asistente";
 import { useDatos } from "../store/datos";
 import { usePanel } from "../store/panel";
 import { Panel } from "./Panel";
-import { enTauri, escucharCambios, escucharGoles, escucharPanel, ocultarVentana } from "./puenteTauri";
+import { api } from "../lib/api";
+import { nivelVoz, useVoz } from "../store/voz";
+import { enTauri, escucharCambios, escucharGoles, escucharPanel, escucharVoz, ocultarVentana } from "./puenteTauri";
 
 export function App() {
   const abierto = usePanel((s) => s.abierto);
@@ -65,6 +67,50 @@ export function App() {
     };
   }, []);
 
+  // Voz (v0.5): los eventos del motor de Rust. Cuando terminás de hablar,
+  // el pedido va al asistente como si lo hubieras escrito (pero la respuesta
+  // es corta y se lee en voz alta).
+  useEffect(() => {
+    let quitar: (() => void) | undefined;
+    let cancelado = false;
+    escucharVoz({
+      alEstado: ({ estado, mensaje }) => useVoz.getState().ponerEstado(estado, mensaje),
+      alNivel: (nivel) => {
+        nivelVoz.valor = nivel;
+      },
+      alParcial: (texto) => useVoz.getState().ponerParcial(texto),
+      alFinal: (texto) => {
+        useVoz.getState().ponerParcial(null);
+        // Si todavía estaba respondiendo lo anterior, se vuelve a escuchar.
+        if (!useAsistente.getState().enviar(texto, true)) void api.reanudarEscucha().catch(() => {});
+      },
+      alDescarga: (p) => useVoz.getState().ponerDescarga(p),
+    }).then((fn) => {
+      if (cancelado) fn();
+      else quitar = fn;
+    });
+    return () => {
+      cancelado = true;
+      quitar?.();
+    };
+  }, []);
+
+  // Abrir el panel = empezar a escuchar (SPEC 5.1). La primera vez en el día,
+  // Nova lee el resumen. Cerrarlo suelta el micrófono.
+  useEffect(() => {
+    if (abierto) {
+      api
+        .activarVoz()
+        .then((resumen) => {
+          if (resumen) useAsistente.getState().mostrar(resumen);
+        })
+        .catch((e: unknown) => console.error("No se pudo activar la voz", e));
+    } else {
+      nivelVoz.valor = 0;
+      void api.desactivarVoz().catch((e: unknown) => console.error("No se pudo apagar la voz", e));
+    }
+  }, [abierto]);
+
   // Al cerrar, la respuesta se va: la próxima vez la esfera arranca limpia.
   useEffect(() => {
     if (!abierto) useAsistente.getState().limpiar();
@@ -81,7 +127,9 @@ export function App() {
     const alTeclear = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       const { edicion, terminarEdicion } = usePanel.getState();
-      if (edicion) terminarEdicion();
+      // Si Nova está hablando, Esc primero la calla.
+      if (useVoz.getState().estado === "hablando") void api.callar().catch(() => {});
+      else if (edicion) terminarEdicion();
       else cerrar();
     };
     window.addEventListener("keydown", alTeclear);

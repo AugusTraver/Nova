@@ -2,7 +2,9 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
 import { Esfera } from "../esfera/Esfera";
 import { useAhora } from "../lib/useAhora";
+import { esferaSegun } from "../lib/voz";
 import { useDatos } from "../store/datos";
+import { useVoz } from "../store/voz";
 import { type Edicion, usePanel } from "../store/panel";
 import { useCielo } from "../theme/useCielo";
 import { Calendario } from "../widgets/Calendario";
@@ -66,7 +68,11 @@ function Atenuable({ apagado, oculto, children }: { apagado: boolean; oculto: bo
 export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
   const ahora = useAhora();
   const momento = useCielo(abierto);
-  const estadoEsfera = usePanel((s) => s.estadoEsfera);
+  // Lo del asistente (pensando, error) manda; si no, la voz (escucha o habla).
+  const estadoEsfera = esferaSegun(
+    usePanel((s) => s.estadoEsfera),
+    useVoz((s) => s.estado),
+  );
   const goles = usePanel((s) => s.goles);
   // En vivo, el widget de fútbol se ensancha un poco (hacia afuera de la órbita).
   const futbolEnVivo = useDatos((s) => s.futbol?.datos?.equipos.some((e) => e.enVivo !== null) ?? false);

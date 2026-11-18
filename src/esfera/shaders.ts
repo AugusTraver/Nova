@@ -67,6 +67,9 @@ uniform float uRespiracion; // intensidad del "respirar"
 uniform float uImpulso;     // 1 justo al abrir el panel, decae a 0 (salpicón)
 uniform float uPensando;    // 0 a 1 mientras el asistente piensa
 uniform float uGol;         // 1 en un gol de Boca, decae a 0
+uniform float uNivel;       // volumen de la voz (micrófono o Nova), 0 a 1
+uniform float uEscucha;     // 0 a 1 mientras escucha
+uniform float uHabla;       // 0 a 1 mientras habla
 
 varying vec3 vNormal;
 varying vec3 vVista;
@@ -88,7 +91,15 @@ float desplazamiento(vec3 dir) {
   float amplitud = uAmplitud * (1.0 + uImpulso * 1.2 + uPensando * 0.5 + uGol * 2.2);
   // Gol: además, late rápido como un corazón
   float festejo = uGol * 0.035 * max(sin(t * 9.0), 0.0);
-  return liquido * amplitud + onda * (1.0 + uImpulso * 2.0) + sin(t * 1.05) * uRespiracion + festejo;
+
+  // Voz: la superficie ondula con el volumen. Escuchando, ondas finas que
+  // recorren la esfera (tu voz la "toca"); hablando, pulsos más grandes y
+  // se infla un poco con cada sílaba.
+  float voz = uNivel * (0.075 * uEscucha + 0.11 * uHabla);
+  float ondasVoz = snoise(dir * (2.2 + uEscucha * 1.4) + vec3(t * 1.3, -t * 0.9, t * 0.7)) * voz;
+  float inflar = uNivel * uHabla * 0.035;
+
+  return liquido * amplitud + onda * (1.0 + uImpulso * 2.0) + sin(t * 1.05) * uRespiracion + festejo + ondasVoz + inflar;
 }
 
 vec3 superficie(vec3 dir) {
@@ -128,6 +139,9 @@ uniform float uError;
 uniform float uGol;     // gol de Boca: se pinta de azul con la franja de oro
 uniform vec3 uGolAzul;  // token --color-gol-azul
 uniform vec3 uGolOro;   // token --color-gol-oro
+uniform float uNivel;
+uniform float uEscucha;
+uniform float uHabla;
 
 varying vec3 vNormal;
 varying vec3 vVista;
@@ -156,6 +170,11 @@ void main() {
 
   // Pensando: late despacio, más fuerte donde hay nubes
   color *= 1.0 + uPensando * (0.05 + 0.05 * sin(t * 3.0) + nubes * 0.06);
+
+  // Escuchando: el borde se aclara (está atenta) y brilla con tu voz.
+  color = mix(color, uLuz, (1.0 - frente) * uEscucha * (0.22 + uNivel * 0.3));
+  // Hablando: la luz de adentro sube y baja con su voz.
+  color *= 1.0 + uNivel * (0.08 * uEscucha + 0.2 * uHabla);
 
   // Error: el borde se tiñe un instante con el color de aviso
   color = mix(color, uAviso, uError * (1.0 - mezcla * 0.6) * 0.75);

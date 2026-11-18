@@ -2,6 +2,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import { Color, type Mesh } from "three";
 import type { EstadoEsfera } from "../store/panel";
+import { nivelVoz } from "../store/voz";
 import type { Momento } from "../theme/cielo";
 import { fragmentShader, vertexShader } from "./shaders";
 
@@ -60,6 +61,10 @@ function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
       uError: { value: 0 },
       // 1 en un gol de Boca: azul y oro durante unos segundos
       uGol: { value: 0 },
+      // Voz: el volumen (suavizado) y cuánto está escuchando o hablando
+      uNivel: { value: 0 },
+      uEscucha: { value: 0 },
+      uHabla: { value: 0 },
       uGolAzul: { value: new Color() },
       uGolOro: { value: new Color() },
       uLuz: { value: new Color() },
@@ -88,9 +93,13 @@ function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
     if (estado === "error") uniforms.uError.value = 1;
   }, [estado, uniforms]);
 
-  // Se lee en cada cuadro sin volver a renderizar.
+  // Se leen en cada cuadro sin volver a renderizar.
   const pensando = useRef(false);
   pensando.current = estado === "pensando";
+  const escucha = useRef(false);
+  escucha.current = estado === "escuchando";
+  const habla = useRef(false);
+  habla.current = estado === "hablando";
 
   // Cada vez que se abre el panel: un pulso de luz que decae solo.
   useEffect(() => {
@@ -106,6 +115,12 @@ function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
     uniforms.uTiempo.value += delta * ritmo;
     uniforms.uImpulso.value = amortiguar(uniforms.uImpulso.value, 0, 2.2, delta);
     uniforms.uError.value = amortiguar(uniforms.uError.value, 0, 1.6, delta);
+    uniforms.uEscucha.value = amortiguar(uniforms.uEscucha.value, escucha.current ? 1 : 0, 4, delta);
+    uniforms.uHabla.value = amortiguar(uniforms.uHabla.value, habla.current ? 1 : 0, 4, delta);
+    // El volumen sigue rápido al audio (pero sin saltos). Con movimiento
+    // reducido, apenas se nota.
+    const objetivo = escucha.current || habla.current ? nivelVoz.valor * (reducido ? 0.25 : 1) : 0;
+    uniforms.uNivel.value = amortiguar(uniforms.uNivel.value, objetivo, 16, delta);
     // El gol dura más: unos 4 segundos
     uniforms.uGol.value = amortiguar(uniforms.uGol.value, 0, reducido ? 1.2 : 0.55, delta);
 

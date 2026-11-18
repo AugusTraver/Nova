@@ -9,6 +9,7 @@ import type {
   AjustesClima,
   AjustesIa,
   AjustesNoticias,
+  AjustesVoz,
   Cacheado,
   CiudadEncontrada,
   DatosEvento,
@@ -27,6 +28,7 @@ import type {
   VistaAjustesIa,
   VistaClima,
   VistaFutbol,
+  VistaVoz,
 } from "./tipos";
 
 export interface Api {
@@ -52,8 +54,11 @@ export interface Api {
   obtenerAjustes(): Promise<Ajustes>;
   guardarAjustes(ajustes: Ajustes): Promise<Ajustes>;
 
-  /** Un turno con el asistente. `alProgreso` recibe los pasos mientras trabaja. */
-  enviarMensaje(texto: string, alProgreso: (p: Progreso) => void): Promise<Turno>;
+  /**
+   * Un turno con el asistente. `alProgreso` recibe los pasos mientras trabaja.
+   * `porVoz`: el pedido fue hablado (la respuesta tiene que ser corta).
+   */
+  enviarMensaje(texto: string, alProgreso: (p: Progreso) => void, porVoz?: boolean): Promise<Turno>;
   /** Respuesta a "¿Borro…?" desde los botones. */
   confirmarAccion(aceptar: boolean, alProgreso: (p: Progreso) => void): Promise<Turno>;
   borrarHistorial(): Promise<void>;
@@ -81,6 +86,19 @@ export interface Api {
   obtenerAjustesClima(): Promise<AjustesClima>;
   guardarAjustesClima(ajustes: AjustesClima): Promise<AjustesClima>;
   buscarCiudades(texto: string): Promise<CiudadEncontrada[]>;
+
+  estadoVoz(): Promise<VistaVoz>;
+  guardarAjustesVoz(ajustes: AjustesVoz): Promise<AjustesVoz>;
+  /** Baja Whisper, Piper y los modelos (avisa el progreso con `voz:descarga`). */
+  bajarModelosVoz(): Promise<void>;
+  /** Se abrió el panel: escuchar. Devuelve el resumen si lo va a leer. */
+  activarVoz(): Promise<string | null>;
+  desactivarVoz(): Promise<void>;
+  pausarEscucha(): Promise<void>;
+  reanudarEscucha(): Promise<void>;
+  esperarRespuesta(): Promise<void>;
+  hablar(texto: string): Promise<void>;
+  callar(): Promise<void>;
 }
 
 /** Un `Channel` de Tauri: Rust manda mensajes mientras el comando corre. */
@@ -114,7 +132,8 @@ const apiTauri: Api = {
   obtenerAjustes: () => invoke("obtener_ajustes"),
   guardarAjustes: (ajustes) => invoke("guardar_ajustes", { ajustes }),
 
-  enviarMensaje: (texto, alProgreso) => invoke("enviar_mensaje", { texto, progreso: canal(alProgreso) }),
+  enviarMensaje: (texto, alProgreso, porVoz = false) =>
+    invoke("enviar_mensaje", { texto, porVoz, progreso: canal(alProgreso) }),
   confirmarAccion: (aceptar, alProgreso) => invoke("confirmar_accion", { aceptar, progreso: canal(alProgreso) }),
   borrarHistorial: () => invoke("borrar_historial"),
   obtenerAjustesIa: () => invoke("obtener_ajustes_ia"),
@@ -137,6 +156,17 @@ const apiTauri: Api = {
   obtenerAjustesClima: () => invoke("obtener_ajustes_clima"),
   guardarAjustesClima: (ajustes) => invoke("guardar_ajustes_clima", { ajustes }),
   buscarCiudades: (texto) => invoke("buscar_ciudades", { texto }),
+
+  estadoVoz: () => invoke("estado_voz"),
+  guardarAjustesVoz: (ajustes) => invoke("guardar_ajustes_voz", { ajustes }),
+  bajarModelosVoz: () => invoke("bajar_modelos_voz"),
+  activarVoz: () => invoke("activar_voz"),
+  desactivarVoz: () => invoke("desactivar_voz"),
+  pausarEscucha: () => invoke("pausar_escucha"),
+  reanudarEscucha: () => invoke("reanudar_escucha"),
+  esperarRespuesta: () => invoke("esperar_respuesta"),
+  hablar: (texto) => invoke("hablar", { texto }),
+  callar: () => invoke("callar"),
 };
 
 export const api: Api = enTauri ? apiTauri : crearApiMemoria();

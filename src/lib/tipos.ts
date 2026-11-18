@@ -304,6 +304,50 @@ export interface AjustesClima {
   longitud: number;
 }
 
+// ---- Voz (ver src-tauri/src/voz) ----
+
+export type EstadoVoz =
+  | "apagada"
+  | "preparando"
+  | "escuchando"
+  | "oyendo"
+  | "transcribiendo"
+  | "pensando"
+  | "hablando"
+  | "pausada"
+  | "sin_modelos"
+  | "error";
+
+/** Evento `voz:estado`. */
+export interface AvisoEstadoVoz {
+  estado: EstadoVoz;
+  mensaje: string | null;
+}
+
+export interface AjustesVoz {
+  activada: boolean;
+  /** 1 = normal, de 0,7 a 1,4. */
+  velocidad: number;
+  leerResumen: boolean;
+  usarGpu: boolean;
+}
+
+export interface VistaVoz {
+  ajustes: AjustesVoz;
+  modelosListos: boolean;
+  megasFaltantes: number;
+  hayGpu: boolean;
+}
+
+/** Evento `voz:descarga`. */
+export interface ProgresoDescarga {
+  nombre: string;
+  megasBajados: number;
+  megasTotales: number;
+  terminado: boolean;
+  error: string | null;
+}
+
 export interface CiudadEncontrada {
   nombre: string;
   /** "Buenos Aires, Argentina" */
