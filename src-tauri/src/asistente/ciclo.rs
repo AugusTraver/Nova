@@ -109,12 +109,28 @@ pub fn resolver_pendiente(db: &Db, estado: &Asistente, aceptar: bool, avisos: &d
     Ok(Turno { respuesta, confirmacion: None })
 }
 
-/// Un turno completo a partir de lo que escribió el usuario.
+/// Un turno completo a partir de lo que escribió el usuario (los tests lo
+/// usan así; la app pasa por `responder_con`).
+#[cfg(test)]
 pub async fn responder<P: ProveedorIa>(
     proveedor: &P,
     db: &Db,
     estado: &Asistente,
     texto: &str,
+    avisos: &dyn Avisos,
+    ahora: &Ahora,
+) -> Resultado<Turno> {
+    responder_con(proveedor, db, estado, texto, false, avisos, ahora).await
+}
+
+/// Igual que `responder`, pero `por_voz` pide una respuesta corta para leer
+/// en voz alta (SPEC 5.2: "nada de párrafos largos por voz").
+pub async fn responder_con<P: ProveedorIa>(
+    proveedor: &P,
+    db: &Db,
+    estado: &Asistente,
+    texto: &str,
+    por_voz: bool,
     avisos: &dyn Avisos,
     ahora: &Ahora,
 ) -> Resultado<Turno> {
@@ -141,7 +157,11 @@ pub async fn responder<P: ProveedorIa>(
     guardar(db, &usuario, ahora)?;
 
     let mut conversacion = Vec::with_capacity(historial.len() + 4);
-    conversacion.push(Mensaje::Sistema(prompt::armar(ahora, &contexto)));
+    let mut sistema = prompt::armar(ahora, &contexto);
+    if por_voz {
+        sistema.push_str(prompt::POR_VOZ);
+    }
+    conversacion.push(Mensaje::Sistema(sistema));
     conversacion.extend(historial);
     conversacion.push(usuario);
 
@@ -369,5 +389,37 @@ mod tests {
         assert!(responder(&modelo, &db, &Asistente::default(), "   ", &avisos, &ahora()).await.is_err());
         let largo = "a".repeat(LARGO_MAXIMO + 1);
         assert!(responder(&modelo, &db, &Asistente::default(), &largo, &avisos, &ahora()).await.is_err());
+    }
+
+    /// El criterio de v0.5 contra el modelo de verdad (Groq, con la key del
+    /// llavero) y una base en memoria: "recordame comprar el regalo de Juan
+    /// para el viernes" crea la responsabilidad y la confirma corto, como
+    /// para leerla en voz alta. `cargo test regalo_de_juan -- --ignored`.
+    #[tokio::test]
+    #[ignore]
+    async fn recordame_el_regalo_de_juan_por_voz() {
+        let db = Db::de_conexion(crate::db::en_memoria());
+        let ajustes = crate::asistente::proveedor::AjustesIa::default();
+        let key = crate::llavero::leer("groq-api-key").unwrap();
+        let cliente = ajustes.cliente(key).unwrap();
+        let avisos = Registro::default();
+        let turno = responder_con(
+            &cliente,
+            &db,
+            &Asistente::default(),
+            "Recordame comprar el regalo de Juan para el viernes.",
+            true,
+            &avisos,
+            &ahora(),
+        )
+        .await
+        .unwrap();
+        let lista = crate::repos::responsabilidades::listar(&db.conexion()).unwrap();
+        let creada = lista.iter().find(|r| r.titulo.to_lowercase().contains("regalo")).expect("no creó la responsabilidad");
+        assert_eq!(creada.fecha_limite.as_deref(), Some("2026-11-20"));
+        // Una oración corta, sin listas ni markdown.
+        assert!(turno.respuesta.chars().count() < 160, "{}", turno.respuesta);
+        assert!(!turno.respuesta.contains('*') && !turno.respuesta.contains("\n"), "{}", turno.respuesta);
+        println!("Respuesta por voz: {}", turno.respuesta);
     }
 }

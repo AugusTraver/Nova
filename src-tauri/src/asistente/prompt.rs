@@ -40,6 +40,10 @@ Reglas:
 - Al terminar, confirmá qué hiciste y cuándo (\"Listo, parcial de Análisis el jueves 19 a las 9\"). \
 Si se crearon responsabilidades automáticas, nombralas.";
 
+/// Se agrega cuando el pedido llegó hablando: la respuesta se va a leer.
+pub const POR_VOZ: &str = "\n\nEl usuario te habló y tu respuesta se va a leer en voz alta: una sola oración corta, \
+sin listas, emojis, símbolos ni números con decimales. Las horas, como se dicen (\"a las nueve\", \"a las siete y media\").";
+
 fn dia_corto(dia: Weekday) -> &'static str {
     match dia {
         Weekday::Mon => "lun",

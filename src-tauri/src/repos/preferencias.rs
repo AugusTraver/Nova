@@ -21,6 +21,14 @@ pub fn jugadores(conexion: &Connection) -> Resultado<Vec<crate::futbol::JugadorS
     Ok(leer(conexion, JUGADORES)?.unwrap_or_else(crate::futbol::jugadores_por_defecto))
 }
 
+/// Voz (`AjustesVoz`) y el día en que se leyó el resumen por última vez.
+pub const VOZ: &str = "voz";
+pub const RESUMEN_LEIDO: &str = "resumen_leido_el";
+
+pub fn voz(conexion: &Connection) -> Resultado<crate::voz::AjustesVoz> {
+    Ok(leer(conexion, VOZ)?.unwrap_or_default())
+}
+
 /// Intereses y feeds de noticias (`AjustesNoticias`).
 pub const NOTICIAS: &str = "noticias";
 /// Ciudad del clima y si se muestra (`AjustesClima`).

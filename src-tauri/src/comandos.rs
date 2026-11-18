@@ -16,6 +16,8 @@ use crate::asistente::proveedor::{AjustesIa, ProveedorIa, TipoProveedor};
 use crate::clima::{AjustesClima, CiudadEncontrada, ClienteClima, VistaClima};
 use crate::db::Db;
 use crate::noticias::{self, AjustesNoticias, Noticia};
+use crate::voz::motor::Orden;
+use crate::voz::{AjustesVoz, Voz, modelos as modelos_voz};
 use crate::fondo::Fondo;
 use crate::futbol::{self, JugadorEncontrado, JugadorSeguido};
 use crate::futbol::espn::ClienteEspn;
@@ -202,16 +204,18 @@ pub async fn enviar_mensaje(
     db: State<'_, Db>,
     asistente: State<'_, Asistente>,
     texto: String,
+    por_voz: Option<bool>,
     progreso: Channel<Progreso>,
 ) -> Resultado<Turno> {
     let avisos = AvisosTauri { app, canal: progreso };
     let ahora = Ahora::del_sistema();
+    let por_voz = por_voz.unwrap_or(false);
     // Un "sí" a un borrado pendiente no necesita al modelo (ni la key).
     if asistente.hay_pendiente() && interpretar_confirmacion(&texto).is_some() {
-        return ciclo::responder(&SinModelo, &db, &asistente, &texto, &avisos, &ahora).await;
+        return ciclo::responder_con(&SinModelo, &db, &asistente, &texto, por_voz, &avisos, &ahora).await;
     }
     let cliente = cliente_ia(&db)?;
-    ciclo::responder(&cliente, &db, &asistente, &texto, &avisos, &ahora).await
+    ciclo::responder_con(&cliente, &db, &asistente, &texto, por_voz, &avisos, &ahora).await
 }
 
 /// Los botones "Sí, borralo" / "No" debajo de la esfera.
@@ -425,6 +429,167 @@ pub fn guardar_ajustes_clima(
     fondo.despertar();
     let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Clima]);
     Ok(ajustes)
+}
+
+// ---------- Voz ----------
+
+/// Lo que ve Ajustes de la voz.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VistaVoz {
+    pub ajustes: AjustesVoz,
+    pub modelos_listos: bool,
+    /// Cuánto falta bajar (MB aproximados).
+    pub megas_faltantes: u64,
+    pub hay_gpu: bool,
+}
+
+#[tauri::command]
+pub async fn estado_voz(db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<VistaVoz> {
+    let ajustes = preferencias::voz(&db.conexion())?;
+    // `nvidia-smi` tarda un poco: en un hilo aparte, sin trabar la interfaz.
+    let hay_gpu = tauri::async_runtime::spawn_blocking(modelos_voz::hay_gpu_nvidia).await.unwrap_or(false);
+    let faltan = modelos_voz::faltantes(&voz.rutas, hay_gpu && ajustes.usar_gpu);
+    Ok(VistaVoz {
+        modelos_listos: voz.modelos_listos(),
+        megas_faltantes: faltan.iter().map(|d| d.megas).sum(),
+        ajustes,
+        hay_gpu,
+    })
+}
+
+#[tauri::command]
+pub fn guardar_ajustes_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, ajustes: AjustesVoz) -> Resultado<AjustesVoz> {
+    let ajustes = ajustes.validar().map_err(Error::Validacion)?;
+    preferencias::guardar(&db.conexion(), preferencias::VOZ, &ajustes)?;
+    voz.mandar(&app, &ajustes, Orden::Configurar(ajustes.clone()));
+    Ok(ajustes)
+}
+
+pub const EVENTO_DESCARGA_VOZ: &str = "voz:descarga";
+
+/// Baja lo que falte (avisa el progreso con `voz:descarga`). Al terminar,
+/// si el panel está abierto, empieza a escuchar.
+#[tauri::command]
+pub async fn bajar_modelos_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+    let ajustes = preferencias::voz(&db.conexion())?;
+    let gpu = ajustes.usar_gpu && tauri::async_runtime::spawn_blocking(modelos_voz::hay_gpu_nvidia).await.unwrap_or(false);
+    let faltan = modelos_voz::faltantes(&voz.rutas, gpu);
+    let total: u64 = faltan.iter().map(|d| d.megas).sum();
+    // Sin límite de tiempo total (son cientos de MB), pero sí para conectar.
+    let http = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .user_agent("Nova/0.5 (app de escritorio personal)")
+        .build()
+        .map_err(|e| Error::Sistema(e.to_string()))?;
+    let mut antes: u64 = 0;
+    for d in &faltan {
+        let mut ultimo_aviso = 0u64;
+        let resultado = modelos_voz::bajar(&http, d, |bytes| {
+            let megas = antes + bytes / 1_048_576;
+            if megas != ultimo_aviso {
+                ultimo_aviso = megas;
+                let _ = app.emit(
+                    EVENTO_DESCARGA_VOZ,
+                    modelos_voz::ProgresoDescarga {
+                        nombre: d.nombre.into(),
+                        megas_bajados: megas.min(total),
+                        megas_totales: total,
+                        terminado: false,
+                        error: None,
+                    },
+                );
+            }
+        })
+        .await;
+        if let Err(e) = resultado {
+            let _ = app.emit(
+                EVENTO_DESCARGA_VOZ,
+                modelos_voz::ProgresoDescarga {
+                    nombre: d.nombre.into(),
+                    megas_bajados: antes,
+                    megas_totales: total,
+                    terminado: true,
+                    error: Some(e.to_string()),
+                },
+            );
+            return Err(e);
+        }
+        antes += d.megas;
+    }
+    let _ = app.emit(
+        EVENTO_DESCARGA_VOZ,
+        modelos_voz::ProgresoDescarga { nombre: "Listo".into(), megas_bajados: total, megas_totales: total, terminado: true, error: None },
+    );
+    if crate::ventana::abierto(&app) {
+        voz.mandar(&app, &ajustes, Orden::Activar);
+    }
+    Ok(())
+}
+
+/// Se abrió el panel: empieza a escuchar. Si es la primera vez en el día
+/// (y está activado), lee el resumen del día y devuelve su texto.
+#[tauri::command]
+pub fn activar_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<Option<String>> {
+    let ahora = Ahora::del_sistema();
+    let (ajustes, resumen) = {
+        let conexion = db.conexion();
+        let ajustes = preferencias::voz(&conexion)?;
+        let hoy = crate::repos::texto_fecha(ahora.hoy);
+        let leido: Option<String> = preferencias::leer(&conexion, preferencias::RESUMEN_LEIDO)?;
+        let toca = ajustes.activada && ajustes.leer_resumen && voz.modelos_listos() && leido.as_deref() != Some(hoy.as_str());
+        let resumen = if toca {
+            preferencias::guardar(&conexion, preferencias::RESUMEN_LEIDO, &hoy)?;
+            crate::asistente::consultas::datos_resumen(&conexion, &ahora).ok().map(|d| crate::dominio::resumen::texto(&d))
+        } else {
+            None
+        };
+        (ajustes, resumen)
+    };
+    voz.mandar(&app, &ajustes, Orden::Activar);
+    if let Some(texto) = &resumen {
+        voz.mandar(&app, &ajustes, Orden::Hablar(texto.clone()));
+    }
+    Ok(resumen)
+}
+
+/// Manda una orden simple al motor (con los ajustes guardados).
+fn orden_voz(app: &AppHandle, db: &Db, voz: &Voz, orden: Orden) -> Resultado<()> {
+    let ajustes = preferencias::voz(&db.conexion())?;
+    voz.mandar(app, &ajustes, orden);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn desactivar_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+    orden_voz(&app, &db, &voz, Orden::Desactivar)
+}
+
+/// Estás escribiendo: deja de escuchar.
+#[tauri::command]
+pub fn pausar_escucha(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+    orden_voz(&app, &db, &voz, Orden::Pausar)
+}
+
+#[tauri::command]
+pub fn reanudar_escucha(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+    orden_voz(&app, &db, &voz, Orden::Reanudar)
+}
+
+/// El asistente está pensando (pedido escrito): no escuchar mientras tanto.
+#[tauri::command]
+pub fn esperar_respuesta(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+    orden_voz(&app, &db, &voz, Orden::Esperar)
+}
+
+#[tauri::command]
+pub fn hablar(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, texto: String) -> Resultado<()> {
+    orden_voz(&app, &db, &voz, Orden::Hablar(texto))
+}
+
+#[tauri::command]
+pub fn callar(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+    orden_voz(&app, &db, &voz, Orden::Callar)
 }
 
 #[tauri::command]

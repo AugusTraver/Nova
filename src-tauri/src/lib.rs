@@ -14,8 +14,9 @@ mod llavero;
 mod noticias;
 mod repos;
 mod ventana;
+mod voz;
 
-use tauri::{Manager, WindowEvent};
+use tauri::{Manager, RunEvent, WindowEvent};
 
 use crate::asistente::ciclo::Asistente;
 use crate::db::Db;
@@ -64,6 +65,16 @@ pub fn run() {
             comandos::obtener_ajustes_clima,
             comandos::guardar_ajustes_clima,
             comandos::buscar_ciudades,
+            comandos::estado_voz,
+            comandos::guardar_ajustes_voz,
+            comandos::bajar_modelos_voz,
+            comandos::activar_voz,
+            comandos::desactivar_voz,
+            comandos::pausar_escucha,
+            comandos::reanudar_escucha,
+            comandos::esperar_respuesta,
+            comandos::hablar,
+            comandos::callar,
         ])
         .setup(|app| {
             // La base va en la carpeta de datos de la app
@@ -84,6 +95,10 @@ pub fn run() {
             app.manage(Asistente::default());
             app.manage(fondo::Fondo::default());
             fondo::arrancar(app.handle());
+            // Los programas y modelos de voz van en la carpeta local (no la
+            // que se sincroniza): son 1,4 GB.
+            let voz = app.path().app_local_data_dir()?.join("voz");
+            app.manage(voz::Voz::new(voz::modelos::Rutas::new(voz)));
 
             if let Some(panel) = app.get_webview_window(ventana::VENTANA_PANEL) {
                 ventana::aplicar_vidrio(&panel);
@@ -100,6 +115,13 @@ pub fn run() {
                 ventana::pedir_cierre(ventana_evento.app_handle());
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error al iniciar Nova");
+        .build(tauri::generate_context!())
+        .expect("error al iniciar Nova")
+        .run(|app, evento| {
+            // Al salir (desde la bandeja): cerrar Whisper y Piper, que son
+            // procesos aparte y Windows no los cierra solo.
+            if let RunEvent::Exit = evento {
+                app.state::<voz::Voz>().apagar();
+            }
+        });
 }

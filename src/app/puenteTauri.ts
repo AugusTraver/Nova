@@ -3,7 +3,7 @@
 // no hacen nada: así se puede iterar la interfaz sin compilar Rust.
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { AvisoGol, FuenteDatos } from "../lib/tipos";
+import type { AvisoEstadoVoz, AvisoGol, FuenteDatos, ProgresoDescarga } from "../lib/tipos";
 
 /** Eventos que emite Rust hacia el frontend. */
 export const EVENTOS = {
@@ -13,6 +13,12 @@ export const EVENTOS = {
   datosCambiados: "datos-cambiados",
   /** Gol de Boca o la Selección en vivo (fondo.rs, EVENTO_GOL). */
   gol: "futbol:gol",
+  /** Motor de voz (voz/motor.rs). */
+  vozEstado: "voz:estado",
+  vozNivel: "voz:nivel",
+  vozParcial: "voz:parcial",
+  vozFinal: "voz:final",
+  vozDescarga: "voz:descarga",
 } as const;
 
 export const enTauri = isTauri();
@@ -61,4 +67,28 @@ export async function escucharCambios(oyente: OyenteCambios): Promise<UnlistenFn
 export async function escucharGoles(oyente: (aviso: AvisoGol) => void): Promise<UnlistenFn> {
   if (!enTauri) return () => {};
   return listen<AvisoGol>(EVENTOS.gol, (e) => oyente(e.payload));
+}
+
+export interface OyentesVoz {
+  alEstado: (aviso: AvisoEstadoVoz) => void;
+  /** 0 a 1, unas 30 veces por segundo. */
+  alNivel: (nivel: number) => void;
+  /** Lo que vas diciendo (transcripción en vivo). */
+  alParcial: (texto: string) => void;
+  /** Terminaste de hablar: el pedido completo. */
+  alFinal: (texto: string) => void;
+  alDescarga: (progreso: ProgresoDescarga) => void;
+}
+
+/** Escucha todos los eventos del motor de voz. */
+export async function escucharVoz(o: OyentesVoz): Promise<UnlistenFn> {
+  if (!enTauri) return () => {};
+  const quitar = await Promise.all([
+    listen<AvisoEstadoVoz>(EVENTOS.vozEstado, (e) => o.alEstado(e.payload)),
+    listen<number>(EVENTOS.vozNivel, (e) => o.alNivel(e.payload)),
+    listen<string>(EVENTOS.vozParcial, (e) => o.alParcial(e.payload)),
+    listen<string>(EVENTOS.vozFinal, (e) => o.alFinal(e.payload)),
+    listen<ProgresoDescarga>(EVENTOS.vozDescarga, (e) => o.alDescarga(e.payload)),
+  ]);
+  return () => quitar.forEach((q) => q());
 }

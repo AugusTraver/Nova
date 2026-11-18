@@ -14,8 +14,13 @@ interface EstadoAsistente {
   /** "¿Borro «X»…?" esperando los botones o un "sí" escrito. */
   confirmacion: string | null;
 
-  /** Manda un mensaje. Devuelve false si todavía está respondiendo el anterior. */
-  enviar(texto: string): boolean;
+  /**
+   * Manda un mensaje. Devuelve false si todavía está respondiendo el anterior.
+   * `porVoz`: lo dijiste hablando; la respuesta se lee en voz alta.
+   */
+  enviar(texto: string, porVoz?: boolean): boolean;
+  /** Muestra algo que dice Nova sin que se lo pidan (el resumen al abrir). */
+  mostrar(texto: string): void;
   confirmar(aceptar: boolean): void;
   /** Al cerrar el panel: la próxima vez arranca limpio. */
   limpiar(): void;
@@ -26,7 +31,15 @@ let temporizadorError: number | undefined;
 export const useAsistente = create<EstadoAsistente>()((set, get) => {
   const alProgreso = (p: Progreso) => set({ paso: textoDelPaso(p) });
 
-  async function turno(pedido: string | null, correr: () => Promise<Turno>) {
+  /** Lee en voz alta (si falla, vuelve a escuchar igual). */
+  function decir(texto: string) {
+    api.hablar(texto).catch((e: unknown) => {
+      console.error("No se pudo hablar", e);
+      void api.reanudarEscucha().catch(() => {});
+    });
+  }
+
+  async function turno(pedido: string | null, correr: () => Promise<Turno>, porVoz = false) {
     window.clearTimeout(temporizadorError);
     set({ pedido, paso: "Pensando…", respuesta: null, error: null, confirmacion: null });
     usePanel.getState().ponerEsfera("pensando");
@@ -34,11 +47,16 @@ export const useAsistente = create<EstadoAsistente>()((set, get) => {
       const { respuesta, confirmacion } = await correr();
       set({ paso: null, respuesta, confirmacion });
       usePanel.getState().ponerEsfera("reposo");
+      // Si se lo pediste hablando, contesta hablando (la pregunta de
+      // confirmación también: "¿Borro…?" se responde con la voz).
+      if (porVoz) decir(confirmacion ?? respuesta);
     } catch (e) {
       console.error("El asistente falló", e);
-      set({ paso: null, error: mensajeDelAsistente(e) });
+      const error = mensajeDelAsistente(e);
+      set({ paso: null, error });
       usePanel.getState().ponerEsfera("error");
       temporizadorError = window.setTimeout(() => usePanel.getState().ponerEsfera("reposo"), DURACION_ERROR_MS);
+      if (porVoz) decir(error);
     }
   }
 
@@ -49,11 +67,16 @@ export const useAsistente = create<EstadoAsistente>()((set, get) => {
     error: null,
     confirmacion: null,
 
-    enviar(texto) {
+    enviar(texto, porVoz = false) {
       const limpio = texto.trim();
       if (!limpio || get().paso !== null) return false;
-      void turno(limpio, () => api.enviarMensaje(limpio, alProgreso));
+      void turno(limpio, () => api.enviarMensaje(limpio, alProgreso, porVoz), porVoz);
       return true;
+    },
+
+    mostrar(texto) {
+      if (get().paso !== null) return;
+      set({ pedido: null, respuesta: texto, error: null, confirmacion: null });
     },
 
     confirmar(aceptar) {

@@ -18,6 +18,7 @@ import type {
   Turno,
 } from "../lib/tipos";
 import * as externos from "./externos";
+import { vozDePrueba } from "./vozDePrueba";
 
 function pausa(ms: number): Promise<void> {
   return new Promise((ok) => window.setTimeout(ok, ms));
@@ -314,5 +315,16 @@ export function crearApiMemoria(): Api {
     },
     buscarCiudades: (texto) =>
       esperar(texto.length < 2 ? [] : [{ nombre: texto, region: "Buenos Aires, Argentina", latitud: -34.6, longitud: -58.4 }]),
+
+    estadoVoz: vozDePrueba.estado,
+    guardarAjustesVoz: vozDePrueba.guardar,
+    bajarModelosVoz: vozDePrueba.bajar,
+    activarVoz: vozDePrueba.activar,
+    desactivarVoz: vozDePrueba.desactivar,
+    pausarEscucha: vozDePrueba.pausar,
+    reanudarEscucha: vozDePrueba.reanudar,
+    esperarRespuesta: vozDePrueba.esperar,
+    hablar: vozDePrueba.hablar,
+    callar: vozDePrueba.callar,
   };
 }

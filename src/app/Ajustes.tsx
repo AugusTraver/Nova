@@ -2,10 +2,20 @@ import { useEffect, useState } from "react";
 import { BotonTexto, Formulario, Interruptor } from "../components/Formulario";
 import { api, mensajeDeError, mensajeDelAsistente } from "../lib/api";
 import { atajoDesdeTecla, nombreAtajo } from "../lib/atajo";
-import type { AjustesClima, AjustesIa, AjustesNoticias, JugadorSeguido, Ajustes as TipoAjustes, Regla, Reglas } from "../lib/tipos";
+import type {
+  AjustesClima,
+  AjustesIa,
+  AjustesNoticias,
+  JugadorSeguido,
+  Ajustes as TipoAjustes,
+  Regla,
+  Reglas,
+  VistaVoz,
+} from "../lib/tipos";
 import { useDatos } from "../store/datos";
 import { AjustesAsistente } from "./AjustesAsistente";
 import { AjustesInternet } from "./AjustesInternet";
+import { AjustesVoz } from "./AjustesVoz";
 
 const REGLAS: { clave: keyof Reglas; texto: string; ayuda: string }[] = [
   { clave: "examen", texto: "Antes de un examen", ayuda: "{materia} es el nombre de la materia" },
@@ -26,6 +36,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const [jugadores, setJugadores] = useState<JugadorSeguido[] | null>(null);
   const [noticias, setNoticias] = useState<AjustesNoticias | null>(null);
   const [clima, setClima] = useState<AjustesClima | null>(null);
+  const [voz, setVoz] = useState<VistaVoz | null>(null);
 
   useEffect(() => {
     api.obtenerAjustes().then(setAjustes, (e: unknown) => setError(mensajeDeError(e)));
@@ -33,6 +44,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     api.obtenerJugadores().then(setJugadores, fallo);
     api.obtenerAjustesNoticias().then(setNoticias, fallo);
     api.obtenerAjustesClima().then(setClima, fallo);
+    api.estadoVoz().then(setVoz, fallo);
     api.obtenerAjustesIa().then(
       (vista) => {
         setIa(vista.ajustes);
@@ -88,6 +100,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
       if (jugadores) await api.guardarJugadores(jugadores);
       if (noticias) await api.guardarAjustesNoticias(noticias);
       if (clima) await api.guardarAjustesClima(clima);
+      if (voz) await api.guardarAjustesVoz(voz.ajustes);
       // Las reglas pueden haber creado o borrado automáticas
       await recargar("responsabilidades", "futbol", "noticias", "clima");
       alTerminar();
@@ -170,6 +183,14 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
           keyNueva={keyNueva}
           alCambiarKey={setKeyNueva}
           guardarIa={guardarIa}
+        />
+      )}
+
+      {voz && (
+        <AjustesVoz
+          vista={voz}
+          alCambiar={(ajustes) => setVoz({ ...voz, ajustes })}
+          alBajar={() => void api.estadoVoz().then(setVoz)}
         />
       )}
 

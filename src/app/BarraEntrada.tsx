@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
+import { api } from "../lib/api";
 import { useAsistente } from "../store/asistente";
+
+/** Escribir pausa la escucha (SPEC 5.1); vaciar la barra la retoma. */
+function avisarEscritura(antes: string, ahora: string) {
+  const pausar = antes.trim() === "" && ahora.trim() !== "";
+  const reanudar = antes.trim() !== "" && ahora.trim() === "";
+  if (pausar) void api.pausarEscucha().catch(() => {});
+  if (reanudar) void api.reanudarEscucha().catch(() => {});
+}
 
 /**
  * Donde le escribís a Nova. Sin botón de micrófono: desde v0.5 Nova escucha
@@ -25,14 +34,20 @@ export function BarraEntrada({ abierto }: { abierto: boolean }) {
       }}
       onSubmit={(e) => {
         e.preventDefault();
-        if (enviar(texto)) setTexto("");
+        if (enviar(texto)) {
+          avisarEscritura(texto, "");
+          setTexto("");
+        }
       }}
       className="w-full max-w-[30rem] cursor-text"
     >
       <input
         ref={campo}
         value={texto}
-        onChange={(e) => setTexto(e.target.value)}
+        onChange={(e) => {
+          avisarEscritura(texto, e.target.value);
+          setTexto(e.target.value);
+        }}
         aria-label="Pedile algo a Nova"
         aria-busy={ocupado}
         maxLength={2000}
