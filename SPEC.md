@@ -133,6 +133,21 @@ Solo fútbol. Prioridad: **Boca Juniors** > **Selección Argentina** > **jugador
 - Temperatura y estado del cielo con Open-Meteo (gratis, sin API key).
 - Si se implementa, que sea chico y se pueda ocultar.
 
+### 4.8 Decisiones de v0.4
+- **Proveedor de fútbol: la API pública de ESPN** (sin key), detrás del trait `ProveedorFutbol` (`src-tauri/src/futbol/`). Se descartó API-Football porque su plan gratis no cubre la temporada actual. Tope propio de 500 pedidos por día.
+- **Caché en SQLite** (migración 3, `cache_externa`): cada dato guarda cuándo vence y su último error. Si falla una descarga, queda el dato viejo y el widget muestra "Sin conexión · datos de hace 3 h". Los reintentos se espacian 5, 15, 30 y 60 minutos.
+- **Tarea de fondo** (`fondo.rs`): corre aunque el panel esté cerrado, revisa cada minuto qué venció y avisa con `datos-cambiados`. Los widgets y las herramientas leen solo la caché, nunca la red.
+  - Fixture, tabla y jugadores: a las 6 de la mañana, o 2 h 30 después del arranque del próximo partido.
+  - En vivo: desde 5 minutos antes del arranque. Consulta cada 30 s con el panel abierto, cada 60 s cerrado y cada 120 s en el entretiempo. Los goles se detectan por diferencia de marcador, y la esfera festeja los de Boca en azul y oro.
+- **Jugadores por defecto:** Messi, Tomás Aranda, Paredes, Leonel Flores, Lautaro Blanco, Valentín Barco, Milton Delgado y Neymar. El plantel completo de Boca con estadísticas quedó para más adelante.
+- **Noticias:**
+  - Los feeds se bajan cada 30 minutos.
+  - De hasta 30 titulares recientes, mezclando fuentes, la IA del asistente elige de 5 a 8 y escribe una línea de cada uno. Se le pregunta como mucho cada 2 horas y solo si hay titulares nuevos.
+  - La IA copia el título elegido y Nova busca la noticia por ese título, porque el número suele quedar corrido.
+  - Sin IA (sin key o con error), se ordena por palabras clave de los intereses y por lo reciente, con hasta 3 notas por fuente.
+- **Resumen del día:** una plantilla fija en `dominio/resumen.rs` (sin IA). La usan la herramienta `resumen_del_dia` y la lectura en voz alta de v0.5.
+- **Clima:** Open-Meteo cada 30 minutos, al lado de la fecha del saludo. La ciudad se busca en Ajustes y se puede ocultar.
+
 ## 5. Asistente
 
 ### 5.1 Flujo
