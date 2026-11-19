@@ -641,7 +641,13 @@ pub fn activar_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Re
         let ajustes = preferencias::voz(&conexion)?;
         let hoy = crate::repos::texto_fecha(ahora.hoy);
         let leido: Option<String> = preferencias::leer(&conexion, preferencias::RESUMEN_LEIDO)?;
-        let toca = ajustes.activada && ajustes.leer_resumen && voz.modelos_listos() && leido.as_deref() != Some(hoy.as_str());
+        // Si lo abrió "Oye Nova", estás por pedir algo: el resumen queda para la próxima.
+        let por_palabra = voz.tomar_despertado();
+        let toca = ajustes.activada
+            && ajustes.leer_resumen
+            && !por_palabra
+            && voz.modelos_listos()
+            && leido.as_deref() != Some(hoy.as_str());
         let resumen = if toca {
             preferencias::guardar(&conexion, preferencias::RESUMEN_LEIDO, &hoy)?;
             crate::asistente::consultas::datos_resumen(&conexion, &ahora).ok().map(|d| crate::dominio::resumen::texto(&d))

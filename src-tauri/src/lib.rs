@@ -104,6 +104,15 @@ pub fn run() {
             // que se sincroniza): son 1,4 GB.
             let voz = app.path().app_local_data_dir()?.join("voz");
             app.manage(voz::Voz::new(voz::modelos::Rutas::new(voz)));
+            // Con "Oye Nova" activado, el motor arranca ya (con el panel
+            // cerrado) para esperar la palabra.
+            {
+                let ajustes = preferencias::voz(&app.state::<Db>().conexion()).unwrap_or_default();
+                if ajustes.activada && ajustes.palabra_clave {
+                    let orden = voz::motor::Orden::Configurar(ajustes.clone());
+                    app.state::<voz::Voz>().mandar(app.handle(), &ajustes, orden);
+                }
+            }
 
             if let Some(panel) = app.get_webview_window(ventana::VENTANA_PANEL) {
                 ventana::aplicar_vidrio(&panel);

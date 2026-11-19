@@ -35,6 +35,8 @@ tokio = { version = "1", features = ["time", "sync", "macros", "process", "io-ut
 feed-rs = "3.0.0"
 cpal = "0.18.2"
 zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
+# "Oye Nova": modelo ONNX chiquito que corre en Rust puro (sin ONNX Runtime).
+livekit-wakeword = "0.2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

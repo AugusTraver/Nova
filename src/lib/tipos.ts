@@ -348,6 +348,8 @@ export interface AjustesVoz {
   velocidad: number;
   leerResumen: boolean;
   usarGpu: boolean;
+  /** Con el panel cerrado, "Oye Nova" lo abre y empieza a escuchar. */
+  palabraClave: boolean;
   /** Región del recurso de Azure ("eastus"); vacía = voz local. */
   regionAzure: string;
   /** La voz de Microsoft ("es-MX-DaliaNeural"). */

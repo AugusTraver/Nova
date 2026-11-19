@@ -11,6 +11,7 @@
 //!   que tienen en común.
 //! - `sintetizador`: el hilo que convierte las frases en audio por adelantado.
 //! - `modelos`: dónde están y cómo se bajan.
+//! - `palabra`: "Oye Nova" con el panel cerrado (v0.6).
 //! - `motor`: el hilo que junta todo.
 
 pub mod audio;
@@ -21,13 +22,15 @@ pub mod modelos;
 pub mod motor;
 pub mod nube;
 pub mod openai;
+pub mod palabra;
 pub mod piper;
 pub mod sintetizador;
 pub mod texto;
 pub mod vad;
 pub mod whisper;
 
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Sender, channel};
 
 use serde::{Deserialize, Serialize};
@@ -48,6 +51,8 @@ pub struct AjustesVoz {
     pub leer_resumen: bool,
     /// Usar la placa de video para Whisper (si hay una NVIDIA).
     pub usar_gpu: bool,
+    /// Con el panel cerrado, "Oye Nova" lo abre y empieza a escuchar.
+    pub palabra_clave: bool,
     /// Región del recurso de Azure ("eastus"). Vacía = no usar Azure. La
     /// key no va acá: va al llavero.
     pub region_azure: String,
@@ -70,6 +75,7 @@ impl Default for AjustesVoz {
             velocidad: 1.0,
             leer_resumen: true,
             usar_gpu: true,
+            palabra_clave: true,
             region_azure: String::new(),
             voz_azure: azure::VOZ_POR_DEFECTO.into(),
             proveedor: nube::Proveedor::default(),
@@ -111,6 +117,9 @@ impl AjustesVoz {
 pub struct Voz {
     canal: Mutex<Option<Sender<Orden>>>,
     pub rutas: Rutas,
+    /// El panel se abrió por "Oye Nova" (no por el atajo): ahí no se lee el
+    /// resumen del día, que taparía lo que estás pidiendo.
+    despertado: Arc<AtomicBool>,
 }
 
 impl Voz {
@@ -119,7 +128,7 @@ impl Voz {
         // Whisper o Piper abiertos: se cierran.
         modelos::cerrar_huerfano(&rutas.archivo_pid("whisper"), "whisper-server.exe");
         modelos::cerrar_huerfano(&rutas.archivo_pid("piper"), "piper.exe");
-        Voz { canal: Mutex::new(None), rutas }
+        Voz { canal: Mutex::new(None), rutas, despertado: Arc::default() }
     }
 
     /// Al cerrar Nova: el motor cierra Whisper y Piper (espera hasta 2 s).
@@ -138,7 +147,12 @@ impl Voz {
         let Ok(mut canal) = self.canal.lock() else { return };
         if canal.is_none() {
             let (tx, rx) = channel();
-            let motor = Motor::new(motor::avisador_de_tauri(app.clone()), self.rutas.clone(), ajustes.clone(), tx.clone());
+            let (abrir, despertado) = (app.clone(), self.despertado.clone());
+            let motor = Motor::new(motor::avisador_de_tauri(app.clone()), self.rutas.clone(), ajustes.clone(), tx.clone())
+                .al_despertar(Box::new(move || {
+                    despertado.store(true, Ordering::SeqCst);
+                    crate::ventana::mostrar(&abrir);
+                }));
             // Un hilo común (no async): el motor bloquea esperando audio y
             // hablando con los programas de voz.
             let creado = std::thread::Builder::new().name("nova-voz".into()).spawn(move || motor.correr(rx));
@@ -154,6 +168,11 @@ impl Voz {
             // El motor se cayó: la próxima orden lo vuelve a crear.
             *canal = None;
         }
+    }
+
+    /// ¿El panel se acaba de abrir por "Oye Nova"? (y lo olvida).
+    pub fn tomar_despertado(&self) -> bool {
+        self.despertado.swap(false, Ordering::SeqCst)
     }
 
     pub fn modelos_listos(&self) -> bool {

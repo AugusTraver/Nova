@@ -277,6 +277,14 @@ export function AjustesVoz({ vista, alCambiar, alBajar, alCambiarKey }: Props) {
           </label>
 
           <Interruptor
+            texto="Abrir con «Oye Nova» aunque el panel esté cerrado"
+            valor={ajustes.palabraClave}
+            alCambiar={(palabraClave) => cambiar({ palabraClave })}
+          />
+          {ajustes.palabraClave && (
+            <Ayuda>El micrófono queda prendido y lo escucha la compu, nada sale a internet.</Ayuda>
+          )}
+          <Interruptor
             texto="Leerme el resumen la primera vez que abro el panel en el día"
             valor={ajustes.leerResumen}
             alCambiar={(leerResumen) => cambiar({ leerResumen })}

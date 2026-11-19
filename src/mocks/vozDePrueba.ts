@@ -11,6 +11,7 @@ let ajustes: AjustesVoz = {
   velocidad: 1,
   leerResumen: true,
   usarGpu: true,
+  palabraClave: true,
   regionAzure: "",
   vozAzure: "es-MX-DaliaNeural",
   proveedor: "azure",
