@@ -20,7 +20,7 @@ pub const HORAS_VIGENCIA: i64 = 36;
 /// Sin IA, como mucho tantas de la misma fuente.
 pub const POR_FUENTE: usize = 3;
 /// La IA se consulta como mucho cada tanto (minutos).
-pub const MINUTOS_ENTRE_IA: i64 = 120;
+pub const MINUTOS_ENTRE_IA: i64 = 240;
 /// Los feeds se vuelven a bajar cada tanto (minutos).
 pub const MINUTOS_ENTRE_FEEDS: i64 = 30;
 
