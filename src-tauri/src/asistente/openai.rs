@@ -4,6 +4,7 @@
 //! Armar el pedido y leer la respuesta son funciones puras (con tests); la
 //! única parte que toca la red es `completar`.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -18,6 +19,9 @@ pub struct ClienteCompatible {
     base: String,
     modelo: String,
     api_key: Option<String>,
+    /// Tokens gastados por este cliente (pedido + respuesta), para medir.
+    /// `AtomicU64` porque `completar` recibe `&self`: se puede sumar sin `mut`.
+    usados: AtomicU64,
 }
 
 impl ClienteCompatible {
@@ -39,7 +43,14 @@ impl ClienteCompatible {
             .connect_timeout(Duration::from_secs(10))
             .build()
             .map_err(|e| Error::Sistema(format!("No pude preparar la conexión: {e}")))?;
-        Ok(ClienteCompatible { http, tipo, base, modelo, api_key })
+        Ok(ClienteCompatible { http, tipo, base, modelo, api_key, usados: AtomicU64::new(0) })
+    }
+
+    /// Cuántos tokens gastó este cliente desde que se creó (para medir en
+    /// los tests).
+    #[cfg(test)]
+    pub fn tokens_usados(&self) -> u64 {
+        self.usados.load(Ordering::Relaxed)
     }
 
     /// Un pedido mínimo, sin herramientas, para "Probar conexión".
@@ -66,12 +77,25 @@ impl ClienteCompatible {
         }
         let respuesta = pedido.send().await.map_err(|e| self.error_de_red(&e))?;
         let estado = respuesta.status().as_u16();
+        let encabezado = |nombre: &str| respuesta.headers().get(nombre).and_then(|v| v.to_str().ok()).map(String::from);
+        let quedan = encabezado("x-ratelimit-remaining-tokens");
+        let reintentar = encabezado("retry-after");
         let texto = respuesta.text().await.map_err(|e| self.error_de_red(&e))?;
+        if estado == 429 {
+            eprintln!("IA: límite de {} ({}).", self.tipo.nombre(), texto.chars().take(300).collect::<String>());
+            return Err(Error::Sistema(mensaje_de_limite(self.tipo, &texto, reintentar.as_deref())));
+        }
         if estado >= 400 {
+            eprintln!("IA: error {estado} de {} ({}).", self.tipo.nombre(), texto.chars().take(400).collect::<String>());
             return Err(Error::Sistema(error_http(self.tipo, &self.modelo, estado, &texto)));
         }
         let json: Value = serde_json::from_str(&texto)
             .map_err(|_| Error::Sistema(format!("{} respondió algo que no entiendo.", self.tipo.nombre())))?;
+        if let Some(uso) = leer_uso(&json) {
+            self.usados.fetch_add(uso.total(), Ordering::Relaxed);
+            let quedan = quedan.map(|q| format!("; quedan {q} este minuto")).unwrap_or_default();
+            eprintln!("IA: {} tokens ({} de pedido, {} de respuesta){quedan}.", uso.total(), uso.pedido, uso.respuesta);
+        }
         leer_respuesta(&json)
             .ok_or_else(|| Error::Sistema(format!("{} respondió algo que no entiendo.", self.tipo.nombre())))
     }
@@ -93,7 +117,19 @@ impl ClienteCompatible {
 
 impl ProveedorIa for ClienteCompatible {
     async fn completar(&self, mensajes: &[Mensaje], herramientas: &Value) -> Resultado<RespuestaModelo> {
-        self.pedir(armar_pedido(&self.modelo, mensajes, Some(herramientas))).await
+        // Sin herramientas (un saludo) no se manda la lista: vacía, algunos
+        // proveedores la rechazan.
+        let herramientas = herramientas.as_array().is_some_and(|h| !h.is_empty()).then_some(herramientas);
+        let cuerpo = armar_pedido(&self.modelo, mensajes, herramientas);
+        match self.pedir(cuerpo.clone()).await {
+            // gpt-oss a veces arma mal una llamada (Groq lo rechaza con
+            // "tool_use_failed"). Casi siempre sale bien al segundo intento.
+            Err(Error::Sistema(e)) if e.contains("armó mal") => {
+                eprintln!("IA: el modelo armó mal una llamada; reintento.");
+                self.pedir(cuerpo).await
+            }
+            otro => otro,
+        }
     }
 }
 
@@ -158,6 +194,69 @@ pub fn leer_respuesta(json: &Value) -> Option<RespuestaModelo> {
         })
         .unwrap_or_default();
     Some(RespuestaModelo { texto, llamadas })
+}
+
+/// Los tokens de un pedido, según `usage` de la respuesta.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Uso {
+    pub pedido: u64,
+    pub respuesta: u64,
+}
+
+impl Uso {
+    pub fn total(&self) -> u64 {
+        self.pedido + self.respuesta
+    }
+}
+
+pub fn leer_uso(json: &Value) -> Option<Uso> {
+    let uso = json.get("usage")?;
+    Some(Uso {
+        pedido: uso.get("prompt_tokens")?.as_u64()?,
+        respuesta: uso.get("completion_tokens").and_then(Value::as_u64).unwrap_or(0),
+    })
+}
+
+/// Cuántos segundos hay que esperar, según el encabezado `retry-after` o el
+/// texto de Groq ("Please try again in 7.66s" o "in 1m2.5s").
+pub fn segundos_de_espera(cuerpo: &str, retry_after: Option<&str>) -> Option<u64> {
+    if let Some(s) = retry_after.and_then(|r| r.trim().parse::<f64>().ok()) {
+        return Some(s.ceil() as u64);
+    }
+    let resto = &cuerpo[cuerpo.find("try again in ")? + "try again in ".len()..];
+    let fin = resto.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | 'h' | 'm' | 's'))).unwrap_or(resto.len());
+    let mut total = 0.0;
+    let mut numero = String::new();
+    for c in resto[..fin].chars() {
+        match c {
+            'h' | 'm' | 's' => {
+                let n: f64 = numero.parse().ok()?;
+                total += n * match c {
+                    'h' => 3600.0,
+                    'm' => 60.0,
+                    _ => 1.0,
+                };
+                numero.clear();
+            }
+            _ => numero.push(c),
+        }
+    }
+    (total > 0.0).then(|| total.ceil() as u64)
+}
+
+/// El aviso cuando el proveedor dice que se pasó del límite (error 429).
+/// Groq tiene dos: por minuto y por día. El del día cuenta las últimas 24
+/// horas, así que se va liberando de a poco: también trae cuánto esperar.
+pub fn mensaje_de_limite(tipo: TipoProveedor, cuerpo: &str, retry_after: Option<&str>) -> String {
+    let proveedor = tipo.nombre();
+    let por_dia = cuerpo.contains("per day") || cuerpo.contains("(TPD)") || cuerpo.contains("(RPD)");
+    let cual = if por_dia { "del día" } else { "por minuto" };
+    match segundos_de_espera(cuerpo, retry_after) {
+        Some(s) if s <= 90 => format!("Llegué al límite {cual} de {proveedor}. Probá en {s} segundos."),
+        Some(s) if s < 2 * 3600 => format!("Llegué al límite {cual} de {proveedor}. Probá en unos {} minutos.", s.div_ceil(60)),
+        Some(s) => format!("Llegué al límite {cual} de {proveedor}. Probá en unas {} horas.", s.div_ceil(3600)),
+        None => format!("Llegué al límite del plan gratis de {proveedor}. Probá en un ratito."),
+    }
 }
 
 /// Un error HTTP explicado para el usuario.
@@ -241,6 +340,29 @@ mod tests {
         assert!(error_http(TipoProveedor::Ollama, "qwen3:8b", 404, "").contains("ollama pull qwen3:8b"));
         assert!(error_http(TipoProveedor::Groq, "m", 400, "{\"code\":\"tool_use_failed\"}").contains("armó mal"));
         assert!(error_http(TipoProveedor::Groq, "m", 503, "").contains("con problemas"));
+    }
+
+    #[test]
+    fn lee_el_uso_de_tokens() {
+        let json = json!({ "usage": { "prompt_tokens": 1200, "completion_tokens": 80, "total_tokens": 1280 } });
+        assert_eq!(leer_uso(&json), Some(Uso { pedido: 1200, respuesta: 80 }));
+        assert_eq!(leer_uso(&json).unwrap().total(), 1280);
+        assert_eq!(leer_uso(&json!({})), None);
+    }
+
+    #[test]
+    fn explica_el_limite_con_la_espera() {
+        let minuto = r#"{"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` on tokens per minute (TPM): Limit 8000, Used 7000, Requested 2100. Please try again in 8.25s. Need more tokens?"}}"#;
+        assert_eq!(segundos_de_espera(minuto, None), Some(9));
+        assert_eq!(mensaje_de_limite(TipoProveedor::Groq, minuto, None), "Llegué al límite por minuto de Groq. Probá en 9 segundos.");
+        assert_eq!(segundos_de_espera("Please try again in 1m2.5s.", None), Some(63));
+        assert_eq!(segundos_de_espera("", Some("12")), Some(12));
+        assert_eq!(segundos_de_espera("otra cosa", None), None);
+
+        let dia = "Rate limit reached on tokens per day (TPD): Limit 200000. Please try again in 5m19.248s.";
+        assert_eq!(mensaje_de_limite(TipoProveedor::Groq, dia, None), "Llegué al límite del día de Groq. Probá en unos 6 minutos.");
+        assert!(mensaje_de_limite(TipoProveedor::Groq, "per day. try again in 3h2m", None).contains("unas 4 horas"));
+        assert!(mensaje_de_limite(TipoProveedor::Groq, "", None).contains("en un ratito"));
     }
 
     #[test]

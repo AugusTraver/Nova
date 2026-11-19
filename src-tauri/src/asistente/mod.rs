@@ -5,6 +5,7 @@
 //! - `openai`: el cliente compatible con OpenAI (Groq y Ollama).
 //! - `herramientas`: lo que el modelo puede hacer, sobre `repos::*`.
 //! - `prompt`: las instrucciones de sistema de cada turno.
+//! - `seleccion`: qué herramientas se mandan según el pedido (gasta menos).
 //! - `ciclo`: un turno completo.
 
 pub mod ciclo;
@@ -14,3 +15,4 @@ pub mod mensajes;
 pub mod openai;
 pub mod prompt;
 pub mod proveedor;
+pub mod seleccion;
