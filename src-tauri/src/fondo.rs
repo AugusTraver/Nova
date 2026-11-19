@@ -251,7 +251,7 @@ fn partidos_guardados(db: &Db, equipo_id: &str) -> Vec<Partido> {
 }
 
 /// Noticias: baja los feeds cada media hora y, si hay titulares nuevos,
-/// vuelve a elegir (con IA como mucho cada 2 horas; si no hay IA, por
+/// vuelve a elegir (con IA como mucho cada 4 horas; si no hay IA, por
 /// palabras clave). Devuelve si cambió algo.
 async fn noticias(db: &Db, cliente: &ClienteNoticias) -> bool {
     let ahora = Ahora::del_sistema();

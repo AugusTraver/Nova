@@ -142,7 +142,7 @@ Solo fútbol. Prioridad: **Boca Juniors** > **Selección Argentina** > **jugador
 - **Jugadores por defecto:** Messi, Tomás Aranda, Paredes, Leonel Flores, Lautaro Blanco, Valentín Barco, Milton Delgado y Neymar. El plantel completo de Boca con estadísticas quedó para más adelante.
 - **Noticias:**
   - Los feeds se bajan cada 30 minutos.
-  - De hasta 30 titulares recientes, mezclando fuentes, la IA del asistente elige de 5 a 8 y escribe una línea de cada uno. Se le pregunta como mucho cada 2 horas y solo si hay titulares nuevos.
+  - De hasta 30 titulares recientes, mezclando fuentes, la IA del asistente elige de 5 a 8 y escribe una línea de cada uno. Se le pregunta como mucho cada 4 horas (eran 2 hasta v0.6.1) y solo si hay titulares nuevos.
   - La IA copia el título elegido y Nova busca la noticia por ese título, porque el número suele quedar corrido.
   - Sin IA (sin key o con error), se ordena por palabras clave de los intereses y por lo reciente, con hasta 3 notas por fuente.
 - **Resumen del día:** una plantilla fija en `dominio/resumen.rs` (sin IA). La usan la herramienta `resumen_del_dia` y la lectura en voz alta de v0.5.
@@ -189,7 +189,7 @@ Reglas:
 - **Sin streaming token a token:** la respuesta llega entera y el progreso ("Anotando el evento…") llega por un `Channel` de Tauri.
 - **Fechas:** el modelo copia lo que dijo el usuario ("el jueves", "a las 9") y Rust lo resuelve (`dominio/fechas_relativas.rs`). Los días de la semana van siempre para adelante. Una hora de 1 a 7 sin aclarar es de la tarde, y la hora de fin se lee según la de inicio.
 - **Borrar:** `borrar_evento` deja la acción pendiente en Rust. Se confirma con los botones debajo de la esfera o escribiendo "sí", y nunca la confirma el modelo. Cerrar el panel la cancela.
-- **Historial:** se mandan los últimos 12 mensajes de las últimas 2 horas, con los resultados de herramientas recortados. Se borra desde Ajustes. La migración 2 agrega `mensajes.datos_json` para guardar las llamadas a herramientas.
+- **Historial:** se mandan los últimos 12 mensajes de las últimas 2 horas. Desde v0.6.1, de los turnos anteriores va solo lo que se dijo (sin llamadas a herramientas ni sus resultados). Se borra desde Ajustes. La migración 2 agrega `mensajes.datos_json` para guardar las llamadas a herramientas.
 - **Widgets en vivo:** Rust emite `datos-cambiados` con las fuentes afectadas apenas termina cada herramienta.
 
 ### 5.6 Decisiones de v0.5 (voz)
@@ -253,6 +253,19 @@ Reglas:
   - **No molestar:** de 23:00 a 08:00 por defecto (cruza la medianoche). Lo que sigue valiendo al terminar llega en ese momento.
   - **En voz alta:** opcional y apagado por defecto.
   - **Notificaciones de Windows** con `tauri-winrt-notification` (`notificaciones.rs`): tocar una abre el panel. En desarrollo salen como "Windows PowerShell" porque Nova no está instalada (Windows pide un AppUserModelID registrado); instalada usa el identificador de la app.
+
+### 5.8 Decisiones de v0.6.1 (gastar menos del plan gratis)
+- **El problema:** el plan gratis de Groq para `openai/gpt-oss-120b` permite 8.000 tokens por minuto y 200.000 por día (contando las últimas 24 horas). Cada vuelta manda las reglas, el contexto, el historial y las herramientas, y un pedido con herramientas da al menos dos vueltas.
+- **Medido con Groq de verdad** (`cargo test tokens_por_pedido -- --ignored --nocapture`, cinco pedidos típicos sobre una base chica): de 14.900 tokens se bajó a unos 10.300 (2.000 por pedido). Un "hola" pasó de 1.550 a 570, y "¿cuándo juega Boca?" de 4.100 a 1.800. En la base real el contexto pesa más (unos 2.200 tokens por vuelta).
+- **Herramientas según el pedido** (`asistente/seleccion.rs`, puro con tests): por palabras clave se elige el tema (agenda, responsabilidades, materias, fútbol, noticias, resumen) y se mandan solo esas herramientas. La agenda trae también las responsabilidades. Un saludo o un "gracias" no lleva ninguna. Un mensaje sin tema propio ("sí", "dale") sigue el del mensaje anterior. Si no se reconoce el tema, van todas.
+- **Historial sin herramientas viejas:** de los turnos anteriores solo va lo que se dijo. Los ids siguen estando en la agenda del prompt.
+- **Consultas con lo que ya está:** el prompt dice que la agenda y las pendientes de los próximos días ya están al día, así que "¿qué tengo mañana?" se contesta en una vuelta.
+- **`null` en campos opcionales:** el modelo a veces manda `"materia": null` y Groq rechazaba la llamada entera ("El modelo armó mal un pedido"), cobrándola igual. Ahora el esquema acepta `null` en los opcionales y Rust lo trata como ausente. Si igual falla, se reintenta una vez.
+- **Razonamiento:** se probó pedirle a gpt-oss que piense poco (`reasoning_effort: low`) en el asistente. Ahorraba unos 100 tokens por vuelta y empezaba a errar fechas, así que solo se usa para elegir noticias.
+- **Noticias:** la IA elige como mucho cada 4 horas (antes 2): unas 6 veces por día en vez de 12.
+- **Límite alcanzado:** el aviso dice cuál (por minuto o del día) y cuánto esperar, según lo que contesta Groq ("Llegué al límite del día de Groq. Probá en unos 6 minutos").
+- **Medición en la consola:** cada pedido escribe `IA: N tokens (… de pedido, … de respuesta); quedan … este minuto`.
+- **Sin Ollama de respaldo por ahora:** se decidió no cambiar solo a Ollama. Con estos ahorros alcanza para el uso diario.
 
 ## 6. Modelo de datos (SQLite)
 

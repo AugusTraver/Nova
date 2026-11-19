@@ -13,6 +13,7 @@ use super::herramientas::{self, AccionPendiente, Fuente};
 use super::mensajes::Mensaje;
 use super::prompt::{self, Contexto, DIAS_DE_AGENDA};
 use super::proveedor::ProveedorIa;
+use super::seleccion;
 use crate::db::Db;
 use crate::dominio::lenguaje::sin_repetir;
 use crate::dominio::texto::EstadoResponsabilidad;
@@ -91,8 +92,22 @@ fn preparar(db: &Db, ahora: &Ahora) -> Resultado<(Contexto, Vec<Mensaje>)> {
         perfil: preferencias::perfil(&conexion)?,
     };
     let desde = (ahora.momento - Duration::hours(HORAS_DE_HISTORIAL)).to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
-    let historial = mensajes::recientes(&conexion, MENSAJES_DE_HISTORIAL, &desde)?;
+    let historial = solo_lo_dicho(mensajes::recientes(&conexion, MENSAJES_DE_HISTORIAL, &desde)?);
     Ok((contexto, historial))
+}
+
+/// De los turnos anteriores alcanza con lo que se dijo: las llamadas a
+/// herramientas y sus resultados (que pueden ser largos) ya no hacen falta y
+/// se mandarían de nuevo en cada vuelta. Los ids siguen en la agenda.
+fn solo_lo_dicho(historial: Vec<Mensaje>) -> Vec<Mensaje> {
+    historial
+        .into_iter()
+        .filter(|m| match m {
+            Mensaje::Usuario(_) => true,
+            Mensaje::Asistente { texto, llamadas } => llamadas.is_empty() && !texto.is_empty(),
+            _ => false,
+        })
+        .collect()
 }
 
 /// Ejecuta la acción pendiente (o la cancela) y lo deja en el historial.
@@ -168,13 +183,18 @@ pub async fn responder_con<P: ProveedorIa>(
         sistema.push_str(prompt::POR_VOZ);
     }
     conversacion.push(Mensaje::Sistema(sistema));
-    conversacion.extend(historial);
+    conversacion.extend(historial.iter().cloned());
     if let Some(aviso) = descartada {
         conversacion.push(Mensaje::Sistema(aviso));
     }
     conversacion.push(usuario);
 
-    let definiciones = herramientas::definiciones();
+    let anterior = historial.iter().rev().find_map(|m| match m {
+        Mensaje::Usuario(t) => Some(t.as_str()),
+        _ => None,
+    });
+    let elegidas = seleccion::para_el_pedido(texto, anterior);
+    let definiciones = herramientas::definiciones_de(elegidas.as_deref());
     let mut confirmacion = None;
 
     for _ in 0..MAXIMO_VUELTAS {
@@ -231,17 +251,22 @@ mod tests {
     struct Guion {
         respuestas: Mutex<VecDeque<RespuestaModelo>>,
         recibido: Mutex<Vec<Vec<Mensaje>>>,
+        /// Los nombres de las herramientas que recibió en cada vuelta.
+        herramientas: Mutex<Vec<Vec<String>>>,
     }
 
     impl Guion {
         fn nuevo(respuestas: Vec<RespuestaModelo>) -> Self {
-            Guion { respuestas: Mutex::new(respuestas.into()), recibido: Mutex::new(vec![]) }
+            Guion { respuestas: Mutex::new(respuestas.into()), recibido: Mutex::new(vec![]), herramientas: Mutex::new(vec![]) }
         }
     }
 
     impl ProveedorIa for Guion {
-        async fn completar(&self, mensajes: &[Mensaje], _: &Value) -> Resultado<RespuestaModelo> {
+        async fn completar(&self, mensajes: &[Mensaje], herramientas: &Value) -> Resultado<RespuestaModelo> {
             self.recibido.lock().unwrap().push(mensajes.to_vec());
+            let nombres = herramientas.as_array().into_iter().flatten();
+            let nombres = nombres.filter_map(|h| h["function"]["name"].as_str().map(String::from)).collect();
+            self.herramientas.lock().unwrap().push(nombres);
             Ok(self.respuestas.lock().unwrap().pop_front().expect("el guion se quedó sin respuestas"))
         }
     }
@@ -341,6 +366,32 @@ mod tests {
                 Mensaje::Usuario("¿cómo andás?".into()),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn manda_solo_las_herramientas_del_tema_y_no_repite_resultados_viejos() {
+        let db = base_con_analisis();
+        let estado = Asistente::default();
+        let avisos = Registro::default();
+        let modelo = Guion::nuevo(vec![
+            llama("listar_materias", json!({})),
+            texto("Tenés Análisis."),
+            texto("¡Hola!"),
+            texto("El domingo."),
+        ]);
+        responder(&modelo, &db, &estado, "¿qué materias tengo?", &avisos, &ahora()).await.unwrap();
+        responder(&modelo, &db, &estado, "hola", &avisos, &ahora()).await.unwrap();
+        responder(&modelo, &db, &estado, "¿cuándo juega Boca?", &avisos, &ahora()).await.unwrap();
+
+        let herramientas = modelo.herramientas.lock().unwrap();
+        assert_eq!(herramientas[0], ["crear_materia", "listar_materias"]);
+        assert!(herramientas[2].is_empty(), "un saludo no lleva herramientas");
+        assert_eq!(herramientas[3], ["consultar_partidos", "consultar_tabla", "consultar_jugador"]);
+
+        // En el historial del último pedido no vuelven la llamada ni su resultado.
+        let recibido = modelo.recibido.lock().unwrap();
+        assert!(recibido[3].iter().all(|m| !matches!(m, Mensaje::Herramienta { .. })));
+        assert!(recibido[3].contains(&Mensaje::Asistente { texto: "Tenés Análisis.".into(), llamadas: vec![] }));
     }
 
     #[tokio::test]
@@ -453,5 +504,38 @@ mod tests {
         assert!(turno.respuesta.chars().count() < 160, "{}", turno.respuesta);
         assert!(!turno.respuesta.contains('*') && !turno.respuesta.contains("\n"), "{}", turno.respuesta);
         println!("Respuesta por voz: {}", turno.respuesta);
+    }
+
+    /// Cuántos tokens gasta cada pedido típico contra Groq de verdad (el plan
+    /// gratis cuenta tokens por minuto). Espera entre pedidos para no chocar
+    /// con el límite. `cargo test tokens_por_pedido -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn tokens_por_pedido() {
+        let db = base_con_analisis();
+        let ajustes = crate::asistente::proveedor::AjustesIa::default();
+        let key = crate::llavero::leer("groq-api-key").unwrap();
+        let cliente = ajustes.cliente(key).unwrap();
+        let estado = Asistente::default();
+        let avisos = Registro::default();
+        let pedidos = [
+            "hola, ¿cómo andás?",
+            "tengo parcial de Análisis el jueves a las 9",
+            "¿qué tengo mañana?",
+            "¿cuándo juega Boca?",
+            "recordame comprar el regalo de Juan para el viernes",
+        ];
+        let mut total = 0;
+        for (i, pedido) in pedidos.iter().enumerate() {
+            if i > 0 {
+                tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+            }
+            let antes = cliente.tokens_usados();
+            let turno = responder(&cliente, &db, &estado, pedido, &avisos, &ahora()).await;
+            let gasto = cliente.tokens_usados() - antes;
+            total += gasto;
+            println!("{gasto:>6} tokens  «{pedido}» → {:?}", turno.map(|t| t.respuesta));
+        }
+        println!("{total:>6} tokens en total ({} por pedido)", total / pedidos.len() as u64);
     }
 }

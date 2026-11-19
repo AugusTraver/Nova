@@ -95,19 +95,48 @@ Cada versión termina en algo que **funciona y se puede usar**. No se pasa a la 
 
 **Terminado cuando:** uso Nova un día entero solo con la voz y las notificaciones.
 
+## v0.6.1 — Gastar menos del plan gratis
+**Objetivo:** que Groq no se quede sin cuota a los 3 o 4 mensajes.
+- Medir cuántos tokens gasta cada pedido.
+- Mandar solo las herramientas del tema del pedido.
+- No repetir en el historial las llamadas a herramientas viejas.
+- Arreglar las llamadas rechazadas por campos en `null`.
+- Avisar claro qué límite se alcanzó y cuánto esperar.
+
+**Terminado cuando:** un pedido típico gasta bastante menos que antes, medido con Groq de verdad, y los errores "armó mal un pedido" dejan de aparecer.
+
+## v0.7 — Nova usa la compu
+**Objetivo:** que Nova haga cosas en la compu cuando se lo pido.
+- Abrir páginas y videos de YouTube.
+- Abrir programas instalados (Visual Studio Code, Spotify, la calculadora).
+- Abrir carpetas, leer archivos y modificarlos con confirmación, mostrando el antes y después, con opción de deshacer.
+- Solo dentro de las carpetas permitidas en Ajustes, y con un interruptor para apagarlo todo.
+- Extras a elegir: controlar la música, temporizadores, buscar en internet, portapapeles, ventanas, horas ambiguas.
+
+**Terminado cuando:** por voz abro un video de YouTube y Visual Studio Code, cambio una palabra de un archivo confirmándolo y lo deshago, y Nova no toca nada fuera de las carpetas permitidas.
+
+## v0.8 — Instalable y de todos los días
+**Objetivo:** que Nova se instale y aguante el uso diario sin abrir la terminal.
+- Instalador para Windows, que conserve los datos y las keys al actualizar.
+- Arranque con el sistema operativo, oculto en la bandeja (configurable).
+- El modelo de "Oye Nova" llega solo con una instalación nueva.
+- Notificaciones con el nombre "Nova".
+- Revisión de rendimiento en la versión instalada (apertura en menos de 300 ms, 60 fps, consumo en reposo).
+- Pendientes chicos de versiones anteriores.
+
+**Terminado cuando:** instalo Nova, reinicio Windows, arranca sola, "Oye Nova" la abre, me llega un aviso que dice "Nova" y la uso una semana sin abrir la terminal.
+
 ## v1.0 — Pulido
 **Objetivo:** que se sienta un producto terminado.
-- Definir la estética final: tema, tipografía, colores, microanimaciones y sonidos sutiles.
-- Arranque con el sistema operativo.
-- Instalador para Windows (.msi o .exe).
-- Revisión de rendimiento (apertura en menos de 300 ms, 60 fps, consumo en reposo).
+- Definir la estética final (partiendo de "Atmósfera"): microanimaciones y sonidos sutiles.
 - README con capturas y GIFs para mostrarlo.
 - (Si hay tiempo) Sincronización con Google Calendar.
+- (A evaluar) Actualizaciones automáticas.
 
 ## Ideas para después de v1.0
 - Widgets reordenables y redimensionables.
 - Memoria a largo plazo del asistente (recordar preferencias y datos que le cuento).
-- Más herramientas: Spotify, abrir apps, modo foco con temporizador.
+- Más herramientas: Spotify a fondo, modo foco con temporizador.
 - Sistema de plugins para agregar widgets y herramientas nuevas.
 - Versión para compartir con otras personas.
 

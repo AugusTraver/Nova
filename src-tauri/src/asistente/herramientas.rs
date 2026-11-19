@@ -205,7 +205,8 @@ pub fn definiciones() -> Value {
     Value::Array(
         herramientas
             .into_iter()
-            .map(|(nombre, descripcion, propiedades, requeridos)| {
+            .map(|(nombre, descripcion, mut propiedades, requeridos)| {
+                aceptar_null(&mut propiedades, &requeridos);
                 json!({
                     "type": "function",
                     "function": {
@@ -215,6 +216,40 @@ pub fn definiciones() -> Value {
                     }
                 })
             })
+            .collect(),
+    )
+}
+
+/// Los modelos a veces mandan `null` en un campo opcional ("materia": null).
+/// Groq valida la llamada contra el esquema y, si no lo admite, rechaza el
+/// pedido entero (y lo cobra igual del límite por minuto). Por eso cada campo
+/// opcional acepta también `null`.
+fn aceptar_null(propiedades: &mut Value, requeridos: &[&str]) {
+    let Some(propiedades) = propiedades.as_object_mut() else { return };
+    for (nombre, esquema) in propiedades.iter_mut() {
+        if requeridos.contains(&nombre.as_str()) {
+            continue;
+        }
+        if let Some(tipo) = esquema.get("type").and_then(Value::as_str).map(String::from) {
+            esquema["type"] = json!([tipo, "null"]);
+        }
+        if let Some(opciones) = esquema.get_mut("enum").and_then(Value::as_array_mut) {
+            opciones.push(Value::Null);
+        }
+    }
+}
+
+/// Solo las definiciones nombradas (`None` = todas). Ver `seleccion`.
+pub fn definiciones_de(nombres: Option<&[&str]>) -> Value {
+    let todas = definiciones();
+    let Some(nombres) = nombres else { return todas };
+    Value::Array(
+        todas
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|d| d["function"]["name"].as_str().is_some_and(|n| nombres.contains(&n)))
+            .cloned()
             .collect(),
     )
 }
@@ -252,7 +287,12 @@ type Paso<T> = Result<T, String>;
 fn leer<T: DeserializeOwned>(argumentos: &str) -> Paso<T> {
     // Algunos modelos mandan "" en vez de "{}" cuando no hay argumentos.
     let texto = if argumentos.trim().is_empty() { "{}" } else { argumentos };
-    serde_json::from_str(texto).map_err(|e| format!("Argumentos inválidos: {e}"))
+    let mut valor: Value = serde_json::from_str(texto).map_err(|e| format!("Argumentos inválidos: {e}"))?;
+    // Un campo en `null` es lo mismo que no mandarlo.
+    if let Some(campos) = valor.as_object_mut() {
+        campos.retain(|_, v| !v.is_null());
+    }
+    serde_json::from_value(valor).map_err(|e| format!("Argumentos inválidos: {e}"))
 }
 
 /// Los errores de los repos ya vienen con textos en español para mostrar.
@@ -797,6 +837,28 @@ mod tests {
         let base = db::en_memoria();
         materias::crear(&base, DatosMateria { nombre: "Análisis II".into(), color: "celeste".into() }, &ahora()).unwrap();
         base
+    }
+
+    #[test]
+    fn acepta_null_en_los_campos_opcionales() {
+        // El esquema lo permite, para que Groq no rechace la llamada…
+        let definiciones = definiciones_de(Some(&["crear_responsabilidad"]));
+        let propiedades = &definiciones[0]["function"]["parameters"]["properties"];
+        assert_eq!(propiedades["titulo"]["type"], "string");
+        assert_eq!(propiedades["materia"]["type"], json!(["string", "null"]));
+        assert_eq!(propiedades["prioridad"]["enum"], json!(["baja", "media", "alta", null]));
+
+        // …y Rust lo trata como si no viniera (también en los `bool`).
+        let mut base = con_analisis();
+        let (v, salida) = correr(
+            &mut base,
+            "crear_responsabilidad",
+            json!({ "titulo": "Comprar el regalo de Juan", "fecha_limite": "viernes", "materia": null, "prioridad": null }),
+        );
+        assert!(v.get("error").is_none(), "{v}");
+        assert_eq!(salida.cambios, [Fuente::Responsabilidades]);
+        let (v, _) = correr(&mut base, "crear_evento", json!({ "titulo": "Dentista", "fecha": "jueves", "aunque_se_superponga": null }));
+        assert!(v.get("error").is_none(), "{v}");
     }
 
     #[test]
