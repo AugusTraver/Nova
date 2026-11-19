@@ -175,15 +175,36 @@ mod real {
         for tanda in audio.chunks(480) {
             tx.send(Orden::Microfono(DelMicrofono::Audio(tanda.to_vec()))).unwrap();
         }
-        let limite = std::time::Instant::now() + std::time::Duration::from_secs(60);
-        let final_ = loop {
-            let encontrado = eventos.lock().unwrap().iter().find(|(e, _)| e == EVENTO_FINAL).map(|(_, v)| v.clone());
-            if let Some(v) = encontrado {
-                break v;
+        // Espera hasta que haya `cuantos` eventos que cumplan `cumple`.
+        let esperar_eventos = |cuantos: usize, que: &str, cumple: &dyn Fn(&str, &serde_json::Value) -> bool| {
+            let limite = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            loop {
+                let hay: Vec<serde_json::Value> =
+                    eventos.lock().unwrap().iter().filter(|(e, v)| cumple(e, v)).map(|(_, v)| v.clone()).collect();
+                if hay.len() >= cuantos {
+                    return hay;
+                }
+                assert!(std::time::Instant::now() < limite, "no llegó: {que}");
+                std::thread::sleep(std::time::Duration::from_millis(100));
             }
-            assert!(std::time::Instant::now() < limite, "no llegó el final");
-            std::thread::sleep(std::time::Duration::from_millis(100));
         };
+        let es_final = |e: &str, _: &serde_json::Value| e == EVENTO_FINAL;
+        let final_ = esperar_eventos(1, "el primer final", &es_final).remove(0);
+
+        // Nova contesta hablando y después tiene que volver a escuchar: un
+        // segundo pedido también se entiende (antes quedaba sorda).
+        tx.send(Orden::Hablar("Listo.".into())).unwrap();
+        let estado_es = |cual: &'static str| move |e: &str, v: &serde_json::Value| e == EVENTO_ESTADO && v["estado"] == cual;
+        esperar_eventos(1, "hablando", &estado_es("hablando"));
+        // "escuchando" ya apareció una vez al principio: se espera la segunda.
+        esperar_eventos(2, "escuchando de nuevo", &estado_es("escuchando"));
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        for tanda in audio.chunks(480) {
+            tx.send(Orden::Microfono(DelMicrofono::Audio(tanda.to_vec()))).unwrap();
+        }
+        let segundo = esperar_eventos(2, "el segundo final", &es_final).remove(1);
+        let segundo = crate::dominio::lenguaje::normalizar(segundo.as_str().unwrap());
+        assert!(segundo.contains("regalo de juan"), "{segundo}");
         let estados: Vec<String> = eventos
             .lock()
             .unwrap()

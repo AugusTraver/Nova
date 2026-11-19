@@ -244,7 +244,12 @@ impl Motor {
                     self.avisar(Estado::Pensando, None);
                 }
             }
-            Orden::Hablar(texto) => self.hablar(&texto),
+            Orden::Hablar(texto) => {
+                // Llegó la respuesta: ya no espera. Al terminar de hablar
+                // vuelve a escuchar (antes quedaba sordo para siempre).
+                self.esperando = false;
+                self.hablar(&texto);
+            }
             Orden::Callar => {
                 self.callar();
                 self.volver_a_escuchar();
@@ -504,5 +509,38 @@ impl Motor {
         if !self.activo && self.whisper.is_some() && self.ultimo_uso_whisper.elapsed() > WHISPER_OCIOSO {
             self.whisper = None;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn motor_sin_modelos() -> Motor {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let rutas = Rutas::new(std::env::temp_dir().join("nova-voz-que-no-existe"));
+        let mut motor = Motor::new(Box::new(|_, _| {}), rutas, AjustesVoz::default(), tx).sin_microfono(48_000);
+        motor.activo = true;
+        motor.remuestreador = Some(Remuestreador::new(48_000, FRECUENCIA_WHISPER));
+        motor
+    }
+
+    #[test]
+    fn la_respuesta_hablada_deja_volver_a_escuchar() {
+        let mut motor = motor_sin_modelos();
+        // Así queda después de transcribir un pedido.
+        motor.esperando = true;
+        assert!(!motor.escuchando());
+        motor.atender(Orden::Hablar("Listo, te lo anoto.".into()));
+        assert!(!motor.esperando);
+        assert!(motor.escuchando());
+    }
+
+    #[test]
+    fn reanudar_tambien_vuelve_a_escuchar() {
+        let mut motor = motor_sin_modelos();
+        motor.esperando = true;
+        motor.atender(Orden::Reanudar);
+        assert!(motor.escuchando());
     }
 }
