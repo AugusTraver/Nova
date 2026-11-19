@@ -25,7 +25,6 @@ use crate::futbol::espn::ClienteEspn;
 use crate::futbol::proveedor::ProveedorFutbol;
 use crate::futbol::vista::VistaFutbol;
 use crate::repos::cache::Cacheado;
-use crate::dominio::lenguaje::interpretar_confirmacion;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
 use crate::dominio::perfil::Perfil;
@@ -213,7 +212,7 @@ pub async fn enviar_mensaje(
     let ahora = Ahora::del_sistema();
     let por_voz = por_voz.unwrap_or(false);
     // Un "sí" a un borrado pendiente no necesita al modelo (ni la key).
-    if asistente.hay_pendiente() && interpretar_confirmacion(&texto).is_some() {
+    if asistente.responde_al_pendiente(&texto) {
         return ciclo::responder_con(&SinModelo, &db, &asistente, &texto, por_voz, &avisos, &ahora).await;
     }
     let cliente = cliente_ia(&db)?;

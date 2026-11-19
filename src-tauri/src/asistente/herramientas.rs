@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 
 use super::consultas;
 use crate::dominio::fechas_relativas::{combinar, nombre_dia_con_tilde, nombre_mes, resolver_fecha, resolver_hora, resolver_hora_fin};
-use crate::dominio::lenguaje::normalizar;
+use crate::dominio::lenguaje::{interpretar_confirmacion, normalizar, vuelve_a_pedir_borrar};
 use crate::dominio::momento::Momento;
 use crate::dominio::texto::{EstadoResponsabilidad, OrigenResponsabilidad, Prioridad, Recurrencia, TipoEvento};
 use crate::error::Error;
@@ -37,7 +37,7 @@ pub enum Fuente {
 /// usuario confirma; el modelo nunca puede confirmarlo solo.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AccionPendiente {
-    BorrarEvento { id: i64, pregunta: String },
+    BorrarEvento { id: i64, titulo: String, pregunta: String },
 }
 
 impl AccionPendiente {
@@ -45,6 +45,22 @@ impl AccionPendiente {
         match self {
             AccionPendiente::BorrarEvento { pregunta, .. } => pregunta,
         }
+    }
+
+    /// ¿El mensaje responde a esta pregunta? `Some(true)` = sí (un "sí" o
+    /// volver a pedir borrar lo mismo), `Some(false)` = no, `None` = otra cosa.
+    pub fn respuesta(&self, texto: &str) -> Option<bool> {
+        let AccionPendiente::BorrarEvento { titulo, .. } = self;
+        interpretar_confirmacion(texto).or_else(|| vuelve_a_pedir_borrar(texto, titulo).then_some(true))
+    }
+
+    /// Para avisarle al modelo que la pregunta se descartó.
+    pub fn descartada(&self) -> String {
+        let AccionPendiente::BorrarEvento { titulo, .. } = self;
+        format!(
+            "Aviso: el borrado de «{titulo}» que esperaba confirmación quedó cancelado porque el usuario dijo otra cosa. \
+             NO está borrado. No digas que lo borraste; si lo quiere borrar, llamá de nuevo a borrar_evento."
+        )
     }
 }
 
@@ -549,7 +565,7 @@ fn borrar_evento(conexion: &mut Connection, a: ArgsId) -> Paso<Salida> {
         })
         .to_string(),
         cambios: Vec::new(),
-        pendiente: Some(AccionPendiente::BorrarEvento { id: evento.id, pregunta }),
+        pendiente: Some(AccionPendiente::BorrarEvento { id: evento.id, titulo: evento.titulo, pregunta }),
     })
 }
 
