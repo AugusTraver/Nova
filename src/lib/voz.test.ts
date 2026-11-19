@@ -30,6 +30,7 @@ describe("voz", () => {
       leerResumen: true,
       usarGpu: true,
       palabraClave: true,
+      palabraPausaBateria: true,
       regionAzure: "eastus",
       vozAzure: "es-AR-ElenaNeural",
       proveedor: "azure",

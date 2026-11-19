@@ -282,7 +282,17 @@ export function AjustesVoz({ vista, alCambiar, alBajar, alCambiarKey }: Props) {
             alCambiar={(palabraClave) => cambiar({ palabraClave })}
           />
           {ajustes.palabraClave && (
-            <Ayuda>El micrófono queda prendido y lo escucha la compu, nada sale a internet.</Ayuda>
+            <>
+              <Ayuda>
+                El micrófono queda prendido y lo escucha la compu, nada sale a internet. Con la sesión bloqueada no
+                escucha.
+              </Ayuda>
+              <Interruptor
+                texto="Que descanse cuando la compu está desenchufada"
+                valor={ajustes.palabraPausaBateria}
+                alCambiar={(palabraPausaBateria) => cambiar({ palabraPausaBateria })}
+              />
+            </>
           )}
           <Interruptor
             texto="Leerme el resumen la primera vez que abro el panel en el día"

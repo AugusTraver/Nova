@@ -25,6 +25,7 @@ pub mod openai;
 pub mod palabra;
 pub mod piper;
 pub mod sintetizador;
+pub mod sistema;
 pub mod texto;
 pub mod vad;
 pub mod whisper;
@@ -53,6 +54,8 @@ pub struct AjustesVoz {
     pub usar_gpu: bool,
     /// Con el panel cerrado, "Oye Nova" lo abre y empieza a escuchar.
     pub palabra_clave: bool,
+    /// Desenchufada, "Oye Nova" descansa (cuida la batería).
+    pub palabra_pausa_bateria: bool,
     /// Región del recurso de Azure ("eastus"). Vacía = no usar Azure. La
     /// key no va acá: va al llavero.
     pub region_azure: String,
@@ -76,6 +79,7 @@ impl Default for AjustesVoz {
             leer_resumen: true,
             usar_gpu: true,
             palabra_clave: true,
+            palabra_pausa_bateria: true,
             region_azure: String::new(),
             voz_azure: azure::VOZ_POR_DEFECTO.into(),
             proveedor: nube::Proveedor::default(),
@@ -147,12 +151,13 @@ impl Voz {
         let Ok(mut canal) = self.canal.lock() else { return };
         if canal.is_none() {
             let (tx, rx) = channel();
-            let (abrir, despertado) = (app.clone(), self.despertado.clone());
+            let (abrir, despertado, bandeja) = (app.clone(), self.despertado.clone(), app.clone());
             let motor = Motor::new(motor::avisador_de_tauri(app.clone()), self.rutas.clone(), ajustes.clone(), tx.clone())
                 .al_despertar(Box::new(move || {
                     despertado.store(true, Ordering::SeqCst);
                     crate::ventana::mostrar(&abrir);
-                }));
+                }))
+                .al_cambiar_espera(Box::new(move |escuchando| crate::bandeja::marcar_escucha(&bandeja, escuchando)));
             // Un hilo común (no async): el motor bloquea esperando audio y
             // hablando con los programas de voz.
             let creado = std::thread::Builder::new().name("nova-voz".into()).spawn(move || motor.correr(rx));

@@ -43,9 +43,10 @@ interface OrbeProps {
   momento: Momento;
   estado: EstadoEsfera;
   goles: number;
+  despertares: number;
 }
 
-function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
+function Orbe({ activa, reducido, momento, estado, goles, despertares }: OrbeProps) {
   const malla = useRef<Mesh>(null);
   const puntero = usePunteroGlobal();
 
@@ -61,6 +62,8 @@ function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
       uError: { value: 0 },
       // 1 en un gol de Boca: azul y oro durante unos segundos
       uGol: { value: 0 },
+      // 1 al oír "Oye Nova", decae en ~0,4 s: un pulso de luz en el borde
+      uDespertar: { value: 0 },
       // Voz: el volumen (suavizado) y cuánto está escuchando o hablando
       uNivel: { value: 0 },
       uEscucha: { value: 0 },
@@ -90,6 +93,10 @@ function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
   }, [goles, uniforms]);
 
   useEffect(() => {
+    if (despertares > 0) uniforms.uDespertar.value = reducido ? 0.5 : 1;
+  }, [despertares, reducido, uniforms]);
+
+  useEffect(() => {
     if (estado === "error") uniforms.uError.value = 1;
   }, [estado, uniforms]);
 
@@ -115,6 +122,7 @@ function Orbe({ activa, reducido, momento, estado, goles }: OrbeProps) {
     uniforms.uTiempo.value += delta * ritmo;
     uniforms.uImpulso.value = amortiguar(uniforms.uImpulso.value, 0, 2.2, delta);
     uniforms.uError.value = amortiguar(uniforms.uError.value, 0, 1.6, delta);
+    uniforms.uDespertar.value = amortiguar(uniforms.uDespertar.value, 0, 7, delta);
     uniforms.uEscucha.value = amortiguar(uniforms.uEscucha.value, escucha.current ? 1 : 0, 4, delta);
     uniforms.uHabla.value = amortiguar(uniforms.uHabla.value, habla.current ? 1 : 0, 4, delta);
     // El volumen sigue rápido al audio (pero sin saltos). Con movimiento
@@ -154,9 +162,11 @@ interface EsferaProps {
   estado: EstadoEsfera;
   /** Cuenta los goles de Boca festejados (cada vez que sube, hay festejo). */
   goles?: number;
+  /** Cuenta los "Oye Nova" (cada vez que sube, pulso en el borde). */
+  despertares?: number;
 }
 
-export function Esfera({ activa, momento, estado, goles = 0 }: EsferaProps) {
+export function Esfera({ activa, momento, estado, goles = 0, despertares = 0 }: EsferaProps) {
   const reducido = useMemo(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches, []);
   return (
     <Canvas
@@ -166,7 +176,7 @@ export function Esfera({ activa, momento, estado, goles = 0 }: EsferaProps) {
       dpr={[1, 2]}
       style={{ background: "transparent" }}
     >
-      <Orbe activa={activa} reducido={reducido} momento={momento} estado={estado} goles={goles} />
+      <Orbe activa={activa} reducido={reducido} momento={momento} estado={estado} goles={goles} despertares={despertares} />
     </Canvas>
   );
 }

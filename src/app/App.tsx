@@ -56,14 +56,17 @@ export function App() {
       if (cancelado) fn();
       else quitar = fn;
     });
+    const parametros = new URLSearchParams(window.location.search);
     const prueba =
-      !enTauri && new URLSearchParams(window.location.search).has("gol")
-        ? window.setTimeout(() => usePanel.getState().festejarGol(), 3000)
-        : undefined;
+      !enTauri && parametros.has("gol") ? window.setTimeout(() => usePanel.getState().festejarGol(), 3000) : undefined;
+    // `?despertar`: el pulso de "Oye Nova" a los 2 segundos.
+    const despertar =
+      !enTauri && parametros.has("despertar") ? window.setTimeout(() => usePanel.getState().despertar(), 2000) : undefined;
     return () => {
       cancelado = true;
       quitar?.();
       window.clearTimeout(prueba);
+      window.clearTimeout(despertar);
     };
   }, []);
 
@@ -85,6 +88,7 @@ export function App() {
         if (!useAsistente.getState().enviar(texto, true)) void api.reanudarEscucha().catch(() => {});
       },
       alDescarga: (p) => useVoz.getState().ponerDescarga(p),
+      alDespertar: () => usePanel.getState().despertar(),
     }).then((fn) => {
       if (cancelado) fn();
       else quitar = fn;

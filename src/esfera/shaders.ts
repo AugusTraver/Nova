@@ -142,6 +142,7 @@ uniform vec3 uGolOro;   // token --color-gol-oro
 uniform float uNivel;
 uniform float uEscucha;
 uniform float uHabla;
+uniform float uDespertar; // 1 al oír "Oye Nova", decae rápido
 
 varying vec3 vNormal;
 varying vec3 vVista;
@@ -175,6 +176,9 @@ void main() {
   color = mix(color, uLuz, (1.0 - frente) * uEscucha * (0.22 + uNivel * 0.3));
   // Hablando: la luz de adentro sube y baja con su voz.
   color *= 1.0 + uNivel * (0.08 * uEscucha + 0.2 * uHabla);
+
+  // "Oye Nova": un pulso de luz que recorre el contorno.
+  color = mix(color, uLuz * 1.3, pow(1.0 - frente, 1.5) * uDespertar * 0.7);
 
   // Error: el borde se tiñe un instante con el color de aviso
   color = mix(color, uAviso, uError * (1.0 - mezcla * 0.6) * 0.75);

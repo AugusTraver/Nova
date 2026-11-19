@@ -13,6 +13,8 @@ interface EstadoPanel {
   edicion: Edicion | null;
   /** Sube con cada gol de Boca (la esfera festeja cuando cambia). */
   goles: number;
+  /** Sube cada vez que oye "Oye Nova" (la esfera hace un pulso en el borde). */
+  despertares: number;
   abrir: () => void;
   cerrar: () => void;
   alternar: () => void;
@@ -20,6 +22,7 @@ interface EstadoPanel {
   terminarEdicion: () => void;
   ponerEsfera: (estado: EstadoEsfera) => void;
   festejarGol: () => void;
+  despertar: () => void;
 }
 
 export const usePanel = create<EstadoPanel>()((set) => ({
@@ -27,6 +30,7 @@ export const usePanel = create<EstadoPanel>()((set) => ({
   estadoEsfera: "reposo",
   edicion: null,
   goles: 0,
+  despertares: 0,
   abrir: () => set({ abierto: true }),
   // Al cerrar se descarta cualquier edición a medio hacer.
   cerrar: () => set({ abierto: false, edicion: null }),
@@ -35,6 +39,7 @@ export const usePanel = create<EstadoPanel>()((set) => ({
   terminarEdicion: () => set({ edicion: null }),
   ponerEsfera: (estadoEsfera) => set({ estadoEsfera }),
   festejarGol: () => set((s) => ({ goles: s.goles + 1 })),
+  despertar: () => set((s) => ({ despertares: s.despertares + 1 })),
 }));
 
 // En desarrollo, el estado queda a mano en la consola del navegador

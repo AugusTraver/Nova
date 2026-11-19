@@ -10,6 +10,7 @@
 //!
 //! - `Disparador`: decide con los puntajes (puro, con tests).
 //! - `confirma`: ¿Whisper entendió "nova"? (puro, con tests).
+//! - `Compuerta`: en silencio no corre el modelo (cuida la CPU; puro, con tests).
 //! - `Detector`: el modelo + el disparador + los últimos segundos de audio.
 
 use std::collections::VecDeque;
@@ -98,6 +99,43 @@ pub fn confirma(texto: &str) -> bool {
         .any(|p| matches!(p, "nova" | "noba" | "novah"))
 }
 
+/// Debajo de esto es silencio (−54 dB: la pieza callada). Un ventilador
+/// fuerte o la tele lo pasan, y ahí el modelo corre siempre.
+const PISO_DE_SILENCIO: f32 = 0.002;
+/// Después de 3 s de silencio el modelo descansa. Con menos (1,2 s) se perdía
+/// alguno dicho entre pausas cortas: al arrancar de cero puntúa un poco menos.
+const PASOS_PARA_DORMIR: u32 = 38;
+/// Al volver el sonido, el modelo arranca de cero con los últimos 2 s.
+const MUESTRAS_DE_ARRANQUE: usize = FRECUENCIA_WHISPER as usize * 2;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Paso {
+    /// Correr el modelo con este paso.
+    Correr,
+    /// Silencio largo: no correrlo.
+    Dormir,
+    /// Volvió el sonido: reiniciar el modelo, darle el último segundo y seguir.
+    Despertar,
+}
+
+/// Decide, por el volumen de cada paso de 80 ms, si vale correr el modelo.
+#[derive(Debug, Default)]
+pub struct Compuerta {
+    pasos_en_silencio: u32,
+}
+
+impl Compuerta {
+    pub fn paso(&mut self, rms: f32) -> Paso {
+        if rms >= PISO_DE_SILENCIO {
+            let dormido = self.pasos_en_silencio > PASOS_PARA_DORMIR;
+            self.pasos_en_silencio = 0;
+            return if dormido { Paso::Despertar } else { Paso::Correr };
+        }
+        self.pasos_en_silencio = self.pasos_en_silencio.saturating_add(1);
+        if self.pasos_en_silencio > PASOS_PARA_DORMIR { Paso::Dormir } else { Paso::Correr }
+    }
+}
+
 /// El modelo con su disparador y el audio reciente.
 pub struct Detector {
     modelo: WakeWordModel,
@@ -105,6 +143,10 @@ pub struct Detector {
     reciente: VecDeque<f32>,
     /// Para convertir a enteros de a pasos enteros.
     pendiente: Vec<i16>,
+    compuerta: Compuerta,
+    /// Cuántos pasos llegaron y en cuántos corrió el modelo (para medir).
+    pub pasos: u64,
+    pub pasos_corridos: u64,
 }
 
 impl Detector {
@@ -117,6 +159,9 @@ impl Detector {
             disparador: Disparador::default(),
             reciente: VecDeque::with_capacity(MUESTRAS_GUARDADAS),
             pendiente: Vec::with_capacity(MUESTRAS_POR_PASO),
+            compuerta: Compuerta::default(),
+            pasos: 0,
+            pasos_corridos: 0,
         })
     }
 
@@ -133,18 +178,46 @@ impl Detector {
         // De a un paso por vez: así cada puntaje pasa por el disparador.
         while self.pendiente.len() >= MUESTRAS_POR_PASO {
             let paso: Vec<i16> = self.pendiente.drain(..MUESTRAS_POR_PASO).collect();
-            let puntaje = match self.modelo.predict(&paso) {
-                Ok(p) => p.values().copied().fold(0.0, f32::max),
-                Err(e) => {
-                    eprintln!("Voz: el detector de \"Oye Nova\" falló: {e}");
-                    0.0
+            self.pasos += 1;
+            let rms = (paso.iter().map(|&m| (f32::from(m) / 32768.0).powi(2)).sum::<f32>() / paso.len() as f32).sqrt();
+            match self.compuerta.paso(rms) {
+                Paso::Dormir => {
+                    // En silencio el puntaje es ~0: no hace falta calcularlo.
+                    self.disparador.puntaje(0.0);
+                    continue;
                 }
-            };
+                Paso::Despertar => self.arrancar_de_cero(),
+                Paso::Correr => {}
+            }
+            self.pasos_corridos += 1;
+            let puntaje = self.puntuar(&paso);
             if let Some(d) = self.disparador.puntaje(puntaje) {
                 decision = Some(d);
             }
         }
         decision
+    }
+
+    fn puntuar(&mut self, paso: &[i16]) -> f32 {
+        match self.modelo.predict(paso) {
+            Ok(p) => p.values().copied().fold(0.0, f32::max),
+            Err(e) => {
+                eprintln!("Voz: el detector de \"Oye Nova\" falló: {e}");
+                0.0
+            }
+        }
+    }
+
+    /// Volvió el sonido después de un silencio: el modelo arranca limpio con
+    /// los 2 s anteriores al paso actual (silencio, que es lo que esperaba).
+    fn arrancar_de_cero(&mut self) {
+        let _ = self.modelo.reset();
+        // Lo que quedó en `pendiente` es posterior al paso actual: no va.
+        let hasta = self.reciente.len().saturating_sub(self.pendiente.len() + MUESTRAS_POR_PASO);
+        let desde = hasta.saturating_sub(MUESTRAS_DE_ARRANQUE);
+        let previo: Vec<i16> =
+            self.reciente.range(desde..hasta).map(|&m| (m.clamp(-1.0, 1.0) * 32767.0) as i16).collect();
+        self.puntuar(&previo);
     }
 
     /// Los últimos 2,5 s, para que Whisper confirme.
@@ -158,6 +231,7 @@ impl Detector {
         self.disparador.reiniciar();
         self.reciente.clear();
         self.pendiente.clear();
+        self.compuerta = Compuerta::default();
     }
 }
 
@@ -167,6 +241,22 @@ mod tests {
 
     fn pasar(d: &mut Disparador, puntajes: &[f32]) -> Vec<(usize, Decision)> {
         puntajes.iter().enumerate().filter_map(|(i, &p)| d.puntaje(p).map(|x| (i, x))).collect()
+    }
+
+    #[test]
+    fn en_silencio_el_modelo_descansa() {
+        let mut c = Compuerta::default();
+        let silencio = PISO_DE_SILENCIO / 10.0;
+        // El primer rato de silencio todavía corre (el puntaje llega tarde).
+        for _ in 0..PASOS_PARA_DORMIR {
+            assert_eq!(c.paso(silencio), Paso::Correr);
+        }
+        assert_eq!(c.paso(silencio), Paso::Dormir);
+        assert_eq!(c.paso(silencio), Paso::Dormir);
+        // Vuelve la voz: arranca de cero y sigue corriendo.
+        assert_eq!(c.paso(0.02), Paso::Despertar);
+        assert_eq!(c.paso(0.02), Paso::Correr);
+        assert_eq!(c.paso(silencio), Paso::Correr);
     }
 
     #[test]
@@ -223,12 +313,29 @@ mod tests {
         let muestras: Vec<f32> =
             bytes[44..].chunks_exact(2).map(|b| f32::from(i16::from_le_bytes([b[0], b[1]])) / 32768.0).collect();
         let mut decisiones = Vec::new();
+        let reloj = std::time::Instant::now();
         for (i, trozo) in muestras.chunks(480).enumerate() {
             if let Some(d) = detector.oir(trozo) {
                 decisiones.push((i * 480 / 16, d));
             }
         }
         println!("decisiones (ms, cuál): {decisiones:?}");
+        println!("el modelo corrió en {} de {} pasos", detector.pasos_corridos, detector.pasos);
+        let segundos = muestras.len() as f64 / 16_000.0;
+        println!("con voz: {:.2} % de un núcleo", reloj.elapsed().as_secs_f64() * 100.0 / segundos);
+        // Un minuto de pieza callada (ruido muy bajo): casi no tiene que gastar.
+        let mut semilla: u32 = 7;
+        let callado: Vec<f32> = (0..16_000 * 60)
+            .map(|_| {
+                semilla = semilla.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                ((semilla >> 16) as f32 / 65_536.0 - 0.5) * 0.001
+            })
+            .collect();
+        let reloj = std::time::Instant::now();
+        for trozo in callado.chunks(480) {
+            detector.oir(trozo);
+        }
+        println!("en silencio: {:.2} % de un núcleo", reloj.elapsed().as_secs_f64() * 100.0 / 60.0);
         assert!(decisiones.len() >= veces * 8 / 10, "solo {} de {veces}", decisiones.len());
         assert!(decisiones.len() <= veces, "de más: {}", decisiones.len());
     }
