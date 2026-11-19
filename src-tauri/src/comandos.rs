@@ -28,6 +28,7 @@ use crate::repos::cache::Cacheado;
 use crate::dominio::lenguaje::interpretar_confirmacion;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
+use crate::dominio::perfil::Perfil;
 use crate::dominio::reglas::Reglas;
 use crate::dominio::texto::OrigenResponsabilidad;
 use crate::error::{Error, Resultado, invalido};
@@ -432,6 +433,20 @@ pub fn guardar_ajustes_clima(
     Ok(ajustes)
 }
 
+// ---------- Perfil ----------
+
+#[tauri::command]
+pub fn obtener_perfil(db: State<'_, Db>) -> Resultado<Perfil> {
+    preferencias::perfil(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_perfil(db: State<'_, Db>, perfil: Perfil) -> Resultado<Perfil> {
+    let perfil = perfil.validar().map_err(Error::Validacion)?;
+    preferencias::guardar(&db.conexion(), preferencias::PERFIL, &perfil)?;
+    Ok(perfil)
+}
+
 // ---------- Voz ----------
 
 /// Lo que ve Ajustes de la voz.
@@ -811,7 +826,12 @@ mod tests {
         assert_eq!(claves(&vista["ajustes"]), ["modeloGroq", "modeloOllama", "proveedor", "urlOllama"]);
         assert_eq!(vista["ajustes"]["proveedor"], "groq");
 
-        let error = serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
+        // Perfil, Tono (src/lib/tipos.ts)
+        let perfil = serde_json::to_value(Perfil::default()).unwrap();
+        assert_eq!(claves(&perfil), ["chistes", "comoLlamarte", "sobreVos", "tono"]);
+        assert_eq!(perfil["tono"], "con_onda");
+
+        let error =serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
         assert_eq!(error, json!({ "tipo": "validacion", "mensaje": "Ponele un título." }));
     }
 

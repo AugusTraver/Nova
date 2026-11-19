@@ -13,10 +13,12 @@ import type {
   JugadorSeguido,
   Materia,
   Ocurrencia,
+  Perfil,
   Progreso,
   Responsabilidad,
   Turno,
 } from "../lib/tipos";
+import { LARGO_SOBRE_VOS } from "../lib/tipos";
 import * as externos from "./externos";
 import { vozDePrueba } from "./vozDePrueba";
 
@@ -115,6 +117,7 @@ export function crearApiMemoria(): Api {
     ],
   };
   let ajustesClima: AjustesClima = { mostrar: true, ciudad: "Buenos Aires", latitud: -34.61, longitud: -58.38 };
+  let perfil: Perfil = { comoLlamarte: "", tono: "con_onda", chistes: false, sobreVos: "" };
   /** Evento esperando el "sí" para borrarse. */
   let pendiente: Evento | null = null;
 
@@ -315,6 +318,14 @@ export function crearApiMemoria(): Api {
     },
     buscarCiudades: (texto) =>
       esperar(texto.length < 2 ? [] : [{ nombre: texto, region: "Buenos Aires, Argentina", latitud: -34.6, longitud: -58.4 }]),
+
+    obtenerPerfil: () => esperar(perfil),
+    guardarPerfil: (nuevo) => {
+      const sobreVos = nuevo.sobreVos.trim();
+      if (sobreVos.length > LARGO_SOBRE_VOS) return Promise.reject({ tipo: "validacion", mensaje: `"Sobre vos" puede tener hasta ${LARGO_SOBRE_VOS} letras.` });
+      perfil = { ...nuevo, comoLlamarte: nuevo.comoLlamarte.trim().replace(/\s+/g, " "), sobreVos };
+      return esperar(perfil);
+    },
 
     estadoVoz: vozDePrueba.estado,
     guardarAjustesVoz: vozDePrueba.guardar,

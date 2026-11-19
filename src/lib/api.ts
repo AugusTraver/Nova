@@ -22,6 +22,7 @@ import type {
   Materia,
   Noticia,
   Ocurrencia,
+  Perfil,
   Progreso,
   Responsabilidad,
   Turno,
@@ -89,6 +90,9 @@ export interface Api {
   obtenerAjustesClima(): Promise<AjustesClima>;
   guardarAjustesClima(ajustes: AjustesClima): Promise<AjustesClima>;
   buscarCiudades(texto: string): Promise<CiudadEncontrada[]>;
+
+  obtenerPerfil(): Promise<Perfil>;
+  guardarPerfil(perfil: Perfil): Promise<Perfil>;
 
   estadoVoz(): Promise<VistaVoz>;
   guardarAjustesVoz(ajustes: AjustesVoz): Promise<AjustesVoz>;
@@ -165,6 +169,9 @@ const apiTauri: Api = {
   obtenerAjustesClima: () => invoke("obtener_ajustes_clima"),
   guardarAjustesClima: (ajustes) => invoke("guardar_ajustes_clima", { ajustes }),
   buscarCiudades: (texto) => invoke("buscar_ciudades", { texto }),
+
+  obtenerPerfil: () => invoke("obtener_perfil"),
+  guardarPerfil: (perfil) => invoke("guardar_perfil", { perfil }),
 
   estadoVoz: () => invoke("estado_voz"),
   guardarAjustesVoz: (ajustes) => invoke("guardar_ajustes_voz", { ajustes }),

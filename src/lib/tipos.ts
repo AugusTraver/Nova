@@ -304,6 +304,21 @@ export interface AjustesClima {
   longitud: number;
 }
 
+// ---- Perfil (ver src-tauri/src/dominio/perfil.rs) ----
+
+export type Tono = "con_onda" | "informal" | "sobrio";
+
+export interface Perfil {
+  /** Cómo te llama Nova. Vacío: sin nombre. */
+  comoLlamarte: string;
+  tono: Tono;
+  chistes: boolean;
+  /** Texto libre, hasta LARGO_SOBRE_VOS letras. */
+  sobreVos: string;
+}
+
+export const LARGO_SOBRE_VOS = 400;
+
 // ---- Voz (ver src-tauri/src/voz) ----
 
 export type EstadoVoz =

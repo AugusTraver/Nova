@@ -7,6 +7,7 @@ import type {
   AjustesIa,
   AjustesNoticias,
   JugadorSeguido,
+  Perfil,
   Ajustes as TipoAjustes,
   Regla,
   Reglas,
@@ -15,6 +16,7 @@ import type {
 import { useDatos } from "../store/datos";
 import { AjustesAsistente } from "./AjustesAsistente";
 import { AjustesInternet } from "./AjustesInternet";
+import { AjustesPerfil } from "./AjustesPerfil";
 import { AjustesVoz } from "./AjustesVoz";
 
 const REGLAS: { clave: keyof Reglas; texto: string; ayuda: string }[] = [
@@ -23,7 +25,7 @@ const REGLAS: { clave: keyof Reglas; texto: string; ayuda: string }[] = [
   { clave: "cumpleanos", texto: "Antes de un cumpleaños", ayuda: "{persona} es de quién es el cumple" },
 ];
 
-/** Ajustes: el atajo, las reglas de responsabilidades automáticas y el asistente. */
+/** Ajustes: sobre vos, el atajo, las reglas de responsabilidades automáticas y el asistente. */
 export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const recargar = useDatos((s) => s.recargar);
   const [ajustes, setAjustes] = useState<TipoAjustes | null>(null);
@@ -37,6 +39,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const [noticias, setNoticias] = useState<AjustesNoticias | null>(null);
   const [clima, setClima] = useState<AjustesClima | null>(null);
   const [voz, setVoz] = useState<VistaVoz | null>(null);
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
 
   useEffect(() => {
     api.obtenerAjustes().then(setAjustes, (e: unknown) => setError(mensajeDeError(e)));
@@ -45,6 +48,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     api.obtenerAjustesNoticias().then(setNoticias, fallo);
     api.obtenerAjustesClima().then(setClima, fallo);
     api.estadoVoz().then(setVoz, fallo);
+    api.obtenerPerfil().then(setPerfil, fallo);
     api.obtenerAjustesIa().then(
       (vista) => {
         setIa(vista.ajustes);
@@ -96,6 +100,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     setError(null);
     try {
       await api.guardarAjustes(ajustes);
+      if (perfil) await api.guardarPerfil(perfil);
       await guardarIa();
       if (jugadores) await api.guardarJugadores(jugadores);
       if (noticias) await api.guardarAjustesNoticias(noticias);
@@ -122,7 +127,9 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
 
   return (
     <Formulario titulo="Ajustes" error={error} guardando={guardando} alGuardar={() => void guardar()} alCancelar={alTerminar}>
-      <section className="flex flex-col gap-1.5">
+      {perfil && <AjustesPerfil perfil={perfil} alCambiar={setPerfil} />}
+
+      <section className="mt-2 flex flex-col gap-1.5">
         <h3 className="text-[13px] text-tinta-3">Atajo para abrir y cerrar Nova</h3>
         <div className="flex items-baseline gap-4">
           <span aria-live="polite" className="font-display text-[22px] font-[350]">

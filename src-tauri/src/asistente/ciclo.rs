@@ -17,7 +17,7 @@ use crate::db::Db;
 use crate::dominio::lenguaje::interpretar_confirmacion;
 use crate::dominio::texto::EstadoResponsabilidad;
 use crate::error::{Resultado, invalido};
-use crate::repos::{Ahora, eventos, materias, mensajes, responsabilidades};
+use crate::repos::{Ahora, eventos, materias, mensajes, preferencias, responsabilidades};
 
 /// Cuántas vueltas modelo ↔ herramientas como mucho por turno.
 const MAXIMO_VUELTAS: usize = 6;
@@ -87,6 +87,7 @@ fn preparar(db: &Db, ahora: &Ahora) -> Resultado<(Contexto, Vec<Mensaje>)> {
         materias: materias::listar(&conexion)?,
         eventos: eventos::ocurrencias(&conexion, ahora.hoy, ahora.hoy + Duration::days(DIAS_DE_AGENDA))?,
         pendientes,
+        perfil: preferencias::perfil(&conexion)?,
     };
     let desde = (ahora.momento - Duration::hours(HORAS_DE_HISTORIAL)).to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     let historial = mensajes::recientes(&conexion, MENSAJES_DE_HISTORIAL, &desde)?;
