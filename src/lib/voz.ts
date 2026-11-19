@@ -49,3 +49,16 @@ export function textoDescarga(bajados: number, totales: number): string {
   const formato = new Intl.NumberFormat("es-AR");
   return `${formato.format(bajados)} de ${formato.format(totales)} MB`;
 }
+
+/** Las voces de Microsoft para elegir en Ajustes. */
+export const VOCES_AZURE = [
+  { valor: "es-MX-DaliaNeural", texto: "Dalia" },
+  { valor: "es-MX-JorgeNeural", texto: "Jorge" },
+  { valor: "es-ES-ElviraNeural", texto: "Elvira" },
+  { valor: "es-US-PalomaNeural", texto: "Paloma" },
+] as const;
+
+/** Con qué voz va a hablar Nova según lo que está cargado. */
+export function vozQueHabla(regionAzure: string, tieneKeyAzure: boolean): "azure" | "local" {
+  return regionAzure.trim() !== "" && tieneKeyAzure ? "azure" : "local";
+}

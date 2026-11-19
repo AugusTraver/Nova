@@ -1,14 +1,18 @@
 //! Voz (v0.5, SPEC 5.1): Nova escucha sola al abrir el panel y contesta
-//! hablando. Todo local: el audio nunca sale de la compu.
+//! hablando. El micrófono y la transcripción son locales: tu audio nunca
+//! sale de la compu. Para hablar usa la voz de Microsoft (Azure) si cargaste
+//! la key, y si no (o sin internet) Piper, que es local.
 //!
 //! - `audio`, `vad`, `texto`: cuentas puras con tests (remuestrear, detectar
 //!   cuándo hablás, limpiar lo que entiende Whisper, partir en oraciones).
 //! - `dispositivos`: micrófono y parlantes (cpal).
 //! - `whisper`, `piper`: los programas de voz → texto y texto → voz.
+//! - `azure`: la voz de Microsoft (texto → voz por internet).
 //! - `modelos`: dónde están y cómo se bajan.
 //! - `motor`: el hilo que junta todo.
 
 pub mod audio;
+pub mod azure;
 pub mod dispositivos;
 pub mod modelos;
 pub mod motor;
@@ -38,18 +42,38 @@ pub struct AjustesVoz {
     pub leer_resumen: bool,
     /// Usar la placa de video para Whisper (si hay una NVIDIA).
     pub usar_gpu: bool,
+    /// Región del recurso de Azure ("eastus"). Vacía = no usar Azure. La
+    /// key no va acá: va al llavero.
+    pub region_azure: String,
+    /// La voz de Azure ("es-MX-DaliaNeural").
+    pub voz_azure: String,
 }
 
 impl Default for AjustesVoz {
     fn default() -> Self {
-        AjustesVoz { activada: true, velocidad: 1.0, leer_resumen: true, usar_gpu: true }
+        AjustesVoz {
+            activada: true,
+            velocidad: 1.0,
+            leer_resumen: true,
+            usar_gpu: true,
+            region_azure: String::new(),
+            voz_azure: azure::VOZ_POR_DEFECTO.into(),
+        }
     }
 }
 
 impl AjustesVoz {
-    pub fn validar(self) -> Result<Self, String> {
+    pub fn validar(mut self) -> Result<Self, String> {
         if !(0.7..=1.4).contains(&self.velocidad) {
             return Err("La velocidad tiene que estar entre 0,7 y 1,4.".into());
+        }
+        // "East US" o " eastus " también valen: Azure la escribe de las dos formas.
+        self.region_azure = self.region_azure.trim().to_lowercase().replace(' ', "");
+        if !self.region_azure.is_empty() && !azure::region_valida(&self.region_azure) {
+            return Err("La región de Azure es una palabra como \"eastus\" o \"brazilsouth\".".into());
+        }
+        if !azure::voz_valida(&self.voz_azure) {
+            return Err("Esa voz de Azure no existe.".into());
         }
         Ok(self)
     }
@@ -122,6 +146,18 @@ mod tests {
         let leidos: AjustesVoz = serde_json::from_str(r#"{"velocidad":1.2}"#).unwrap();
         assert_eq!(leidos.velocidad, 1.2);
         assert!(leidos.activada);
+        // Lo guardado antes de Azure sigue andando: sin región, voz por defecto.
+        assert_eq!(leidos.region_azure, "");
+        assert_eq!(leidos.voz_azure, "es-MX-DaliaNeural");
+    }
+
+    #[test]
+    fn region_de_azure() {
+        let a = AjustesVoz::default();
+        let limpia = AjustesVoz { region_azure: " East US ".into(), ..a.clone() }.validar().unwrap();
+        assert_eq!(limpia.region_azure, "eastus");
+        assert!(AjustesVoz { region_azure: "eastus.evil.com".into(), ..a.clone() }.validar().is_err());
+        assert!(AjustesVoz { voz_azure: "Dalia".into(), ..a }.validar().is_err());
     }
 }
 

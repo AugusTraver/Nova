@@ -330,6 +330,10 @@ export interface AjustesVoz {
   velocidad: number;
   leerResumen: boolean;
   usarGpu: boolean;
+  /** Región del recurso de Azure ("eastus"); vacía = voz local. */
+  regionAzure: string;
+  /** La voz de Microsoft ("es-MX-DaliaNeural"). */
+  vozAzure: string;
 }
 
 export interface VistaVoz {
@@ -337,6 +341,8 @@ export interface VistaVoz {
   modelosListos: boolean;
   megasFaltantes: number;
   hayGpu: boolean;
+  /** Hay una key de Azure en el llavero (la key nunca llega acá). */
+  tieneKeyAzure: boolean;
 }
 
 /** Evento `voz:descarga`. */

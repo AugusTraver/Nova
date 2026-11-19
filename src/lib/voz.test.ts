@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { esferaSegun, pistaDeVoz, textoDescarga } from "./voz";
+import { esferaSegun, pistaDeVoz, textoDescarga, vozQueHabla } from "./voz";
 
 describe("voz", () => {
   it("la esfera sigue a la voz salvo que el asistente esté ocupado", () => {
@@ -20,5 +20,12 @@ describe("voz", () => {
 
   it("progreso de la descarga", () => {
     expect(textoDescarga(312, 12000)).toBe("312 de 12.000 MB");
+  });
+
+  it("habla con Azure solo si hay región y key", () => {
+    expect(vozQueHabla("eastus", true)).toBe("azure");
+    expect(vozQueHabla("", true)).toBe("local");
+    expect(vozQueHabla("  ", true)).toBe("local");
+    expect(vozQueHabla("eastus", false)).toBe("local");
   });
 });

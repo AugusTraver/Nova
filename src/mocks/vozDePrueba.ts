@@ -6,7 +6,8 @@ import { nivelVoz, useVoz } from "../store/voz";
 
 const sinModelos = new URLSearchParams(window.location.search).get("voz") === "no";
 
-let ajustes: AjustesVoz = { activada: true, velocidad: 1, leerResumen: true, usarGpu: true };
+let ajustes: AjustesVoz = { activada: true, velocidad: 1, leerResumen: true, usarGpu: true, regionAzure: "", vozAzure: "es-MX-DaliaNeural" };
+let tieneKeyAzure = false;
 let modelosListos = !sinModelos;
 let activa = false;
 let animacion: number | undefined;
@@ -32,7 +33,15 @@ function escuchar() {
 }
 
 export const vozDePrueba = {
-  estado: async (): Promise<VistaVoz> => ({ ajustes, modelosListos, megasFaltantes: modelosListos ? 0 : 1340, hayGpu: true }),
+  estado: async (): Promise<VistaVoz> => ({ ajustes, modelosListos, megasFaltantes: modelosListos ? 0 : 1340, hayGpu: true, tieneKeyAzure }),
+  guardarKeyAzure: async (key: string) => {
+    tieneKeyAzure = key.trim() !== "";
+    return tieneKeyAzure;
+  },
+  probarAzure: async () => {
+    if (!ajustes.regionAzure) throw { tipo: "validacion", mensaje: "Falta la región de Azure." };
+    if (!tieneKeyAzure) throw { tipo: "validacion", mensaje: "Falta la key de Azure." };
+  },
   guardar: async (nuevos: AjustesVoz) => {
     ajustes = nuevos;
     if (!ajustes.activada) useVoz.getState().ponerEstado("apagada", null);

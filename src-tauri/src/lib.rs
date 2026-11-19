@@ -67,6 +67,8 @@ pub fn run() {
             comandos::buscar_ciudades,
             comandos::estado_voz,
             comandos::guardar_ajustes_voz,
+            comandos::guardar_key_azure,
+            comandos::probar_voz_azure,
             comandos::bajar_modelos_voz,
             comandos::activar_voz,
             comandos::desactivar_voz,

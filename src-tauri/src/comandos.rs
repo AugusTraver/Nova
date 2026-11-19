@@ -17,7 +17,7 @@ use crate::clima::{AjustesClima, CiudadEncontrada, ClienteClima, VistaClima};
 use crate::db::Db;
 use crate::noticias::{self, AjustesNoticias, Noticia};
 use crate::voz::motor::Orden;
-use crate::voz::{AjustesVoz, Voz, modelos as modelos_voz};
+use crate::voz::{AjustesVoz, Voz, azure as voz_azure, modelos as modelos_voz};
 use crate::fondo::Fondo;
 use crate::futbol::{self, JugadorEncontrado, JugadorSeguido};
 use crate::futbol::espn::ClienteEspn;
@@ -442,6 +442,8 @@ pub struct VistaVoz {
     /// Cuánto falta bajar (MB aproximados).
     pub megas_faltantes: u64,
     pub hay_gpu: bool,
+    /// Hay una key de Azure en el llavero (la key nunca viaja a la interfaz).
+    pub tiene_key_azure: bool,
 }
 
 #[tauri::command]
@@ -455,7 +457,45 @@ pub async fn estado_voz(db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<Vis
         megas_faltantes: faltan.iter().map(|d| d.megas).sum(),
         ajustes,
         hay_gpu,
+        tiene_key_azure: llavero::leer(voz_azure::CUENTA_LLAVERO)?.is_some(),
     })
+}
+
+/// Guarda la key de Azure en el llavero (vacía = borrarla) y el motor la
+/// empieza a usar. Devuelve si quedó una.
+#[tauri::command]
+pub fn guardar_key_azure(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, key: String) -> Resultado<bool> {
+    let key = key.trim();
+    let queda = if key.is_empty() {
+        llavero::borrar(voz_azure::CUENTA_LLAVERO)?;
+        false
+    } else {
+        if key.len() > 200 || !key.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return invalido("Esa key no parece de Azure: es una tira de letras y números.");
+        }
+        llavero::guardar(voz_azure::CUENTA_LLAVERO, key)?;
+        true
+    };
+    let ajustes = preferencias::voz(&db.conexion())?;
+    voz.mandar(&app, &ajustes, Orden::Configurar(ajustes.clone()));
+    Ok(queda)
+}
+
+/// "Probar" en Ajustes: con la región, la voz y la key guardadas, le pide
+/// una frase a Azure. Si anda, Nova la dice; si no, vuelve el porqué.
+#[tauri::command]
+pub async fn probar_voz_azure(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+    let ajustes = preferencias::voz(&db.conexion())?;
+    if ajustes.region_azure.is_empty() {
+        return invalido("Falta la región de Azure.");
+    }
+    let Some(key) = llavero::leer(voz_azure::CUENTA_LLAVERO)? else {
+        return invalido("Falta la key de Azure.");
+    };
+    let cliente = voz_azure::Azure::new(key, ajustes.region_azure.clone(), ajustes.voz_azure.clone(), ajustes.velocidad)?;
+    cliente.sintetizar("Hola.").await?;
+    voz.mandar(&app, &ajustes, Orden::Hablar("Hola, soy Nova. Así te voy a hablar de ahora en más.".into()));
+    Ok(())
 }
 
 #[tauri::command]

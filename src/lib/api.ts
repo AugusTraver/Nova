@@ -89,6 +89,10 @@ export interface Api {
 
   estadoVoz(): Promise<VistaVoz>;
   guardarAjustesVoz(ajustes: AjustesVoz): Promise<AjustesVoz>;
+  /** Guarda la key de Azure en el llavero ("" la borra). Devuelve si quedó una. */
+  guardarKeyAzure(key: string): Promise<boolean>;
+  /** Prueba la voz de Azure con lo guardado; si anda, Nova saluda. */
+  probarVozAzure(): Promise<void>;
   /** Baja Whisper, Piper y los modelos (avisa el progreso con `voz:descarga`). */
   bajarModelosVoz(): Promise<void>;
   /** Se abrió el panel: escuchar. Devuelve el resumen si lo va a leer. */
@@ -159,6 +163,8 @@ const apiTauri: Api = {
 
   estadoVoz: () => invoke("estado_voz"),
   guardarAjustesVoz: (ajustes) => invoke("guardar_ajustes_voz", { ajustes }),
+  guardarKeyAzure: (key) => invoke("guardar_key_azure", { key }),
+  probarVozAzure: () => invoke("probar_voz_azure"),
   bajarModelosVoz: () => invoke("bajar_modelos_voz"),
   activarVoz: () => invoke("activar_voz"),
   desactivarVoz: () => invoke("desactivar_voz"),

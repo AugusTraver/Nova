@@ -214,6 +214,13 @@ Reglas:
   - Escuchando, se forman ondas finas y se aclara el borde.
   - Hablando, laten pulsos más grandes y se infla un poco con cada sílaba.
 
+- **Voz de Microsoft (después de v0.5):** Piper sonaba robótica, así que Nova puede hablar con una voz de Azure AI Speech. Por defecto es `es-MX-DaliaNeural`, y en Ajustes se elige entre Dalia, Jorge, Elvira y Paloma.
+  - Es el servicio oficial, con la key del usuario (plan gratis F0, 500.000 caracteres por mes). La key va al llavero y la región a las preferencias.
+  - Se descartó el atajo de la voz de Edge: imita al navegador para saltear el control de acceso de Microsoft y se rompe cuando lo cambian.
+  - Solo viaja el texto que dice Nova, nunca el micrófono. Lo que decís se sigue transcribiendo en la compu.
+  - Sin región o sin key, Nova habla con Piper. Si Azure falla (sin internet, key mala, límite), esa frase y las de los próximos 2 minutos van por Piper.
+  - "Guardar y probar" en Ajustes guarda todo y Nova saluda con la voz elegida.
+
 ### 5.4 Proactividad (v0.6+)
 - Notificaciones del sistema: "En 30 minutos tenés clase", "Vence hoy: estudiar para Análisis", "Arranca el partido".
 - Configurables y silenciables.

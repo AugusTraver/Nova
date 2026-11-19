@@ -18,6 +18,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::{AppHandle, Emitter};
 
+use super::azure::{self, Azure};
 use super::audio::{FRECUENCIA_WHISPER, Remuestreador, envolvente, nivel_visual, remuestrear, rms, wav};
 use super::dispositivos::{DelMicrofono, Microfono, Parlante};
 use super::modelos::Rutas;
@@ -40,6 +41,9 @@ const CADA_PARCIAL: Duration = Duration::from_millis(700);
 const WHISPER_OCIOSO: Duration = Duration::from_secs(10 * 60);
 /// Después de hablar, un ratito sin escuchar (el eco del final).
 const COLA_DEL_ECO: Duration = Duration::from_millis(350);
+/// Si Azure falla (sin internet, key mala), se habla con Piper este rato
+/// antes de volver a probar: así no se espera el error en cada frase.
+const PAUSA_DE_AZURE: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -130,6 +134,11 @@ pub struct Motor {
     ultimo_uso_whisper: Instant,
     ultimo_parcial: Instant,
     piper: Option<Piper>,
+    /// La voz de Microsoft, si hay región y key. Se arma la primera vez que
+    /// hace falta hablar y se rearma cuando cambian los ajustes.
+    azure: Option<Azure>,
+    azure_cargada: bool,
+    azure_en_pausa_hasta: Instant,
     habla: Option<Habla>,
     /// Hasta cuándo se ignora el micrófono (eco de lo que acaba de decir).
     sordo_hasta: Instant,
@@ -156,6 +165,9 @@ impl Motor {
             ultimo_uso_whisper: Instant::now(),
             ultimo_parcial: Instant::now(),
             piper: None,
+            azure: None,
+            azure_cargada: false,
+            azure_en_pausa_hasta: Instant::now(),
             habla: None,
             sordo_hasta: Instant::now(),
             estado: Estado::Apagada,
@@ -258,6 +270,9 @@ impl Motor {
                 let cambio_velocidad = (ajustes.velocidad - self.ajustes.velocidad).abs() > f32::EPSILON;
                 let cambio_gpu = ajustes.usar_gpu != self.ajustes.usar_gpu;
                 self.ajustes = ajustes;
+                // Región, voz o key nuevas: se rearma Azure y se vuelve a probar ya.
+                self.azure_cargada = false;
+                self.azure_en_pausa_hasta = Instant::now();
                 if cambio_velocidad {
                     self.piper = None; // se reabre con la velocidad nueva
                 }
@@ -432,11 +447,8 @@ impl Motor {
         }
         self.callar();
         self.vad.reiniciar();
-        if self.piper.as_mut().is_none_or(|p| !p.vivo()) {
-            match Piper::abrir(&self.rutas, self.ajustes.velocidad) {
-                Ok(p) => self.piper = Some(p),
-                Err(e) => return self.error(e.to_string()),
-            }
+        if !self.azure_cargada {
+            self.cargar_azure();
         }
         let parlante = match Parlante::abrir() {
             Ok(p) => p,
@@ -447,11 +459,50 @@ impl Motor {
         self.sintetizar_siguiente();
     }
 
+    /// Arma el cliente de Azure si hay región y key en el llavero.
+    fn cargar_azure(&mut self) {
+        self.azure_cargada = true;
+        self.azure = None;
+        if self.ajustes.region_azure.is_empty() {
+            return;
+        }
+        match crate::llavero::leer(azure::CUENTA_LLAVERO) {
+            Ok(Some(key)) => {
+                let cliente = Azure::new(key, self.ajustes.region_azure.clone(), self.ajustes.voz_azure.clone(), self.ajustes.velocidad);
+                match cliente {
+                    Ok(c) => self.azure = Some(c),
+                    Err(e) => eprintln!("Voz: {e}"),
+                }
+            }
+            Ok(None) => {}
+            Err(e) => eprintln!("Voz: {e}"),
+        }
+    }
+
+    /// Una frase → audio: con Azure si se puede, si no con Piper.
+    fn sintetizar_frase(&mut self, frase: &str) -> crate::error::Resultado<(u32, Vec<f32>)> {
+        if let Some(azure) = self.azure.as_ref().filter(|_| Instant::now() >= self.azure_en_pausa_hasta) {
+            match tauri::async_runtime::block_on(azure.sintetizar(frase)) {
+                Ok(audio) => return Ok(audio),
+                Err(e) => {
+                    eprintln!("Voz: {e} Sigo con la voz local.");
+                    self.azure_en_pausa_hasta = Instant::now() + PAUSA_DE_AZURE;
+                }
+            }
+        }
+        if self.piper.as_mut().is_none_or(|p| !p.vivo()) {
+            self.piper = Some(Piper::abrir(&self.rutas, self.ajustes.velocidad)?);
+        }
+        match self.piper.as_mut() {
+            Some(piper) => piper.sintetizar(frase),
+            None => Err(crate::error::Error::Sistema("No pude abrir la voz local.".into())),
+        }
+    }
+
     /// Sintetiza la próxima frase y la pone a sonar después de lo que ya hay.
     fn sintetizar_siguiente(&mut self) {
         let Some(frase) = self.habla.as_mut().and_then(|h| h.frases.pop_front()) else { return };
-        let Some(piper) = self.piper.as_mut() else { return };
-        let resultado = piper.sintetizar(&frase);
+        let resultado = self.sintetizar_frase(&frase);
         let Some(habla) = self.habla.as_mut() else { return };
         match resultado {
             Ok((frecuencia, audio)) => {
