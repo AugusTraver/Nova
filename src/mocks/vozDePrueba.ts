@@ -1,12 +1,25 @@
 // Voz de mentira para el navegador (sin Tauri no hay micrófono ni Piper):
 // mueve los mismos estados que el motor de Rust, para poder ver la esfera y
 // los textos. Con `?voz=no` arranca sin modelos (para ver la descarga).
-import type { AjustesVoz, VistaVoz } from "../lib/tipos";
+import type { AjustesVoz, ProveedorVoz, PruebaVoz, VistaVoz, VozDeCuenta } from "../lib/tipos";
 import { nivelVoz, useVoz } from "../store/voz";
 
 const sinModelos = new URLSearchParams(window.location.search).get("voz") === "no";
 
-let ajustes: AjustesVoz = { activada: true, velocidad: 1, leerResumen: true, usarGpu: true };
+let ajustes: AjustesVoz = {
+  activada: true,
+  velocidad: 1,
+  leerResumen: true,
+  usarGpu: true,
+  regionAzure: "",
+  vozAzure: "es-MX-DaliaNeural",
+  proveedor: "azure",
+  vozEleven: "",
+  modeloEleven: "eleven_flash_v2_5",
+  vozOpenai: "coral",
+};
+let conKey: ProveedorVoz[] = [];
+const nombres: Record<ProveedorVoz, string> = { azure: "Azure", elevenlabs: "ElevenLabs", openai: "OpenAI", local: "la voz local" };
 let modelosListos = !sinModelos;
 let activa = false;
 let animacion: number | undefined;
@@ -32,7 +45,28 @@ function escuchar() {
 }
 
 export const vozDePrueba = {
-  estado: async (): Promise<VistaVoz> => ({ ajustes, modelosListos, megasFaltantes: modelosListos ? 0 : 1340, hayGpu: true }),
+  estado: async (): Promise<VistaVoz> => ({ ajustes, modelosListos, megasFaltantes: modelosListos ? 0 : 1340, hayGpu: true, conKey }),
+  guardarKey: async (proveedor: ProveedorVoz, key: string) => {
+    conKey = conKey.filter((p) => p !== proveedor);
+    if (key.trim() !== "") conKey.push(proveedor);
+    return key.trim() !== "";
+  },
+  probar: async (proveedor: ProveedorVoz): Promise<PruebaVoz> => {
+    if (proveedor !== "local" && !conKey.includes(proveedor)) throw { tipo: "validacion", mensaje: `Falta la key de ${nombres[proveedor]}.` };
+    if (proveedor === "azure" && !ajustes.regionAzure) throw { tipo: "validacion", mensaje: "Falta la región de Azure." };
+    if (proveedor === "elevenlabs" && !ajustes.vozEleven) throw { tipo: "validacion", mensaje: "Elegí una voz de ElevenLabs." };
+    await new Promise((ok) => window.setTimeout(ok, 400));
+    void vozDePrueba.hablar("Hola, soy Nova. Mañana a las nueve tenés el parcial de Análisis.");
+    return { milisegundos: { azure: 380, elevenlabs: 290, openai: 820, local: 140 }[proveedor] };
+  },
+  vocesElevenlabs: async (): Promise<VozDeCuenta[]> => {
+    if (!conKey.includes("elevenlabs")) throw { tipo: "validacion", mensaje: "Falta la key de ElevenLabs." };
+    return [
+      { id: "voz0argentina0001", nombre: "Valentina", detalle: "argentine, female" },
+      { id: "voz0argentina0002", nombre: "Tomás", detalle: "argentine, male" },
+      { id: "voz0neutra0000003", nombre: "Sarah", detalle: "american, female" },
+    ];
+  },
   guardar: async (nuevos: AjustesVoz) => {
     ajustes = nuevos;
     if (!ajustes.activada) useVoz.getState().ponerEstado("apagada", null);

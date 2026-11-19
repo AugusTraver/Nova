@@ -214,6 +214,25 @@ Reglas:
   - Escuchando, se forman ondas finas y se aclara el borde.
   - Hablando, laten pulsos más grandes y se infla un poco con cada sílaba.
 
+- **Voz de Microsoft (después de v0.5):** Piper sonaba robótica, así que Nova puede hablar con una voz de Azure AI Speech. Por defecto es `es-MX-DaliaNeural`, y en Ajustes se elige entre Dalia, Jorge, Elvira y Paloma.
+  - Es el servicio oficial, con la key del usuario (plan gratis F0, 500.000 caracteres por mes). La key va al llavero y la región a las preferencias.
+  - Se descartó el atajo de la voz de Edge: imita al navegador para saltear el control de acceso de Microsoft y se rompe cuando lo cambian.
+  - Solo viaja el texto que dice Nova, nunca el micrófono. Lo que decís se sigue transcribiendo en la compu.
+  - Sin región o sin key, Nova habla con Piper. Si Azure falla (sin internet, key mala, límite), esa frase y las de los próximos 2 minutos van por Piper.
+  - "Guardar y probar" en Ajustes guarda todo y Nova saluda con la voz elegida.
+
+- **Voces más naturales (después de v0.5):** además de Azure se puede elegir ElevenLabs u OpenAI, y en Ajustes hay un comparador.
+  - **Azure** suma las voces argentinas (`es-AR-ElenaNeural`, `es-AR-TomasNeural`) y las HD (`…:DragonHDLatestNeural`). Las HD entonan solas, pero no aceptan `<prosody>`, así que no cambian de velocidad.
+  - **ElevenLabs** (`voz/elevenlabs.rs`): la voz se elige entre las de la cuenta del usuario (las de la Voice Library, como las argentinas, hay que agregarlas primero). Hay dos modelos: Flash v2.5, el rápido y por defecto, y Multilingual v2, más expresivo.
+  - **OpenAI** (`voz/openai.rs`, `gpt-4o-mini-tts`): se le pide el acento rioplatense y el tono con instrucciones en palabras, y la velocidad también va ahí.
+  - Cada key va al llavero, en su propia cuenta. Lo que tienen en común (errores en palabras, qué key va dónde) está en `voz/nube.rs`.
+  - **El comparador:** "Escuchar" guarda y dice la misma frase con la voz elegida, y muestra cuánto tardó en tener el audio. Lo que tardó cada una queda al lado de su nombre.
+  - **La síntesis va en otro hilo** (`voz/sintetizador.rs`): recibe todas las frases de una respuesta de una vez y las devuelve en orden.
+    - Así no hay silencios entre oraciones, y `Esc` corta enseguida.
+    - Callarse cancela lo pendiente sin gastar pedidos.
+  - **El parlante** queda abierto mientras el panel está abierto.
+  - Si la voz elegida falla, esa frase y las de los próximos 2 minutos van por Piper, como antes con Azure.
+
 ### 5.4 Proactividad (v0.6+)
 - Notificaciones del sistema: "En 30 minutos tenés clase", "Vence hoy: estudiar para Análisis", "Arranca el partido".
 - Configurables y silenciables.

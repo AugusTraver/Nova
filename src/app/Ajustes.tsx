@@ -191,6 +191,9 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
           vista={voz}
           alCambiar={(ajustes) => setVoz({ ...voz, ajustes })}
           alBajar={() => void api.estadoVoz().then(setVoz)}
+          alCambiarKey={(proveedor, tiene) =>
+            setVoz((v) => (v ? { ...v, conKey: [...v.conKey.filter((p) => p !== proveedor), ...(tiene ? [proveedor] : [])] } : v))
+          }
         />
       )}
 

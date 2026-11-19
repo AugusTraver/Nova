@@ -1,5 +1,6 @@
 //! El motor de voz: un hilo propio que es dueño del micrófono, el detector
-//! de voz, Whisper, Piper y los parlantes. Todo le llega por un solo canal
+//! de voz, Whisper y los parlantes. Convertir texto en voz lo hace otro
+//! hilo (`sintetizador`), que le devuelve el audio por el mismo canal. Todo le llega por un solo canal
 //! (órdenes de la interfaz y audio del micrófono), así que nunca hay dos
 //! partes tocando lo mismo a la vez.
 //!
@@ -10,7 +11,6 @@
 //! Mientras Nova habla, el micrófono se ignora: si no, se escucharía a sí
 //! misma por los parlantes.
 
-use std::collections::VecDeque;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
@@ -21,7 +21,7 @@ use tauri::{AppHandle, Emitter};
 use super::audio::{FRECUENCIA_WHISPER, Remuestreador, envolvente, nivel_visual, remuestrear, rms, wav};
 use super::dispositivos::{DelMicrofono, Microfono, Parlante};
 use super::modelos::Rutas;
-use super::piper::Piper;
+use super::sintetizador::{Audio, Sintetizador};
 use super::texto::{es_eco_del_contexto, limpiar_transcripcion, oraciones, para_leer};
 use super::vad::{AjustesVad, EventoVad, MUESTRAS_POR_CUADRO, Vad};
 use super::whisper::ServidorWhisper;
@@ -78,6 +78,10 @@ pub enum Orden {
     /// El asistente está pensando: no escuchar hasta que conteste.
     Esperar,
     Hablar(String),
+    /// Hacer sonar un audio ya sintetizado (el comparador de voces de Ajustes).
+    Sonar(Audio),
+    /// Volvió una frase del sintetizador.
+    Sintetizado { habla: u64, resultado: crate::error::Resultado<Audio> },
     Callar,
     Configurar(AjustesVoz),
     Microfono(DelMicrofono),
@@ -90,12 +94,16 @@ fn del_microfono(m: DelMicrofono) -> Orden {
 }
 
 struct Habla {
-    parlante: Parlante,
+    /// El número que le dio el sintetizador (lo que vuelve con otro número
+    /// es de una respuesta que se cortó).
+    id: u64,
     /// El nivel de cada 1/30 s de lo encolado, para la esfera.
     niveles: Vec<f32>,
-    /// Las frases que faltan sintetizar. Se sintetizan de a una, cuando a
-    /// la cola del parlante le queda poco: así un "callate" llega enseguida.
-    frases: VecDeque<String>,
+    /// Cuántas frases faltan que vuelvan del sintetizador.
+    faltan: usize,
+    /// Lo que llevaba sonado el parlante al empezar (el parlante queda
+    /// abierto entre respuestas y cuenta desde que se abrió).
+    sonadas_al_empezar: u64,
 }
 
 /// Cómo avisa el motor a la interfaz: en la app, eventos de Tauri; en los
@@ -129,7 +137,11 @@ pub struct Motor {
     whisper: Option<ServidorWhisper>,
     ultimo_uso_whisper: Instant,
     ultimo_parcial: Instant,
-    piper: Option<Piper>,
+    /// Se arranca la primera vez que hay que hablar.
+    sintetizador: Option<Sintetizador>,
+    /// Queda abierto mientras el panel está abierto: abrirlo en cada
+    /// respuesta demoraba el arranque y a veces hacía un "click".
+    parlante: Option<Parlante>,
     habla: Option<Habla>,
     /// Hasta cuándo se ignora el micrófono (eco de lo que acaba de decir).
     sordo_hasta: Instant,
@@ -155,7 +167,8 @@ impl Motor {
             whisper: None,
             ultimo_uso_whisper: Instant::now(),
             ultimo_parcial: Instant::now(),
-            piper: None,
+            sintetizador: None,
+            parlante: None,
             habla: None,
             sordo_hasta: Instant::now(),
             estado: Estado::Apagada,
@@ -179,7 +192,8 @@ impl Motor {
                     self.callar();
                     self.cerrar_microfono();
                     self.whisper = None;
-                    self.piper = None;
+                    self.sintetizador = None;
+                    self.parlante = None;
                     let _ = listo.send(());
                     return;
                 }
@@ -223,6 +237,7 @@ impl Motor {
                 self.esperando = false;
                 self.callar();
                 self.cerrar_microfono();
+                self.parlante = None;
                 self.avisar(Estado::Apagada, None);
             }
             Orden::Pausar => {
@@ -250,17 +265,18 @@ impl Motor {
                 self.esperando = false;
                 self.hablar(&texto);
             }
+            Orden::Sonar(audio) => self.sonar(audio),
+            Orden::Sintetizado { habla, resultado } => self.llego_audio(habla, resultado),
             Orden::Callar => {
                 self.callar();
                 self.volver_a_escuchar();
             }
             Orden::Configurar(ajustes) => {
-                let cambio_velocidad = (ajustes.velocidad - self.ajustes.velocidad).abs() > f32::EPSILON;
                 let cambio_gpu = ajustes.usar_gpu != self.ajustes.usar_gpu;
-                self.ajustes = ajustes;
-                if cambio_velocidad {
-                    self.piper = None; // se reabre con la velocidad nueva
+                if let Some(s) = &self.sintetizador {
+                    s.configurar(ajustes.clone());
                 }
+                self.ajustes = ajustes;
                 if cambio_gpu {
                     self.whisper = None;
                 }
@@ -423,55 +439,93 @@ impl Motor {
     }
 
     fn hablar(&mut self, texto: &str) {
-        if !self.ajustes.activada || !self.modelos_listos() {
+        if !self.ajustes.activada {
             return;
         }
         let frases = oraciones(&para_leer(texto));
         if frases.is_empty() {
             return self.volver_a_escuchar();
         }
-        self.callar();
-        self.vad.reiniciar();
-        if self.piper.as_mut().is_none_or(|p| !p.vivo()) {
-            match Piper::abrir(&self.rutas, self.ajustes.velocidad) {
-                Ok(p) => self.piper = Some(p),
+        if self.sintetizador.is_none() {
+            let canal = self.canal.clone();
+            let al_sintetizar = Box::new(move |habla, resultado| {
+                let _ = canal.send(Orden::Sintetizado { habla, resultado });
+            });
+            match Sintetizador::arrancar(self.rutas.clone(), self.ajustes.clone(), al_sintetizar) {
+                Ok(s) => self.sintetizador = Some(s),
                 Err(e) => return self.error(e.to_string()),
             }
         }
-        let parlante = match Parlante::abrir() {
-            Ok(p) => p,
-            Err(e) => return self.error(e),
-        };
-        self.habla = Some(Habla { parlante, niveles: Vec::new(), frases: frases.into() });
-        self.avisar(Estado::Hablando, None);
-        self.sintetizar_siguiente();
+        // Primero se calla lo anterior (eso cancela su número en el
+        // sintetizador) y después se mandan las frases nuevas.
+        self.callar();
+        let faltan = frases.len();
+        let Some(id) = self.sintetizador.as_ref().map(|s| s.decir(frases)) else { return };
+        self.empezar_a_hablar(id, faltan);
     }
 
-    /// Sintetiza la próxima frase y la pone a sonar después de lo que ya hay.
-    fn sintetizar_siguiente(&mut self) {
-        let Some(frase) = self.habla.as_mut().and_then(|h| h.frases.pop_front()) else { return };
-        let Some(piper) = self.piper.as_mut() else { return };
-        let resultado = piper.sintetizar(&frase);
-        let Some(habla) = self.habla.as_mut() else { return };
+    /// Prepara el parlante y deja todo listo para que vaya llegando el audio.
+    fn empezar_a_hablar(&mut self, id: u64, faltan: usize) -> bool {
+        self.callar();
+        self.vad.reiniciar();
+        if self.parlante.is_none() {
+            match Parlante::abrir() {
+                Ok(p) => self.parlante = Some(p),
+                Err(e) => {
+                    self.error(e);
+                    return false;
+                }
+            }
+        }
+        let sonadas_al_empezar = self.parlante.as_ref().map_or(0, Parlante::sonadas);
+        self.habla = Some(Habla { id, niveles: Vec::new(), faltan, sonadas_al_empezar });
+        self.avisar(Estado::Hablando, None);
+        true
+    }
+
+    /// Un audio que ya viene hecho (el comparador de Ajustes).
+    fn sonar(&mut self, audio: Audio) {
+        // El 0 nunca lo usa el sintetizador: nada suyo se mezcla con esto.
+        if self.empezar_a_hablar(0, 0) {
+            self.encolar(audio);
+        }
+    }
+
+    fn llego_audio(&mut self, id: u64, resultado: crate::error::Resultado<Audio>) {
+        let Some(habla) = self.habla.as_mut().filter(|h| h.id == id) else { return };
         match resultado {
-            Ok((frecuencia, audio)) => {
-                let salida = remuestrear(&audio, frecuencia, habla.parlante.frecuencia);
-                let por_cuadro = (habla.parlante.frecuencia / 30) as usize;
-                habla.niveles.extend(envolvente(&salida, por_cuadro));
-                habla.parlante.encolar(&salida);
+            Ok(audio) => {
+                habla.faltan = habla.faltan.saturating_sub(1);
+                self.encolar(audio);
             }
             Err(e) => {
-                // Lo que ya sonó queda; el resto se pierde y Piper se reabre la próxima.
-                habla.frases.clear();
-                self.piper = None;
+                // Lo que ya sonó queda; el resto no se dice.
                 eprintln!("Voz: {e}");
+                habla.faltan = 0;
+                if let Some(s) = &self.sintetizador {
+                    s.cancelar();
+                }
             }
         }
     }
 
+    /// Pone a sonar un audio después de lo que ya hay.
+    fn encolar(&mut self, (frecuencia, audio): Audio) {
+        let (Some(habla), Some(parlante)) = (self.habla.as_mut(), self.parlante.as_ref()) else { return };
+        let salida = remuestrear(&audio, frecuencia, parlante.frecuencia);
+        let por_cuadro = (parlante.frecuencia / 30) as usize;
+        habla.niveles.extend(envolvente(&salida, por_cuadro));
+        parlante.encolar(&salida);
+    }
+
     fn callar(&mut self) {
-        if let Some(habla) = self.habla.take() {
-            habla.parlante.vaciar();
+        if self.habla.take().is_some() {
+            if let Some(p) = &self.parlante {
+                p.vaciar();
+            }
+            if let Some(s) = &self.sintetizador {
+                s.cancelar();
+            }
             self.sordo_hasta = Instant::now() + COLA_DEL_ECO;
         }
     }
@@ -479,14 +533,11 @@ impl Motor {
     /// 30 veces por segundo: el nivel para la esfera, si terminó de hablar
     /// y si conviene cerrar Whisper.
     fn cada_cuadro(&mut self) {
-        // Le queda menos de un segundo por sonar: se prepara la frase siguiente.
-        if self.habla.as_ref().is_some_and(|h| !h.frases.is_empty() && h.parlante.pendientes() < h.parlante.frecuencia as usize) {
-            self.sintetizar_siguiente();
-        }
         let mut termino = false;
-        let nivel = if let Some(habla) = &self.habla {
-            let cuadro = (habla.parlante.sonadas() / u64::from(habla.parlante.frecuencia / 30).max(1)) as usize;
-            termino = habla.frases.is_empty() && habla.parlante.pendientes() == 0;
+        let nivel = if let (Some(habla), Some(parlante)) = (&self.habla, &self.parlante) {
+            let sonadas = parlante.sonadas().saturating_sub(habla.sonadas_al_empezar);
+            let cuadro = (sonadas / u64::from(parlante.frecuencia / 30).max(1)) as usize;
+            termino = habla.faltan == 0 && parlante.pendientes() == 0;
             habla.niveles.get(cuadro).copied().unwrap_or(0.0)
         } else if self.escuchando() {
             self.nivel_mic
@@ -503,6 +554,7 @@ impl Motor {
                 self.avisar(if self.pausado { Estado::Pausada } else { Estado::Escuchando }, None);
                 self.vad.reiniciar();
             } else {
+                self.parlante = None;
                 self.avisar(Estado::Apagada, None);
             }
         }
@@ -531,9 +583,25 @@ mod tests {
         // Así queda después de transcribir un pedido.
         motor.esperando = true;
         assert!(!motor.escuchando());
-        motor.atender(Orden::Hablar("Listo, te lo anoto.".into()));
+        // Una respuesta sin nada para leer: no abre el parlante (los tests
+        // no tocan dispositivos) pero tiene que dejar de esperar igual.
+        motor.atender(Orden::Hablar("**".into()));
         assert!(!motor.esperando);
         assert!(motor.escuchando());
+    }
+
+    #[test]
+    fn descarta_el_audio_de_una_respuesta_cortada() {
+        let mut motor = motor_sin_modelos();
+        motor.habla = Some(Habla { id: 5, niveles: Vec::new(), faltan: 2, sonadas_al_empezar: 0 });
+        // Llega una frase de la respuesta anterior (la 4): no cuenta.
+        motor.atender(Orden::Sintetizado { habla: 4, resultado: Ok((24_000, vec![0.0; 100])) });
+        assert_eq!(motor.habla.as_ref().unwrap().faltan, 2);
+        motor.atender(Orden::Sintetizado { habla: 5, resultado: Ok((24_000, vec![0.0; 100])) });
+        assert_eq!(motor.habla.as_ref().unwrap().faltan, 1);
+        // Si una frase falla, el resto no se dice.
+        motor.atender(Orden::Sintetizado { habla: 5, resultado: Err(crate::error::Error::Sistema("sin red".into())) });
+        assert_eq!(motor.habla.as_ref().unwrap().faltan, 0);
     }
 
     #[test]

@@ -324,12 +324,39 @@ export interface AvisoEstadoVoz {
   mensaje: string | null;
 }
 
+/** Con quién habla Nova (ver `voz/nube.rs`). */
+export type ProveedorVoz = "azure" | "elevenlabs" | "openai" | "local";
+
 export interface AjustesVoz {
   activada: boolean;
   /** 1 = normal, de 0,7 a 1,4. */
   velocidad: number;
   leerResumen: boolean;
   usarGpu: boolean;
+  /** Región del recurso de Azure ("eastus"); vacía = voz local. */
+  regionAzure: string;
+  /** La voz de Microsoft ("es-MX-DaliaNeural"). */
+  vozAzure: string;
+  proveedor: ProveedorVoz;
+  /** El ID de una voz de la cuenta de ElevenLabs ("" = sin elegir). */
+  vozEleven: string;
+  modeloEleven: "eleven_flash_v2_5" | "eleven_multilingual_v2";
+  /** La voz de OpenAI ("coral"). */
+  vozOpenai: string;
+}
+
+/** Una voz de la cuenta de ElevenLabs. */
+export interface VozDeCuenta {
+  id: string;
+  nombre: string;
+  /** "argentine, female" o vacío. */
+  detalle: string;
+}
+
+/** Lo que devuelve el comparador de voces. */
+export interface PruebaVoz {
+  /** Cuánto tardó en tener el audio. */
+  milisegundos: number;
 }
 
 export interface VistaVoz {
@@ -337,6 +364,8 @@ export interface VistaVoz {
   modelosListos: boolean;
   megasFaltantes: number;
   hayGpu: boolean;
+  /** Los proveedores con key en el llavero (las keys nunca llegan acá). */
+  conKey: ProveedorVoz[];
 }
 
 /** Evento `voz:descarga`. */
