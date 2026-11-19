@@ -17,7 +17,8 @@ use crate::clima::{AjustesClima, CiudadEncontrada, ClienteClima, VistaClima};
 use crate::db::Db;
 use crate::noticias::{self, AjustesNoticias, Noticia};
 use crate::voz::motor::Orden;
-use crate::voz::{AjustesVoz, Voz, azure as voz_azure, modelos as modelos_voz};
+use crate::voz::nube::{Proveedor, VozNube};
+use crate::voz::{AjustesVoz, Voz, elevenlabs, modelos as modelos_voz};
 use crate::fondo::Fondo;
 use crate::futbol::{self, JugadorEncontrado, JugadorSeguido};
 use crate::futbol::espn::ClienteEspn;
@@ -442,8 +443,21 @@ pub struct VistaVoz {
     /// Cuánto falta bajar (MB aproximados).
     pub megas_faltantes: u64,
     pub hay_gpu: bool,
-    /// Hay una key de Azure en el llavero (la key nunca viaja a la interfaz).
-    pub tiene_key_azure: bool,
+    /// Los proveedores que tienen key en el llavero (las keys nunca viajan
+    /// a la interfaz).
+    pub con_key: Vec<Proveedor>,
+}
+
+fn proveedores_con_key() -> Resultado<Vec<Proveedor>> {
+    let mut con_key = Vec::new();
+    for p in Proveedor::CON_KEY {
+        if let Some(cuenta) = p.cuenta_llavero()
+            && llavero::leer(cuenta)?.is_some()
+        {
+            con_key.push(p);
+        }
+    }
+    Ok(con_key)
 }
 
 #[tauri::command]
@@ -457,23 +471,26 @@ pub async fn estado_voz(db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<Vis
         megas_faltantes: faltan.iter().map(|d| d.megas).sum(),
         ajustes,
         hay_gpu,
-        tiene_key_azure: llavero::leer(voz_azure::CUENTA_LLAVERO)?.is_some(),
+        con_key: proveedores_con_key()?,
     })
 }
 
-/// Guarda la key de Azure en el llavero (vacía = borrarla) y el motor la
-/// empieza a usar. Devuelve si quedó una.
+/// Guarda la key de un proveedor de voz en el llavero (vacía = borrarla)
+/// y el motor la empieza a usar. Devuelve si quedó una.
 #[tauri::command]
-pub fn guardar_key_azure(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, key: String) -> Resultado<bool> {
+pub fn guardar_key_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, proveedor: Proveedor, key: String) -> Resultado<bool> {
+    let Some(cuenta) = proveedor.cuenta_llavero() else {
+        return invalido("La voz local no usa key.");
+    };
     let key = key.trim();
     let queda = if key.is_empty() {
-        llavero::borrar(voz_azure::CUENTA_LLAVERO)?;
+        llavero::borrar(cuenta)?;
         false
     } else {
-        if key.len() > 200 || !key.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return invalido("Esa key no parece de Azure: es una tira de letras y números.");
+        if !proveedor.key_valida(key) {
+            return invalido(format!("Esa key no parece de {}: revisá que esté completa.", proveedor.nombre()));
         }
-        llavero::guardar(voz_azure::CUENTA_LLAVERO, key)?;
+        llavero::guardar(cuenta, key)?;
         true
     };
     let ajustes = preferencias::voz(&db.conexion())?;
@@ -481,21 +498,54 @@ pub fn guardar_key_azure(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>,
     Ok(queda)
 }
 
-/// "Probar" en Ajustes: con la región, la voz y la key guardadas, le pide
-/// una frase a Azure. Si anda, Nova la dice; si no, vuelve el porqué.
+/// La frase del comparador: voseo, una hora y una pregunta, para escuchar
+/// el acento y la entonación.
+const FRASE_DE_PRUEBA: &str = "Hola, soy Nova. Mañana a las nueve tenés el parcial de Análisis. ¿Querés que te lo recuerde esta noche?";
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PruebaVoz {
+    /// Cuánto tardó en tener el audio (sin contar lo que dura la frase).
+    pub milisegundos: u64,
+}
+
+/// El comparador de Ajustes: con lo guardado, sintetiza la frase de prueba
+/// con `proveedor` y Nova la dice. Si falla, vuelve el porqué. No cambia
+/// con qué voz habla Nova: para eso está "Usar esta".
 #[tauri::command]
-pub async fn probar_voz_azure(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Resultado<()> {
+pub async fn probar_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, proveedor: Proveedor) -> Resultado<PruebaVoz> {
     let ajustes = preferencias::voz(&db.conexion())?;
-    if ajustes.region_azure.is_empty() {
-        return invalido("Falta la región de Azure.");
-    }
-    let Some(key) = llavero::leer(voz_azure::CUENTA_LLAVERO)? else {
-        return invalido("Falta la key de Azure.");
+    let (audio, tardo) = match VozNube::armar(proveedor, &ajustes)? {
+        Some(cliente) => {
+            let inicio = std::time::Instant::now();
+            let audio = cliente.sintetizar(FRASE_DE_PRUEBA).await?;
+            (audio, inicio.elapsed())
+        }
+        None => {
+            // Piper tarda en cargar la voz la primera vez; eso no se cuenta.
+            let rutas = voz.rutas.clone();
+            let velocidad = ajustes.velocidad;
+            tauri::async_runtime::spawn_blocking(move || -> Resultado<_> {
+                let mut piper = crate::voz::piper::Piper::abrir(&rutas, velocidad)?;
+                let inicio = std::time::Instant::now();
+                let audio = piper.sintetizar(FRASE_DE_PRUEBA)?;
+                Ok((audio, inicio.elapsed()))
+            })
+            .await
+            .map_err(|e| Error::Sistema(e.to_string()))??
+        }
     };
-    let cliente = voz_azure::Azure::new(key, ajustes.region_azure.clone(), ajustes.voz_azure.clone(), ajustes.velocidad)?;
-    cliente.sintetizar("Hola.").await?;
-    voz.mandar(&app, &ajustes, Orden::Hablar("Hola, soy Nova. Así te voy a hablar de ahora en más.".into()));
-    Ok(())
+    voz.mandar(&app, &ajustes, Orden::Sonar(audio));
+    Ok(PruebaVoz { milisegundos: tardo.as_millis() as u64 })
+}
+
+/// Las voces de la cuenta de ElevenLabs, para elegir en Ajustes.
+#[tauri::command]
+pub async fn voces_elevenlabs() -> Resultado<Vec<elevenlabs::VozDeCuenta>> {
+    let Some(key) = llavero::leer(elevenlabs::CUENTA_LLAVERO)? else {
+        return invalido("Falta la key de ElevenLabs.");
+    };
+    elevenlabs::ElevenLabs::voces(&key).await
 }
 
 #[tauri::command]

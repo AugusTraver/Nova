@@ -5,31 +5,38 @@
 //! que viaja es solo el texto que dice Nova; el micrófono no sale de la compu.
 //! Si no hay internet o la key falla, el motor vuelve a Piper.
 
-use std::time::Duration;
-
 use super::audio::leer_wav;
+use super::nube::{cliente_http, error_de_red};
 use crate::error::{Error, Resultado};
 
 /// Cuenta en el llavero para la key de Azure.
 pub const CUENTA_LLAVERO: &str = "azure-speech-key";
 /// La voz que se usa si no se elige otra.
 pub const VOZ_POR_DEFECTO: &str = "es-MX-DaliaNeural";
-/// Más que esto y conviene hablar con Piper: la respuesta ya se hace esperar.
-const ESPERA_MAXIMA: Duration = Duration::from_secs(6);
 
 /// Las regiones de Azure son palabras en minúscula ("eastus", "brazilsouth").
 pub fn region_valida(region: &str) -> bool {
     (2..=30).contains(&region.len()) && region.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
 }
 
-/// Los nombres de voz son como "es-MX-DaliaNeural".
+/// Los nombres de voz son como "es-MX-DaliaNeural", o las HD (alta
+/// definición) como "es-MX-Ximena:DragonHDLatestNeural".
 pub fn voz_valida(voz: &str) -> bool {
-    let partes: Vec<&str> = voz.split('-').collect();
+    let (nombre, modelo) = voz.split_once(':').unwrap_or((voz, ""));
+    let partes: Vec<&str> = nombre.split('-').collect();
     partes.len() >= 3
-        && voz.len() <= 60
+        && voz.len() <= 70
         && voz.ends_with("Neural")
         && partes[0].len() == 2
-        && voz.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && (modelo.is_empty() || modelo.starts_with("DragonHD"))
+        && nombre.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+        && modelo.chars().all(|c| c.is_ascii_alphanumeric())
+}
+
+/// Las voces HD entonan solas según lo que dicen. No aceptan `<prosody>`:
+/// con ellas la velocidad no se puede cambiar.
+pub fn es_hd(voz: &str) -> bool {
+    voz.contains(":DragonHD")
 }
 
 /// El idioma de la voz ("es-MX-DaliaNeural" → "es-MX").
@@ -46,6 +53,9 @@ pub fn ssml(texto: &str, voz: &str, velocidad: f32) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;");
+    if es_hd(voz) {
+        return format!("<speak version='1.0' xml:lang='{idioma}'><voice name='{voz}'>{escapado}</voice></speak>", idioma = idioma(voz));
+    }
     let porcentaje = ((velocidad - 1.0) * 100.0).round() as i32;
     format!(
         "<speak version='1.0' xml:lang='{idioma}'><voice name='{voz}'><prosody rate='{porcentaje:+}%'>{escapado}</prosody></voice></speak>",
@@ -74,12 +84,7 @@ pub struct Azure {
 
 impl Azure {
     pub fn new(key: String, region: String, voz: String, velocidad: f32) -> Resultado<Self> {
-        let http = reqwest::Client::builder()
-            .timeout(ESPERA_MAXIMA)
-            .user_agent("Nova")
-            .build()
-            .map_err(|e| Error::Sistema(e.to_string()))?;
-        Ok(Azure { http, key, region, voz, velocidad })
+        Ok(Azure { http: cliente_http()?, key, region, voz, velocidad })
     }
 
     /// Texto → (frecuencia, audio mono).
@@ -94,7 +99,7 @@ impl Azure {
             .body(ssml(texto, &self.voz, self.velocidad))
             .send()
             .await
-            .map_err(|e| Error::Sistema(if e.is_timeout() { "Azure tardó demasiado.".into() } else { format!("No pude llegar a Azure: {e}") }))?;
+            .map_err(|e| error_de_red("Azure", &e))?;
         let estado = respuesta.status();
         if !estado.is_success() {
             return Err(Error::Sistema(explicar(estado.as_u16())));
@@ -131,6 +136,14 @@ mod tests {
         assert!(!region_valida("") && !region_valida("East US") && !region_valida("x.evil.com/"));
         assert!(voz_valida("es-MX-DaliaNeural") && voz_valida("es-US-PalomaNeural"));
         assert!(!voz_valida("Dalia") && !voz_valida("es-MX-Dalia'/><x") && !voz_valida("es-MX-Dalia"));
+        assert!(voz_valida("es-MX-Ximena:DragonHDLatestNeural") && voz_valida("es-AR-ElenaNeural"));
+        assert!(!voz_valida("es-MX-Ximena:Otra'Neural") && !voz_valida("es-MX-Ximena:CualquieraNeural"));
+    }
+
+    #[test]
+    fn las_hd_van_sin_prosody() {
+        let s = ssml("Hola", "es-MX-Ximena:DragonHDLatestNeural", 1.2);
+        assert_eq!(s, "<speak version='1.0' xml:lang='es-MX'><voice name='es-MX-Ximena:DragonHDLatestNeural'>Hola</voice></speak>");
     }
 
     /// Contra Azure de verdad, con la key del llavero y la región en

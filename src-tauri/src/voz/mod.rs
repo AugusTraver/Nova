@@ -1,22 +1,28 @@
 //! Voz (v0.5, SPEC 5.1): Nova escucha sola al abrir el panel y contesta
 //! hablando. El micrófono y la transcripción son locales: tu audio nunca
-//! sale de la compu. Para hablar usa la voz de Microsoft (Azure) si cargaste
-//! la key, y si no (o sin internet) Piper, que es local.
+//! sale de la compu. Para hablar usa la voz de internet que elijas (Azure,
+//! ElevenLabs u OpenAI) y, sin eso o sin internet, Piper, que es local.
 //!
 //! - `audio`, `vad`, `texto`: cuentas puras con tests (remuestrear, detectar
 //!   cuándo hablás, limpiar lo que entiende Whisper, partir en oraciones).
 //! - `dispositivos`: micrófono y parlantes (cpal).
 //! - `whisper`, `piper`: los programas de voz → texto y texto → voz.
-//! - `azure`: la voz de Microsoft (texto → voz por internet).
+//! - `azure`, `elevenlabs`, `openai`: las voces por internet; `nube`, lo
+//!   que tienen en común.
+//! - `sintetizador`: el hilo que convierte las frases en audio por adelantado.
 //! - `modelos`: dónde están y cómo se bajan.
 //! - `motor`: el hilo que junta todo.
 
 pub mod audio;
 pub mod azure;
 pub mod dispositivos;
+pub mod elevenlabs;
 pub mod modelos;
 pub mod motor;
+pub mod nube;
+pub mod openai;
 pub mod piper;
+pub mod sintetizador;
 pub mod texto;
 pub mod vad;
 pub mod whisper;
@@ -47,6 +53,14 @@ pub struct AjustesVoz {
     pub region_azure: String,
     /// La voz de Azure ("es-MX-DaliaNeural").
     pub voz_azure: String,
+    /// Con quién habla. Lo guardado antes de esto no lo tiene: queda Azure,
+    /// que sin región ni key habla con Piper, como antes.
+    pub proveedor: nube::Proveedor,
+    /// El ID de una voz de la cuenta de ElevenLabs (vacío = sin elegir).
+    pub voz_eleven: String,
+    pub modelo_eleven: String,
+    /// La voz de OpenAI ("coral").
+    pub voz_openai: String,
 }
 
 impl Default for AjustesVoz {
@@ -58,6 +72,10 @@ impl Default for AjustesVoz {
             usar_gpu: true,
             region_azure: String::new(),
             voz_azure: azure::VOZ_POR_DEFECTO.into(),
+            proveedor: nube::Proveedor::default(),
+            voz_eleven: String::new(),
+            modelo_eleven: elevenlabs::MODELO_POR_DEFECTO.into(),
+            voz_openai: openai::VOZ_POR_DEFECTO.into(),
         }
     }
 }
@@ -74,6 +92,15 @@ impl AjustesVoz {
         }
         if !azure::voz_valida(&self.voz_azure) {
             return Err("Esa voz de Azure no existe.".into());
+        }
+        if !self.voz_eleven.is_empty() && !elevenlabs::voz_valida(&self.voz_eleven) {
+            return Err("Esa voz de ElevenLabs no existe.".into());
+        }
+        if !elevenlabs::modelo_valido(&self.modelo_eleven) {
+            return Err("Ese modelo de ElevenLabs no existe.".into());
+        }
+        if !openai::voz_valida(&self.voz_openai) {
+            return Err("Esa voz de OpenAI no existe.".into());
         }
         Ok(self)
     }
@@ -149,6 +176,19 @@ mod tests {
         // Lo guardado antes de Azure sigue andando: sin región, voz por defecto.
         assert_eq!(leidos.region_azure, "");
         assert_eq!(leidos.voz_azure, "es-MX-DaliaNeural");
+        // Y lo de antes de los otros proveedores, también.
+        assert_eq!(leidos.proveedor, nube::Proveedor::Azure);
+        assert_eq!(leidos.voz_openai, "coral");
+        assert_eq!(leidos.modelo_eleven, "eleven_flash_v2_5");
+    }
+
+    #[test]
+    fn valida_las_voces_de_los_otros() {
+        let a = AjustesVoz::default();
+        assert!(AjustesVoz { voz_openai: "robot".into(), ..a.clone() }.validar().is_err());
+        assert!(AjustesVoz { voz_eleven: "../x".into(), ..a.clone() }.validar().is_err());
+        assert!(AjustesVoz { modelo_eleven: "otro".into(), ..a.clone() }.validar().is_err());
+        assert!(AjustesVoz { proveedor: nube::Proveedor::ElevenLabs, voz_eleven: "21m00Tcm4TlvDq8ikWAM".into(), ..a }.validar().is_ok());
     }
 
     #[test]

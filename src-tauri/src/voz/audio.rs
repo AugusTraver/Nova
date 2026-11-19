@@ -161,6 +161,12 @@ pub fn wav(muestras: &[f32], frecuencia: u32) -> Vec<u8> {
     b
 }
 
+/// PCM crudo de 16 bits mono, sin encabezado (lo que devuelven ElevenLabs
+/// y OpenAI con `pcm`). Si sobra un byte suelto al final, se ignora.
+pub fn leer_pcm16(bytes: &[u8]) -> Vec<f32> {
+    bytes.chunks_exact(2).map(|s| f32::from(i16::from_le_bytes([s[0], s[1]])) / f32::from(i16::MAX)).collect()
+}
+
 /// Lee un WAV PCM de 16 bits (lo que escribe Piper). Devuelve la frecuencia
 /// y las muestras en mono. Busca el bloque `data` (puede haber otros antes).
 pub fn leer_wav(bytes: &[u8]) -> Result<(u32, Vec<f32>), String> {
@@ -255,5 +261,15 @@ mod tests {
         assert_eq!(leidas.len(), original.len());
         assert!(leidas.iter().zip(&original).all(|(a, b)| (a - b).abs() < 0.001));
         assert!(leer_wav(b"no es un wav").is_err());
+    }
+
+    #[test]
+    fn pcm_crudo() {
+        let bytes = [0x00, 0x00, 0xFF, 0x7F, 0x01, 0x80, 0x05];
+        let m = leer_pcm16(&bytes);
+        assert_eq!(m.len(), 3); // el byte suelto se ignora
+        assert_eq!(m[0], 0.0);
+        assert!((m[1] - 1.0).abs() < 1e-6);
+        assert!((m[2] + 1.0).abs() < 1e-6);
     }
 }
