@@ -74,6 +74,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
     useVoz((s) => s.estado),
   );
   const goles = usePanel((s) => s.goles);
+  const despertares = usePanel((s) => s.despertares);
   // En vivo, el widget de fútbol se ensancha un poco (hacia afuera de la órbita).
   const futbolEnVivo = useDatos((s) => s.futbol?.datos?.equipos.some((e) => e.enVivo !== null) ?? false);
   const reducido = useReducedMotion() ?? false;
@@ -235,7 +236,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
           className="pointer-events-auto absolute inset-0"
           onClick={(e) => e.stopPropagation()}
         >
-          <Esfera activa={abierto} momento={momento} estado={estadoEsfera} goles={goles} />
+          <Esfera activa={abierto} momento={momento} estado={estadoEsfera} goles={goles} despertares={despertares} />
         </motion.div>
       </div>
 

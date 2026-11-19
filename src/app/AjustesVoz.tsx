@@ -38,6 +38,10 @@ export function AjustesVoz({ vista, alCambiar, alBajar, alCambiarKey }: Props) {
   // Las keys: null = no se está cambiando (si hay una, solo se dice eso).
   const [keysNuevas, setKeysNuevas] = useState<Record<ProveedorVoz, string | null>>({ azure: null, elevenlabs: null, openai: null, local: null });
   const [voces, setVoces] = useState<VozDeCuenta[] | null>(null);
+  const [microfonos, setMicrofonos] = useState<string[]>([]);
+  useEffect(() => {
+    api.listarMicrofonos().then(setMicrofonos, () => setMicrofonos([]));
+  }, []);
   const [errorVoces, setErrorVoces] = useState<string | null>(null);
 
   const cambiar = (cambios: Partial<TipoAjustesVoz>) => {
@@ -276,6 +280,39 @@ export function AjustesVoz({ vista, alCambiar, alBajar, alCambiarKey }: Props) {
             />
           </label>
 
+          {microfonos.length > 0 && (
+            <Opciones
+              etiqueta="Micrófono"
+              opciones={[
+                { valor: "", texto: "El de Windows" },
+                // Si el elegido no está conectado, igual se muestra (Nova usa el de Windows mientras).
+                ...[...new Set([...microfonos, ...(ajustes.microfono ? [ajustes.microfono] : [])])].map((m) => ({
+                  valor: m,
+                  texto: m.replace(/^Micrófono( de los auriculares( con micrófono)?)? ?/, "").replace(/^\((.*)\)$/, "$1") || m,
+                })),
+              ]}
+              valor={ajustes.microfono}
+              alCambiar={(microfono) => cambiar({ microfono })}
+            />
+          )}
+          <Interruptor
+            texto="Abrir con «Oye Nova» aunque el panel esté cerrado"
+            valor={ajustes.palabraClave}
+            alCambiar={(palabraClave) => cambiar({ palabraClave })}
+          />
+          {ajustes.palabraClave && (
+            <>
+              <Ayuda>
+                El micrófono queda prendido y lo escucha la compu, nada sale a internet. Con la sesión bloqueada no
+                escucha.
+              </Ayuda>
+              <Interruptor
+                texto="Que descanse cuando la compu está desenchufada"
+                valor={ajustes.palabraPausaBateria}
+                alCambiar={(palabraPausaBateria) => cambiar({ palabraPausaBateria })}
+              />
+            </>
+          )}
           <Interruptor
             texto="Leerme el resumen la primera vez que abro el panel en el día"
             valor={ajustes.leerResumen}

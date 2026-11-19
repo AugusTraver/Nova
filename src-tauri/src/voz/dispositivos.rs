@@ -31,16 +31,39 @@ pub struct Microfono {
 const SIN_MICROFONO: &str =
     "No puedo usar el micrófono. Fijate que esté conectado y que Windows lo deje usar (Configuración > Privacidad > Micrófono).";
 
+/// Los nombres de los micrófonos conectados (para elegir en Ajustes).
+pub fn microfonos() -> Vec<String> {
+    let Ok(dispositivos) = cpal::default_host().input_devices() else { return Vec::new() };
+    let mut nombres: Vec<String> = dispositivos.filter_map(|d| d.description().ok().map(|x| x.name().to_string())).collect();
+    nombres.sort();
+    nombres.dedup();
+    nombres
+}
+
+/// El micrófono con ese nombre; si está vacío o no está conectado, el que
+/// Windows tenga por defecto. (Windows cambia el predeterminado solo, por
+/// ejemplo al conectar un joystick con auriculares.)
+fn elegir_microfono(host: &cpal::Host, nombre: &str) -> Option<cpal::Device> {
+    if !nombre.is_empty()
+        && let Ok(mut dispositivos) = host.input_devices()
+        && let Some(d) = dispositivos.find(|d| d.description().is_ok_and(|x| x.name() == nombre))
+    {
+        return Some(d);
+    }
+    host.default_input_device()
+}
+
 impl Microfono {
-    /// Abre el micrófono por defecto. `avisar` recibe cada tanda de audio.
+    /// Abre el micrófono elegido (`nombre`, "" = el de Windows). `avisar` recibe cada tanda de audio.
     /// `envolver` convierte lo del micrófono en el mensaje del canal del
     /// motor (así el motor escucha un solo canal para todo).
     pub fn abrir<M: Send + 'static>(
+        nombre: &str,
         avisar: Sender<M>,
         envolver: fn(DelMicrofono) -> M,
     ) -> Result<Self, String> {
         let host = cpal::default_host();
-        let dispositivo = host.default_input_device().ok_or(SIN_MICROFONO)?;
+        let dispositivo = elegir_microfono(&host, nombre).ok_or(SIN_MICROFONO)?;
         let soportada = dispositivo.default_input_config().map_err(|_| SIN_MICROFONO.to_string())?;
         let formato = soportada.sample_format();
         let config: StreamConfig = soportada.into();
@@ -49,6 +72,11 @@ impl Microfono {
 
         let avisar_error = avisar.clone();
         let al_fallar = move |e: cpal::Error| {
+            // Un "xrun" es un pedacito de audio que se perdió (la compu estuvo
+            // ocupada): el micrófono sigue andando, no hay que cerrarlo.
+            if e.kind() == cpal::ErrorKind::Xrun {
+                return eprintln!("Micrófono: se perdió un pedacito de audio.");
+            }
             let _ = avisar_error.send(envolver(DelMicrofono::Error(format!("El micrófono dejó de andar: {e}"))));
         };
         // `move` le pasa el canal al callback; `a_mono` junta los canales.

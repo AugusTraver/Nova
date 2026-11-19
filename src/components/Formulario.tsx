@@ -33,6 +33,41 @@ export function Campo({ etiqueta, valor, alCambiar, className = "", ...resto }: 
   );
 }
 
+interface CampoLargoProps {
+  etiqueta: string;
+  valor: string;
+  alCambiar: (valor: string) => void;
+  /** Muestra "120 de 400" debajo. */
+  maximo: number;
+  placeholder?: string;
+}
+
+/** Texto de varias líneas, con el mismo subrayado que `Campo`. */
+export function CampoLargo({ etiqueta, valor, alCambiar, maximo, placeholder }: CampoLargoProps) {
+  const id = useId();
+  const idCuenta = useId();
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <label htmlFor={id} className="text-[13px] text-tinta-3">
+        {etiqueta}
+      </label>
+      <textarea
+        id={id}
+        value={valor}
+        onChange={(e) => alCambiar(e.target.value)}
+        maxLength={maximo}
+        rows={3}
+        placeholder={placeholder}
+        aria-describedby={idCuenta}
+        className={`${clasesEntrada} resize-none leading-snug`}
+      />
+      <span id={idCuenta} className="self-end text-[12px] text-tinta-3">
+        {valor.length} de {maximo}
+      </span>
+    </div>
+  );
+}
+
 interface OpcionesProps<T extends string | number> {
   etiqueta: string;
   opciones: readonly { valor: T; texto: string; color?: string }[];

@@ -11,6 +11,7 @@ mod error;
 mod fondo;
 mod futbol;
 mod llavero;
+mod notificaciones;
 mod noticias;
 mod repos;
 mod ventana;
@@ -64,6 +65,12 @@ pub fn run() {
             comandos::obtener_clima,
             comandos::obtener_ajustes_clima,
             comandos::guardar_ajustes_clima,
+            comandos::listar_microfonos,
+            comandos::obtener_avisos,
+            comandos::guardar_avisos,
+            comandos::probar_aviso,
+            comandos::obtener_perfil,
+            comandos::guardar_perfil,
             comandos::buscar_ciudades,
             comandos::estado_voz,
             comandos::guardar_ajustes_voz,
@@ -102,11 +109,26 @@ pub fn run() {
             // que se sincroniza): son 1,4 GB.
             let voz = app.path().app_local_data_dir()?.join("voz");
             app.manage(voz::Voz::new(voz::modelos::Rutas::new(voz)));
-
             if let Some(panel) = app.get_webview_window(ventana::VENTANA_PANEL) {
                 ventana::aplicar_vidrio(&panel);
             }
             bandeja::crear(app)?;
+            // Con "Oye Nova" activado, el motor arranca ya (con el panel
+            // cerrado) para esperar la palabra.
+            {
+                let (ajustes, avisos) = {
+                    let db = app.state::<Db>();
+                    let conexion = db.conexion();
+                    (preferencias::voz(&conexion).unwrap_or_default(), preferencias::avisos(&conexion).unwrap_or_default())
+                };
+                if ajustes.activada && ajustes.palabra_clave {
+                    let voz = app.state::<voz::Voz>();
+                    // Primero "no molestar", así no abre el micrófono si toca pausa.
+                    voz.mandar(app.handle(), &ajustes, voz::motor::Orden::ConfigurarAvisos(avisos));
+                    voz.mandar(app.handle(), &ajustes, voz::motor::Orden::Configurar(ajustes.clone()));
+                }
+            }
+
             atajos::registrar(app, &atajo)?;
             Ok(())
         })

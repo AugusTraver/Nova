@@ -14,10 +14,10 @@ use super::mensajes::Mensaje;
 use super::prompt::{self, Contexto, DIAS_DE_AGENDA};
 use super::proveedor::ProveedorIa;
 use crate::db::Db;
-use crate::dominio::lenguaje::interpretar_confirmacion;
+use crate::dominio::lenguaje::sin_repetir;
 use crate::dominio::texto::EstadoResponsabilidad;
 use crate::error::{Resultado, invalido};
-use crate::repos::{Ahora, eventos, materias, mensajes, responsabilidades};
+use crate::repos::{Ahora, eventos, materias, mensajes, preferencias, responsabilidades};
 
 /// Cuántas vueltas modelo ↔ herramientas como mucho por turno.
 const MAXIMO_VUELTAS: usize = 6;
@@ -35,16 +35,17 @@ pub struct Asistente {
 }
 
 impl Asistente {
-    pub fn hay_pendiente(&self) -> bool {
-        self.pendiente.lock().unwrap_or_else(|e| e.into_inner()).is_some()
-    }
-
     fn tomar_pendiente(&self) -> Option<AccionPendiente> {
         self.pendiente.lock().unwrap_or_else(|e| e.into_inner()).take()
     }
 
     fn dejar_pendiente(&self, accion: AccionPendiente) {
         *self.pendiente.lock().unwrap_or_else(|e| e.into_inner()) = Some(accion);
+    }
+
+    /// ¿El mensaje responde al borrado pendiente? (Sin sacarlo.)
+    pub fn responde_al_pendiente(&self, texto: &str) -> bool {
+        self.pendiente.lock().unwrap_or_else(|e| e.into_inner()).as_ref().and_then(|a| a.respuesta(texto)).is_some()
     }
 }
 
@@ -87,6 +88,7 @@ fn preparar(db: &Db, ahora: &Ahora) -> Resultado<(Contexto, Vec<Mensaje>)> {
         materias: materias::listar(&conexion)?,
         eventos: eventos::ocurrencias(&conexion, ahora.hoy, ahora.hoy + Duration::days(DIAS_DE_AGENDA))?,
         pendientes,
+        perfil: preferencias::perfil(&conexion)?,
     };
     let desde = (ahora.momento - Duration::hours(HORAS_DE_HISTORIAL)).to_rfc3339_opts(chrono::SecondsFormat::Secs, false);
     let historial = mensajes::recientes(&conexion, MENSAJES_DE_HISTORIAL, &desde)?;
@@ -142,13 +144,17 @@ pub async fn responder_con<P: ProveedorIa>(
         return invalido("Es muy largo. Contámelo más corto.");
     }
 
-    // ¿Es la respuesta a un "¿Borro…?"? Si no lo es, la pregunta se descarta.
-    if let Some(accion) = estado.tomar_pendiente()
-        && let Some(aceptar) = interpretar_confirmacion(texto)
-    {
-        guardar(db, &Mensaje::Usuario(texto.to_string()), ahora)?;
-        estado.dejar_pendiente(accion);
-        return resolver_pendiente(db, estado, aceptar, avisos, ahora);
+    // ¿Es la respuesta a un "¿Borro…?"? Si no lo es, la pregunta se descarta
+    // y se le avisa al modelo: si no, ve en el historial que pidió borrar y
+    // contesta "listo, lo borré" sin haber borrado nada.
+    let mut descartada = None;
+    if let Some(accion) = estado.tomar_pendiente() {
+        if let Some(aceptar) = accion.respuesta(texto) {
+            guardar(db, &Mensaje::Usuario(texto.to_string()), ahora)?;
+            estado.dejar_pendiente(accion);
+            return resolver_pendiente(db, estado, aceptar, avisos, ahora);
+        }
+        descartada = Some(accion.descartada());
     }
 
     avisos.progreso(Progreso::Pensando);
@@ -163,6 +169,9 @@ pub async fn responder_con<P: ProveedorIa>(
     }
     conversacion.push(Mensaje::Sistema(sistema));
     conversacion.extend(historial);
+    if let Some(aviso) = descartada {
+        conversacion.push(Mensaje::Sistema(aviso));
+    }
     conversacion.push(usuario);
 
     let definiciones = herramientas::definiciones();
@@ -172,7 +181,7 @@ pub async fn responder_con<P: ProveedorIa>(
         let respuesta = proveedor.completar(&conversacion, &definiciones).await?;
 
         if respuesta.llamadas.is_empty() {
-            let texto = if respuesta.texto.is_empty() { "Listo.".to_string() } else { respuesta.texto };
+            let texto = if respuesta.texto.is_empty() { "Listo.".to_string() } else { sin_repetir(&respuesta.texto) };
             guardar(db, &Mensaje::Asistente { texto: texto.clone(), llamadas: vec![] }, ahora)?;
             return Ok(Turno { respuesta: texto, confirmacion });
         }
@@ -364,12 +373,35 @@ mod tests {
     async fn otro_mensaje_descarta_la_confirmacion() {
         let db = base_con_analisis();
         let estado = Asistente::default();
-        estado.dejar_pendiente(AccionPendiente::BorrarEvento { id: 1, pregunta: "¿Borro?".into() });
+        estado.dejar_pendiente(AccionPendiente::BorrarEvento { id: 1, titulo: "Dentista".into(), pregunta: "¿Borro?".into() });
         let modelo = Guion::nuevo(vec![texto("Dale.")]);
         responder(&modelo, &db, &estado, "mejor contame qué tengo mañana", &Registro::default(), &ahora())
             .await
             .unwrap();
         assert!(estado.tomar_pendiente().is_none());
+        // Al modelo se le avisa que no se borró, justo antes del mensaje nuevo.
+        let recibido = modelo.recibido.lock().unwrap();
+        let conversacion = &recibido[0];
+        let Mensaje::Sistema(aviso) = &conversacion[conversacion.len() - 2] else { panic!("falta el aviso") };
+        assert!(aviso.contains("«Dentista»") && aviso.contains("NO está borrado"));
+    }
+
+    #[tokio::test]
+    async fn volver_a_pedir_borrar_lo_mismo_lo_borra() {
+        let db = base_con_analisis();
+        let estado = Asistente::default();
+        let avisos = Registro::default();
+        let mut datos = eventos::tests::datos("Pasear al perro", crate::dominio::texto::TipoEvento::Otro, "2026-11-19T18:00:00-03:00");
+        datos.materia_id = None;
+        let id = eventos::crear(&mut db.conexion(), datos, &ahora()).unwrap().id;
+        let modelo = Guion::nuevo(vec![llama("borrar_evento", json!({ "id": id })), texto("¿Lo borro?")]);
+        responder(&modelo, &db, &estado, "borrá lo de pasear al perro", &avisos, &ahora()).await.unwrap();
+
+        // Lo pide otra vez en vez de decir "sí": se borra sin pasar por el modelo.
+        assert!(estado.responde_al_pendiente("Eliminar la tarea, pasear al perro."));
+        let turno = responder(&modelo, &db, &estado, "Eliminar la tarea, pasear al perro.", &avisos, &ahora()).await.unwrap();
+        assert_eq!(turno.respuesta, "Listo, borré «Pasear al perro».");
+        assert!(eventos::listar_todos(&db.conexion()).unwrap().is_empty());
     }
 
     #[tokio::test]

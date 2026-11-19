@@ -304,6 +304,21 @@ export interface AjustesClima {
   longitud: number;
 }
 
+// ---- Perfil (ver src-tauri/src/dominio/perfil.rs) ----
+
+export type Tono = "con_onda" | "informal" | "sobrio";
+
+export interface Perfil {
+  /** Cómo te llama Nova. Vacío: sin nombre. */
+  comoLlamarte: string;
+  tono: Tono;
+  chistes: boolean;
+  /** Texto libre, hasta LARGO_SOBRE_VOS letras. */
+  sobreVos: string;
+}
+
+export const LARGO_SOBRE_VOS = 400;
+
 // ---- Voz (ver src-tauri/src/voz) ----
 
 export type EstadoVoz =
@@ -333,6 +348,12 @@ export interface AjustesVoz {
   velocidad: number;
   leerResumen: boolean;
   usarGpu: boolean;
+  /** Con el panel cerrado, "Oye Nova" lo abre y empieza a escuchar. */
+  palabraClave: boolean;
+  /** Desenchufada, "Oye Nova" descansa. */
+  palabraPausaBateria: boolean;
+  /** El micrófono elegido por nombre ("" = el de Windows). */
+  microfono: string;
   /** Región del recurso de Azure ("eastus"); vacía = voz local. */
   regionAzure: string;
   /** La voz de Microsoft ("es-MX-DaliaNeural"). */
@@ -383,4 +404,22 @@ export interface CiudadEncontrada {
   region: string;
   latitud: number;
   longitud: number;
+}
+
+/** Avisos del sistema (preferencia `avisos`). Las horas van como "09:00". */
+export interface AjustesAvisos {
+  eventos: boolean;
+  /** 10, 15, 30 o 60. */
+  minutosAntes: number;
+  vencimientos: boolean;
+  horaVencimientos: string;
+  partidos: boolean;
+  /** "Hora de salir" antes de la primera clase o examen del día. */
+  salir: boolean;
+  minutosViaje: number;
+  noMolestar: boolean;
+  desde: string;
+  hasta: string;
+  noMolestarPausaPalabra: boolean;
+  enVoz: boolean;
 }

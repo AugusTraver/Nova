@@ -33,7 +33,8 @@ use crate::futbol::{EQUIPOS, EstadoPartido, Partido};
 use crate::llavero;
 use crate::noticias::rss::ClienteNoticias;
 use crate::noticias::{self as servicio_noticias, Elegidas, Titular};
-use crate::repos::cache;
+use crate::dominio::avisos as logica_avisos;
+use crate::repos::{avisos as repo_avisos, cache};
 use crate::repos::{Ahora, preferencias};
 use crate::ventana;
 
@@ -142,7 +143,9 @@ async fn vuelta(app: &AppHandle, clientes: &Clientes) -> DuracionStd {
     if !cambios.is_empty() {
         let _ = app.emit(EVENTO_DATOS_CAMBIADOS, &cambios);
     }
-    espera.to_std().unwrap_or(DuracionStd::from_secs(60))
+    avisos(app, &db);
+    // Cada minuto como mucho, así los avisos llegan a horario.
+    espera.min(Duration::seconds(60)).to_std().unwrap_or(DuracionStd::from_secs(60))
 }
 
 /// Fútbol: calendarios, tabla, jugadores y en vivo. Devuelve si cambió algo
@@ -347,4 +350,34 @@ async fn clima(db: &Db, cliente: &ClienteClima) -> bool {
     let resultado = cliente.pronostico(&ajustes).await;
     anotar(db, servicio_clima::CLAVE, &resultado, |_| ahora.momento + Duration::minutes(30), &ahora);
     true
+}
+
+/// Avisos del sistema: lo que toca ahora y no se mandó (v0.6). Cada aviso se
+/// anota antes de mostrarse, así un error no lo repite cada minuto.
+fn avisos(app: &AppHandle, db: &Db) {
+    let ahora = Ahora::del_sistema();
+    let Some((ajustes, nuevos)) = con_base(db, |c| {
+        let ajustes = preferencias::avisos(c)?;
+        let pendientes = repo_avisos::pendientes(c, &ahora)?;
+        let nuevos = logica_avisos::que_avisar(&pendientes, &ajustes, ahora.momento, |clave| {
+            // Si no se puede leer, se toma como mandado: mejor uno de menos que repetidos.
+            repo_avisos::ya_enviado(c, clave).unwrap_or(true)
+        });
+        for aviso in &nuevos {
+            repo_avisos::anotar(c, &aviso.clave, &ahora)?;
+        }
+        repo_avisos::limpiar(c, &ahora)?;
+        Ok((ajustes, nuevos))
+    }) else {
+        return;
+    };
+    for aviso in &nuevos {
+        crate::notificaciones::mostrar(app, aviso);
+    }
+    if ajustes.en_voz && !nuevos.is_empty() {
+        let voz = app.state::<crate::voz::Voz>();
+        let Some(ajustes_voz) = con_base(db, preferencias::voz) else { return };
+        let texto = nuevos.iter().map(logica_avisos::para_decir).collect::<Vec<_>>().join(" ");
+        voz.mandar(app, &ajustes_voz, crate::voz::motor::Orden::Hablar(texto));
+    }
 }

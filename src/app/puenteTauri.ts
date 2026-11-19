@@ -19,6 +19,8 @@ export const EVENTOS = {
   vozParcial: "voz:parcial",
   vozFinal: "voz:final",
   vozDescarga: "voz:descarga",
+  /** Oyó "Oye Nova" con el panel cerrado (voz/motor.rs, EVENTO_DESPERTAR). */
+  vozDespertar: "voz:despertar",
 } as const;
 
 export const enTauri = isTauri();
@@ -78,6 +80,8 @@ export interface OyentesVoz {
   /** Terminaste de hablar: el pedido completo. */
   alFinal: (texto: string) => void;
   alDescarga: (progreso: ProgresoDescarga) => void;
+  /** Oyó "Oye Nova". */
+  alDespertar: () => void;
 }
 
 /** Escucha todos los eventos del motor de voz. */
@@ -89,6 +93,7 @@ export async function escucharVoz(o: OyentesVoz): Promise<UnlistenFn> {
     listen<string>(EVENTOS.vozParcial, (e) => o.alParcial(e.payload)),
     listen<string>(EVENTOS.vozFinal, (e) => o.alFinal(e.payload)),
     listen<ProgresoDescarga>(EVENTOS.vozDescarga, (e) => o.alDescarga(e.payload)),
+    listen(EVENTOS.vozDespertar, () => o.alDespertar()),
   ]);
   return () => quitar.forEach((q) => q());
 }

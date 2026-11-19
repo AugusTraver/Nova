@@ -10,6 +10,11 @@
 //!
 //! Mientras Nova habla, el micrófono se ignora: si no, se escucharía a sí
 //! misma por los parlantes.
+//!
+//! Con el panel cerrado y "Oye Nova" activado, el micrófono queda abierto y
+//! el audio va al detector (`palabra`) en vez de al ciclo de arriba. Cuando
+//! lo oye, el motor ya se pone a escuchar (así no se pierde lo que digas
+//! enseguida) y pide abrir el panel.
 
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
@@ -21,6 +26,7 @@ use tauri::{AppHandle, Emitter};
 use super::audio::{FRECUENCIA_WHISPER, Remuestreador, envolvente, nivel_visual, remuestrear, rms, wav};
 use super::dispositivos::{DelMicrofono, Microfono, Parlante};
 use super::modelos::Rutas;
+use super::palabra::{self, Decision, Detector};
 use super::sintetizador::{Audio, Sintetizador};
 use super::texto::{es_eco_del_contexto, limpiar_transcripcion, oraciones, para_leer};
 use super::vad::{AjustesVad, EventoVad, MUESTRAS_POR_CUADRO, Vad};
@@ -31,6 +37,8 @@ pub const EVENTO_ESTADO: &str = "voz:estado";
 pub const EVENTO_NIVEL: &str = "voz:nivel";
 pub const EVENTO_PARCIAL: &str = "voz:parcial";
 pub const EVENTO_FINAL: &str = "voz:final";
+/// Oyó "Oye Nova" (para el pulso de la esfera).
+pub const EVENTO_DESPERTAR: &str = "voz:despertar";
 
 /// Cada cuánto se avisa el nivel a la esfera (unas 30 veces por segundo).
 const CADA_NIVEL: Duration = Duration::from_millis(33);
@@ -40,6 +48,10 @@ const CADA_PARCIAL: Duration = Duration::from_millis(700);
 const WHISPER_OCIOSO: Duration = Duration::from_secs(10 * 60);
 /// Después de hablar, un ratito sin escuchar (el eco del final).
 const COLA_DEL_ECO: Duration = Duration::from_millis(350);
+/// Con el panel cerrado no hay esfera que mover: el ciclo duerme más.
+const ESPERA_CERRADO: Duration = Duration::from_millis(500);
+/// Cada cuánto se mira si la sesión está bloqueada, la batería y la hora.
+const CADA_REVISION: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -85,6 +97,8 @@ pub enum Orden {
     Callar,
     Configurar(AjustesVoz),
     Microfono(DelMicrofono),
+    /// Cambió "no molestar" (puede pausar "Oye Nova").
+    ConfigurarAvisos(crate::dominio::avisos::AjustesAvisos),
     /// Nova se cierra: cerrar los programas de voz y avisar por el canal.
     Salir(Sender<()>),
 }
@@ -118,6 +132,18 @@ pub fn avisador_de_tauri(app: AppHandle) -> Avisador {
 
 pub struct Motor {
     avisar_evento: Avisador,
+    /// Qué hacer al oír "Oye Nova" (en la app, abrir el panel).
+    al_despertar: Option<Box<dyn Fn() + Send>>,
+    /// Se carga la primera vez que hace falta esperar la palabra.
+    detector: Option<Detector>,
+    /// Avisa si está esperando "Oye Nova" o no (para la bandeja).
+    al_cambiar_espera: Option<Box<dyn Fn(bool) + Send>>,
+    /// Lo último que se avisó con `al_cambiar_espera`.
+    esperaba_palabra: bool,
+    /// Sesión bloqueada, a batería o en "no molestar": no escucha la palabra.
+    palabra_en_pausa: bool,
+    ultima_revision: Instant,
+    avisos: crate::dominio::avisos::AjustesAvisos,
     /// En los tests no hay micrófono: el audio llega por `Orden::Microfono`
     /// a esta frecuencia.
     microfono_de_prueba: Option<u32>,
@@ -152,6 +178,13 @@ impl Motor {
     pub fn new(avisar_evento: Avisador, rutas: Rutas, ajustes: AjustesVoz, canal: Sender<Orden>) -> Self {
         Motor {
             avisar_evento,
+            al_despertar: None,
+            detector: None,
+            al_cambiar_espera: None,
+            esperaba_palabra: false,
+            palabra_en_pausa: false,
+            ultima_revision: Instant::now(),
+            avisos: Default::default(),
             microfono_de_prueba: None,
             rutas,
             ajustes,
@@ -175,6 +208,16 @@ impl Motor {
         }
     }
 
+    pub fn al_despertar(mut self, f: Box<dyn Fn() + Send>) -> Self {
+        self.al_despertar = Some(f);
+        self
+    }
+
+    pub fn al_cambiar_espera(mut self, f: Box<dyn Fn(bool) + Send>) -> Self {
+        self.al_cambiar_espera = Some(f);
+        self
+    }
+
     /// Para los tests: sin micrófono de verdad (el audio se manda a mano).
     #[cfg(test)]
     pub fn sin_microfono(mut self, frecuencia: u32) -> Self {
@@ -186,7 +229,8 @@ impl Motor {
     pub fn correr(mut self, ordenes: Receiver<Orden>) {
         let mut ultimo_nivel = Instant::now();
         loop {
-            match ordenes.recv_timeout(CADA_NIVEL) {
+            let espera = if self.activo || self.habla.is_some() { CADA_NIVEL } else { ESPERA_CERRADO };
+            match ordenes.recv_timeout(espera) {
                 Ok(Orden::Salir(listo)) => {
                     // Al soltarlos se cierran los procesos (ver `Drop`).
                     self.callar();
@@ -239,6 +283,8 @@ impl Motor {
                 self.cerrar_microfono();
                 self.parlante = None;
                 self.avisar(Estado::Apagada, None);
+                // Con "Oye Nova", el micrófono se vuelve a abrir para esperarla.
+                self.preparar_palabra();
             }
             Orden::Pausar => {
                 self.pausado = true;
@@ -273,6 +319,10 @@ impl Motor {
             }
             Orden::Configurar(ajustes) => {
                 let cambio_gpu = ajustes.usar_gpu != self.ajustes.usar_gpu;
+                if ajustes.microfono != self.ajustes.microfono {
+                    // Otro micrófono: se cierra el de ahora y abajo se abre el nuevo.
+                    self.cerrar_microfono();
+                }
                 if let Some(s) = &self.sintetizador {
                     s.configurar(ajustes.clone());
                 }
@@ -286,12 +336,25 @@ impl Motor {
                     self.avisar(Estado::Apagada, None);
                 } else if self.activo {
                     self.activar();
+                } else {
+                    // Panel cerrado: abrir o soltar el micrófono según "Oye Nova".
+                    self.preparar_palabra();
                 }
+            }
+            Orden::ConfigurarAvisos(avisos) => {
+                self.avisos = avisos;
+                self.revisar_pausa();
             }
             Orden::Microfono(DelMicrofono::Audio(muestras)) => self.oir(&muestras),
             Orden::Microfono(DelMicrofono::Error(e)) => {
                 self.cerrar_microfono();
-                self.error(e);
+                if self.activo {
+                    self.error(e);
+                } else {
+                    // Panel cerrado: se intenta abrir de nuevo para seguir esperando "Oye Nova".
+                    eprintln!("Voz: {e}");
+                    self.preparar_palabra();
+                }
             }
             Orden::Salir(listo) => {
                 let _ = listo.send(());
@@ -300,6 +363,14 @@ impl Motor {
     }
 
     fn activar(&mut self) {
+        // Si "Oye Nova" ya lo puso a escuchar, el `Activar` que llega al
+        // abrirse el panel no tiene que cortar lo que estás diciendo.
+        let ya_escuchaba = self.activo
+            && (self.microfono.is_some() || self.microfono_de_prueba.is_some())
+            && matches!(self.estado, Estado::Escuchando | Estado::Oyendo | Estado::Transcribiendo | Estado::Pensando);
+        if ya_escuchaba && self.ajustes.activada && self.whisper.is_some() {
+            return;
+        }
         self.activo = true;
         self.esperando = false;
         if !self.ajustes.activada {
@@ -324,7 +395,7 @@ impl Motor {
         if let Some(frecuencia) = self.microfono_de_prueba {
             self.remuestreador.get_or_insert_with(|| Remuestreador::new(frecuencia, FRECUENCIA_WHISPER));
         } else if self.microfono.is_none() {
-            match Microfono::abrir(self.canal.clone(), del_microfono) {
+            match Microfono::abrir(&self.ajustes.microfono, self.canal.clone(), del_microfono) {
                 Ok(m) => {
                     self.remuestreador = Some(Remuestreador::new(m.frecuencia, FRECUENCIA_WHISPER));
                     self.microfono = Some(m);
@@ -361,10 +432,129 @@ impl Motor {
         self.avisar(if self.pausado { Estado::Pausada } else { Estado::Escuchando }, None);
     }
 
+    /// ¿Con el panel cerrado hay que esperar "Oye Nova"?
+    fn espera_palabra(&self) -> bool {
+        !self.activo
+            && !self.palabra_en_pausa
+            && self.ajustes.activada
+            && self.ajustes.palabra_clave
+            && self.modelos_listos()
+            && self.rutas.modelo_palabra().exists()
+    }
+
+    /// Panel cerrado: si hay que esperar "Oye Nova", deja listos Whisper (para
+    /// confirmar), el detector y el micrófono. Si no, suelta el micrófono.
+    fn preparar_palabra(&mut self) {
+        if self.activo {
+            return;
+        }
+        if !self.espera_palabra() {
+            self.cerrar_microfono();
+            return;
+        }
+        if self.whisper.as_mut().is_none_or(|w| !w.vivo()) {
+            let rutas = self.rutas.clone();
+            match tauri::async_runtime::block_on(ServidorWhisper::arrancar(&rutas, self.ajustes.usar_gpu)) {
+                Ok(servidor) => self.whisper = Some(servidor),
+                Err(e) => return eprintln!("Voz: sin Whisper no espero \"Oye Nova\": {e}"),
+            }
+        }
+        if self.detector.is_none() {
+            match Detector::cargar(&self.rutas.modelo_palabra()) {
+                Ok(d) => self.detector = Some(d),
+                Err(e) => return eprintln!("Voz: {e}"),
+            }
+        }
+        if let Some(d) = self.detector.as_mut() {
+            d.reiniciar();
+        }
+        if let Some(frecuencia) = self.microfono_de_prueba {
+            self.remuestreador.get_or_insert_with(|| Remuestreador::new(frecuencia, FRECUENCIA_WHISPER));
+        } else if self.microfono.is_none() {
+            match Microfono::abrir(&self.ajustes.microfono, self.canal.clone(), del_microfono) {
+                Ok(m) => {
+                    self.remuestreador = Some(Remuestreador::new(m.frecuencia, FRECUENCIA_WHISPER));
+                    self.microfono = Some(m);
+                }
+                Err(e) => eprintln!("Voz: no pude abrir el micrófono para \"Oye Nova\": {e}"),
+            }
+        }
+    }
+
+    /// ¿Hay que pausar "Oye Nova"? Sesión bloqueada, desenchufada (si así se
+    /// eligió) o en "no molestar" (ídem). Al cambiar, suelta o vuelve a abrir
+    /// el micrófono.
+    fn revisar_pausa(&mut self) {
+        self.ultima_revision = Instant::now();
+        let ahora = chrono::Local::now().fixed_offset();
+        let pausa = super::sistema::sesion_bloqueada()
+            || (self.ajustes.palabra_pausa_bateria && super::sistema::a_bateria())
+            || (self.avisos.no_molestar_pausa_palabra && self.avisos.en_no_molestar(ahora));
+        if pausa == self.palabra_en_pausa {
+            return;
+        }
+        self.palabra_en_pausa = pausa;
+        if !self.activo {
+            // `preparar_palabra` ya mira la pausa: abre o suelta el micrófono.
+            self.preparar_palabra();
+        }
+    }
+
+    /// ¿Está esperando "Oye Nova" ahora mismo? (micrófono abierto con el
+    /// panel cerrado). Se avisa solo cuando cambia.
+    fn avisar_espera(&mut self) {
+        let espera = !self.activo && self.detector.is_some() && self.microfono.is_some() && !self.palabra_en_pausa;
+        if espera != self.esperaba_palabra {
+            self.esperaba_palabra = espera;
+            if let Some(f) = &self.al_cambiar_espera {
+                f(espera);
+            }
+        }
+    }
+
+    /// Panel cerrado: el audio va al detector.
+    fn esperar_palabra(&mut self, a_16k: &[f32]) {
+        let Some(detector) = self.detector.as_mut() else { return };
+        let Some(decision) = detector.oir(a_16k) else { return };
+        if decision == Decision::Confirmar {
+            let audio = detector.audio_reciente();
+            let texto = self.transcribir(&audio).unwrap_or_default();
+            if !palabra::confirma(&texto) {
+                eprintln!("Voz: parecía \"Oye Nova\" pero Whisper entendió «{texto}»");
+                return;
+            }
+        }
+        self.despertar();
+    }
+
+    /// Oyó "Oye Nova": ya se pone a escuchar y pide abrir el panel.
+    fn despertar(&mut self) {
+        if let Some(d) = self.detector.as_mut() {
+            d.reiniciar();
+        }
+        self.activo = true;
+        self.esperando = false;
+        self.pausado = false;
+        self.pendiente.clear();
+        self.vad.reiniciar();
+        self.ultimo_uso_whisper = Instant::now();
+        self.avisar(Estado::Escuchando, None);
+        (self.avisar_evento)(EVENTO_DESPERTAR, json!(null));
+        if let Some(abrir) = &self.al_despertar {
+            abrir();
+        }
+    }
+
     /// Llega audio del micrófono: a 16 kHz, en cuadros de 30 ms, al detector.
     fn oir(&mut self, muestras: &[f32]) {
         let Some(remuestreador) = self.remuestreador.as_mut() else { return };
         let a_16k = remuestreador.procesar(muestras);
+        if !self.activo {
+            if self.habla.is_none() {
+                self.esperar_palabra(&a_16k);
+            }
+            return;
+        }
         if !self.escuchando() {
             self.pendiente.clear();
             self.nivel_mic = 0.0;
@@ -533,6 +723,10 @@ impl Motor {
     /// 30 veces por segundo: el nivel para la esfera, si terminó de hablar
     /// y si conviene cerrar Whisper.
     fn cada_cuadro(&mut self) {
+        if self.ultima_revision.elapsed() >= CADA_REVISION {
+            self.revisar_pausa();
+        }
+        self.avisar_espera();
         let mut termino = false;
         let nivel = if let (Some(habla), Some(parlante)) = (&self.habla, &self.parlante) {
             let sonadas = parlante.sonadas().saturating_sub(habla.sonadas_al_empezar);
@@ -558,7 +752,8 @@ impl Motor {
                 self.avisar(Estado::Apagada, None);
             }
         }
-        if !self.activo && self.whisper.is_some() && self.ultimo_uso_whisper.elapsed() > WHISPER_OCIOSO {
+        // Con "Oye Nova" Whisper queda abierto: confirma la palabra.
+        if !self.activo && self.whisper.is_some() && self.ultimo_uso_whisper.elapsed() > WHISPER_OCIOSO && !self.espera_palabra() {
             self.whisper = None;
         }
     }

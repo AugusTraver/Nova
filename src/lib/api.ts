@@ -22,6 +22,8 @@ import type {
   Materia,
   Noticia,
   Ocurrencia,
+  Perfil,
+  AjustesAvisos,
   Progreso,
   Responsabilidad,
   Turno,
@@ -90,7 +92,17 @@ export interface Api {
   guardarAjustesClima(ajustes: AjustesClima): Promise<AjustesClima>;
   buscarCiudades(texto: string): Promise<CiudadEncontrada[]>;
 
+  obtenerAvisos(): Promise<AjustesAvisos>;
+  guardarAvisos(avisos: AjustesAvisos): Promise<AjustesAvisos>;
+  /** Muestra una notificación de muestra. */
+  probarAviso(): Promise<void>;
+
+  obtenerPerfil(): Promise<Perfil>;
+  guardarPerfil(perfil: Perfil): Promise<Perfil>;
+
   estadoVoz(): Promise<VistaVoz>;
+  /** Los micrófonos conectados (por nombre). */
+  listarMicrofonos(): Promise<string[]>;
   guardarAjustesVoz(ajustes: AjustesVoz): Promise<AjustesVoz>;
   /** Guarda la key de un proveedor en el llavero ("" la borra). Devuelve si quedó una. */
   guardarKeyVoz(proveedor: ProveedorVoz, key: string): Promise<boolean>;
@@ -166,7 +178,15 @@ const apiTauri: Api = {
   guardarAjustesClima: (ajustes) => invoke("guardar_ajustes_clima", { ajustes }),
   buscarCiudades: (texto) => invoke("buscar_ciudades", { texto }),
 
+  obtenerAvisos: () => invoke("obtener_avisos"),
+  guardarAvisos: (avisos) => invoke("guardar_avisos", { avisos }),
+  probarAviso: () => invoke("probar_aviso"),
+
+  obtenerPerfil: () => invoke("obtener_perfil"),
+  guardarPerfil: (perfil) => invoke("guardar_perfil", { perfil }),
+
   estadoVoz: () => invoke("estado_voz"),
+  listarMicrofonos: () => invoke("listar_microfonos"),
   guardarAjustesVoz: (ajustes) => invoke("guardar_ajustes_voz", { ajustes }),
   guardarKeyVoz: (proveedor, key) => invoke("guardar_key_voz", { proveedor, key }),
   probarVoz: (proveedor) => invoke("probar_voz", { proveedor }),

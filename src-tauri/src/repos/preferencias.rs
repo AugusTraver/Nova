@@ -42,6 +42,20 @@ pub fn clima(conexion: &Connection) -> Resultado<crate::clima::AjustesClima> {
     Ok(leer(conexion, CLIMA)?.unwrap_or_default())
 }
 
+/// Qué notificar y "no molestar" (`AjustesAvisos`).
+pub const AVISOS: &str = "avisos";
+
+pub fn avisos(conexion: &Connection) -> Resultado<crate::dominio::avisos::AjustesAvisos> {
+    Ok(leer(conexion, AVISOS)?.unwrap_or_default())
+}
+
+/// Cómo llamarte, el tono y "Sobre vos" (`Perfil`).
+pub const PERFIL: &str = "perfil";
+
+pub fn perfil(conexion: &Connection) -> Resultado<crate::dominio::perfil::Perfil> {
+    Ok(leer(conexion, PERFIL)?.unwrap_or_default())
+}
+
 pub fn ajustes_ia(conexion: &Connection) -> Resultado<crate::asistente::proveedor::AjustesIa> {
     Ok(leer(conexion, IA)?.unwrap_or_default())
 }

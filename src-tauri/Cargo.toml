@@ -35,7 +35,32 @@ tokio = { version = "1", features = ["time", "sync", "macros", "process", "io-ut
 feed-rs = "3.0.0"
 cpal = "0.18.2"
 zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
+# "Oye Nova": modelo ONNX chiquito que corre en Rust puro (sin ONNX Runtime).
+livekit-wakeword = "0.2"
 
+
+# El modelo de "Oye Nova" sin optimizar tarda más que el audio en tiempo
+# real: en desarrollo se compila optimizado (solo estas librerías).
+[profile.dev.package.tract-core]
+opt-level = 3
+[profile.dev.package.tract-linalg]
+opt-level = 3
+[profile.dev.package.tract-data]
+opt-level = 3
+[profile.dev.package.tract-hir]
+opt-level = 3
+[profile.dev.package.tract-onnx]
+opt-level = 3
+[profile.dev.package.tract-nnef]
+opt-level = 3
+[profile.dev.package.tract-onnx-opl]
+opt-level = 3
+[profile.dev.package.ndarray]
+opt-level = 3
+[profile.dev.package.ort-tract]
+opt-level = 3
+[profile.dev.package.livekit-wakeword]
+opt-level = 3
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
@@ -47,6 +72,10 @@ strip = true
 
 [target."cfg(windows)".dependencies]
 windows-native-keyring-store = "1"
+# Avisos de Windows que abren el panel al tocarlos (v0.6).
+tauri-winrt-notification = "0.7"
+# Saber si la sesión está bloqueada o la compu va a batería (pausar "Oye Nova").
+windows-sys = { version = "0.61", features = ["Win32_System_StationsAndDesktops", "Win32_System_Power"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time"] }

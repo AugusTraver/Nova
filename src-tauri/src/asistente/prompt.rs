@@ -7,6 +7,7 @@ use chrono::{Datelike, Duration, NaiveDate, Timelike, Weekday};
 
 use crate::dominio::fechas_relativas::{nombre_dia_con_tilde, nombre_mes};
 use crate::dominio::momento::Momento;
+use crate::dominio::perfil::Perfil;
 use crate::repos::Ahora;
 use crate::repos::eventos::Ocurrencia;
 use crate::repos::materias::Materia;
@@ -19,6 +20,8 @@ pub struct Contexto {
     pub eventos: Vec<Ocurrencia>,
     /// Pendientes, ya ordenadas (vencidas y próximas primero).
     pub pendientes: Vec<Responsabilidad>,
+    /// Cómo llamarlo y cómo hablarle.
+    pub perfil: Perfil,
 }
 
 pub const DIAS_DE_AGENDA: i64 = 7;
@@ -63,6 +66,7 @@ fn fecha_corta(f: NaiveDate) -> String {
 pub fn armar(ahora: &Ahora, contexto: &Contexto) -> String {
     let hoy = ahora.hoy;
     let mut texto = String::from(REGLAS);
+    texto.push_str(&contexto.perfil.instrucciones());
 
     texto.push_str(&format!(
         "\n\nAhora: {} {} de {} de {}, {:02}:{:02} (huso {}).\nPróximos días: {}.",
@@ -159,8 +163,10 @@ mod tests {
             materias: materias::listar(&base).unwrap(),
             eventos: eventos::ocurrencias(&base, fecha("2026-11-17").unwrap(), fecha("2026-11-24").unwrap()).unwrap(),
             pendientes: responsabilidades::listar(&base).unwrap(),
+            perfil: Perfil { como_llamarte: "Juli".into(), ..Perfil::default() },
         };
         let texto = armar(&ahora, &contexto);
+        assert!(texto.contains("Sobre el usuario:\n- Llamalo Juli."));
 
         assert!(texto.contains("Ahora: martes 17 de noviembre de 2026, 14:05 (huso -03:00)."));
         assert!(texto.contains("Próximos días: mié 18/11, jue 19/11, vie 20/11"));
@@ -172,8 +178,9 @@ mod tests {
 
     #[test]
     fn sin_datos_lo_dice_y_es_corto() {
-        let contexto = Contexto { materias: vec![], eventos: vec![], pendientes: vec![] };
+        let contexto = Contexto { materias: vec![], eventos: vec![], pendientes: vec![], perfil: Perfil::default() };
         let texto = armar(&Ahora::fijo("2026-11-17"), &contexto);
+        assert!(!texto.contains("Sobre el usuario"));
         assert!(texto.contains("Materias: ninguna todavía."));
         assert!(texto.contains("Agenda de los próximos 7 días: nada."));
         assert!(texto.contains("Pendientes: ninguna."));

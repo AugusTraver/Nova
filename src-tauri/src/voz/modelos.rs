@@ -43,6 +43,10 @@ impl Rutas {
     pub fn voz(&self) -> PathBuf {
         self.base.join("modelos").join("es_AR-daniela-high.onnx")
     }
+    /// El modelo de "Oye Nova" (entrenado para Nova, ~7 MB).
+    pub fn modelo_palabra(&self) -> PathBuf {
+        self.base.join("modelos").join("oye_nova.onnx")
+    }
     /// Donde se anota el número de proceso de Whisper o Piper.
     pub fn archivo_pid(&self, programa: &str) -> PathBuf {
         self.base.join(format!("{programa}.pid"))

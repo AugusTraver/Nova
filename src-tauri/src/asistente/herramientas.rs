@@ -12,8 +12,9 @@ use serde_json::{Value, json};
 
 use super::consultas;
 use crate::dominio::fechas_relativas::{combinar, nombre_dia_con_tilde, nombre_mes, resolver_fecha, resolver_hora, resolver_hora_fin};
-use crate::dominio::lenguaje::normalizar;
+use crate::dominio::lenguaje::{interpretar_confirmacion, normalizar, vuelve_a_pedir_borrar};
 use crate::dominio::momento::Momento;
+use crate::dominio::superposicion;
 use crate::dominio::texto::{EstadoResponsabilidad, OrigenResponsabilidad, Prioridad, Recurrencia, TipoEvento};
 use crate::error::Error;
 use crate::repos::eventos::{self, DatosEvento, Evento};
@@ -37,7 +38,7 @@ pub enum Fuente {
 /// usuario confirma; el modelo nunca puede confirmarlo solo.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AccionPendiente {
-    BorrarEvento { id: i64, pregunta: String },
+    BorrarEvento { id: i64, titulo: String, pregunta: String },
 }
 
 impl AccionPendiente {
@@ -45,6 +46,22 @@ impl AccionPendiente {
         match self {
             AccionPendiente::BorrarEvento { pregunta, .. } => pregunta,
         }
+    }
+
+    /// ¿El mensaje responde a esta pregunta? `Some(true)` = sí (un "sí" o
+    /// volver a pedir borrar lo mismo), `Some(false)` = no, `None` = otra cosa.
+    pub fn respuesta(&self, texto: &str) -> Option<bool> {
+        let AccionPendiente::BorrarEvento { titulo, .. } = self;
+        interpretar_confirmacion(texto).or_else(|| vuelve_a_pedir_borrar(texto, titulo).then_some(true))
+    }
+
+    /// Para avisarle al modelo que la pregunta se descartó.
+    pub fn descartada(&self) -> String {
+        let AccionPendiente::BorrarEvento { titulo, .. } = self;
+        format!(
+            "Aviso: el borrado de «{titulo}» que esperaba confirmación quedó cancelado porque el usuario dijo otra cosa. \
+             NO está borrado. No digas que lo borraste; si lo quiere borrar, llamá de nuevo a borrar_evento."
+        )
     }
 }
 
@@ -87,7 +104,8 @@ pub fn definiciones() -> Value {
                 "persona": { "type": "string", "description": "Para cumpleaños." },
                 "notas": { "type": "string" },
                 "repetir": { "type": "string", "enum": ["ninguna", "semanal", "anual"] },
-                "repetir_hasta": { "type": "string", "description": fecha }
+                "repetir_hasta": { "type": "string", "description": fecha },
+                "aunque_se_superponga": { "type": "boolean", "description": "Solo si el usuario ya dijo que lo quiere igual aunque choque con otro evento." }
             }),
             vec!["titulo", "tipo", "fecha"],
         ),
@@ -105,7 +123,8 @@ pub fn definiciones() -> Value {
                 "todo_el_dia": { "type": "boolean" },
                 "materia": { "type": "string", "description": "'' para sacarla." },
                 "persona": { "type": "string" },
-                "notas": { "type": "string" }
+                "notas": { "type": "string" },
+                "aunque_se_superponga": { "type": "boolean", "description": "Solo si el usuario ya dijo que lo quiere igual aunque choque con otro evento." }
             }),
             vec!["id"],
         ),
@@ -322,6 +341,8 @@ struct ArgsCrearEvento {
     notas: Option<String>,
     repetir: Option<String>,
     repetir_hasta: Option<String>,
+    #[serde(default)]
+    aunque_se_superponga: bool,
 }
 
 fn tipo(texto: Option<String>) -> Paso<TipoEvento> {
@@ -393,6 +414,33 @@ fn automaticas_de(conexion: &Connection, evento_id: i64) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Si el evento (con hora) se pisa con otro de ese día, no se guarda: el
+/// modelo recibe con qué choca y le tiene que preguntar al usuario.
+/// `excepto`: el mismo evento cuando se edita.
+fn choques(conexion: &Connection, inicio: &str, fin: Option<&str>, excepto: Option<i64>) -> Paso<Option<Salida>> {
+    let Some((desde, hasta)) = superposicion::rango(inicio, fin) else { return Ok(None) };
+    // Un día antes por los eventos que cruzan la medianoche.
+    let ocurrencias =
+        eventos::ocurrencias(conexion, desde.date_naive() - Duration::days(1), hasta.date_naive()).map_err(texto_error)?;
+    let pisados: Vec<Value> = ocurrencias
+        .iter()
+        .filter(|o| Some(o.evento.id) != excepto)
+        .filter(|o| superposicion::se_superponen((inicio, fin), (&o.inicio, o.fin.as_deref())))
+        .map(|o| json!({ "id": o.evento.id, "titulo": o.evento.titulo, "cuando": describir(&o.inicio), "fin": o.fin }))
+        .collect();
+    if pisados.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(Salida::ok(
+        json!({
+            "no_guardado": true,
+            "se_superpone_con": pisados,
+            "nota": "No lo guardé porque choca con lo de arriba. Decile al usuario con qué choca y preguntale si lo quiere igual,                      en otro horario o si cambia el otro. Si dice que igual, llamá de nuevo con aunque_se_superponga: true."
+        }),
+        &[],
+    )))
+}
+
 fn crear_evento(conexion: &mut Connection, a: ArgsCrearEvento, ahora: &Ahora) -> Paso<Salida> {
     let tipo = tipo(a.tipo)?;
     let fecha = resolver_fecha(&a.fecha, ahora.hoy)?;
@@ -429,6 +477,11 @@ fn crear_evento(conexion: &mut Connection, a: ArgsCrearEvento, ahora: &Ahora) ->
         recurrencia,
         repetir_hasta,
     };
+    if !a.aunque_se_superponga
+        && let Some(choque) = choques(conexion, &datos.inicio, datos.fin.as_deref(), None)?
+    {
+        return Ok(choque);
+    }
     let evento = eventos::crear(conexion, datos, ahora).map_err(texto_error)?;
     let automaticas = automaticas_de(conexion, evento.id);
     Ok(Salida::ok(
@@ -450,6 +503,8 @@ struct ArgsEditarEvento {
     materia: Option<String>,
     persona: Option<String>,
     notas: Option<String>,
+    #[serde(default)]
+    aunque_se_superponga: bool,
 }
 
 fn editar_evento(conexion: &mut Connection, a: ArgsEditarEvento, ahora: &Ahora) -> Paso<Salida> {
@@ -522,6 +577,11 @@ fn editar_evento(conexion: &mut Connection, a: ArgsEditarEvento, ahora: &Ahora) 
         recurrencia: anterior.recurrencia,
         repetir_hasta: anterior.repetir_hasta,
     };
+    if !a.aunque_se_superponga
+        && let Some(choque) = choques(conexion, &datos.inicio, datos.fin.as_deref(), Some(a.id))?
+    {
+        return Ok(choque);
+    }
     let evento = eventos::editar(conexion, a.id, datos, ahora).map_err(texto_error)?;
     Ok(Salida::ok(
         json!({ "editado": evento_para_modelo(conexion, &evento) }),
@@ -549,7 +609,7 @@ fn borrar_evento(conexion: &mut Connection, a: ArgsId) -> Paso<Salida> {
         })
         .to_string(),
         cambios: Vec::new(),
-        pendiente: Some(AccionPendiente::BorrarEvento { id: evento.id, pregunta }),
+        pendiente: Some(AccionPendiente::BorrarEvento { id: evento.id, titulo: evento.titulo, pregunta }),
     })
 }
 
@@ -737,6 +797,38 @@ mod tests {
         let base = db::en_memoria();
         materias::crear(&base, DatosMateria { nombre: "Análisis II".into(), color: "celeste".into() }, &ahora()).unwrap();
         base
+    }
+
+    #[test]
+    fn no_guarda_un_evento_que_se_pisa_con_otro_salvo_que_lo_quiera_igual() {
+        let mut base = db::en_memoria();
+        let (v, _) = correr(&mut base, "crear_evento", json!({ "titulo": "Entrenamiento", "tipo": "partido", "fecha": "jueves", "hora": "18:30", "hora_fin": "20:30", "repetir": "semanal" }));
+        let entrenamiento = v["creado"]["id"].clone();
+
+        let perro = json!({ "titulo": "Pasear al perro", "fecha": "jueves", "hora": "18", "hora_fin": "19" });
+        let (v, salida) = correr(&mut base, "crear_evento", perro.clone());
+        assert_eq!(v["no_guardado"], true);
+        assert_eq!(v["se_superpone_con"][0]["titulo"], "Entrenamiento");
+        assert_eq!(v["se_superpone_con"][0]["cuando"], "jueves 19 de noviembre a las 18:30");
+        assert!(salida.cambios.is_empty());
+        assert_eq!(eventos::listar_todos(&base).unwrap().len(), 1);
+
+        // Justo antes no choca; y si el usuario lo quiere igual, se guarda.
+        let (v, _) = correr(&mut base, "crear_evento", json!({ "titulo": "Merienda", "fecha": "jueves", "hora": "17", "hora_fin": "18:30" }));
+        let merienda = v["creado"]["id"].clone();
+        assert!(merienda.is_i64());
+        let mut igual = perro;
+        igual["aunque_se_superponga"] = json!(true);
+        let (v, _) = correr(&mut base, "crear_evento", igual);
+        assert!(v["creado"]["id"].is_i64());
+
+        // Mover la merienda encima del entrenamiento tampoco se puede, y
+        // editarla sin moverla no choca consigo misma.
+        let (v, _) = correr(&mut base, "editar_evento", json!({ "id": merienda, "hora": "19" }));
+        assert_eq!(v["no_guardado"], true);
+        assert_ne!(v["se_superpone_con"][0]["id"], merienda);
+        let (v, _) = correr(&mut base, "editar_evento", json!({ "id": entrenamiento, "titulo": "Entrenamiento italiano", "aunque_se_superponga": true }));
+        assert!(v["editado"].is_object());
     }
 
     #[test]

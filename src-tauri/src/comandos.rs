@@ -25,9 +25,10 @@ use crate::futbol::espn::ClienteEspn;
 use crate::futbol::proveedor::ProveedorFutbol;
 use crate::futbol::vista::VistaFutbol;
 use crate::repos::cache::Cacheado;
-use crate::dominio::lenguaje::interpretar_confirmacion;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
+use crate::dominio::avisos::AjustesAvisos;
+use crate::dominio::perfil::Perfil;
 use crate::dominio::reglas::Reglas;
 use crate::dominio::texto::OrigenResponsabilidad;
 use crate::error::{Error, Resultado, invalido};
@@ -212,7 +213,7 @@ pub async fn enviar_mensaje(
     let ahora = Ahora::del_sistema();
     let por_voz = por_voz.unwrap_or(false);
     // Un "sí" a un borrado pendiente no necesita al modelo (ni la key).
-    if asistente.hay_pendiente() && interpretar_confirmacion(&texto).is_some() {
+    if asistente.responde_al_pendiente(&texto) {
         return ciclo::responder_con(&SinModelo, &db, &asistente, &texto, por_voz, &avisos, &ahora).await;
     }
     let cliente = cliente_ia(&db)?;
@@ -432,6 +433,59 @@ pub fn guardar_ajustes_clima(
     Ok(ajustes)
 }
 
+/// Los micrófonos conectados, para elegir en Ajustes.
+#[tauri::command]
+pub async fn listar_microfonos() -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(crate::voz::dispositivos::microfonos).await.unwrap_or_default()
+}
+
+// ---------- Avisos ----------
+
+#[tauri::command]
+pub fn obtener_avisos(db: State<'_, Db>) -> Resultado<AjustesAvisos> {
+    preferencias::avisos(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_avisos(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, avisos: AjustesAvisos) -> Resultado<AjustesAvisos> {
+    let avisos = avisos.validar().map_err(Error::Validacion)?;
+    let ajustes_voz = {
+        let conexion = db.conexion();
+        preferencias::guardar(&conexion, preferencias::AVISOS, &avisos)?;
+        preferencias::voz(&conexion)?
+    };
+    // "No molestar" puede pausar "Oye Nova".
+    voz.mandar(&app, &ajustes_voz, Orden::ConfigurarAvisos(avisos.clone()));
+    Ok(avisos)
+}
+
+/// Un aviso de muestra, para ver cómo se ve (botón en Ajustes).
+#[tauri::command]
+pub fn probar_aviso(app: AppHandle) {
+    crate::notificaciones::mostrar(
+        &app,
+        &crate::dominio::avisos::Aviso {
+            clave: "prueba".into(),
+            titulo: "Así te aviso".into(),
+            cuerpo: "Tocame y se abre el panel.".into(),
+        },
+    );
+}
+
+// ---------- Perfil ----------
+
+#[tauri::command]
+pub fn obtener_perfil(db: State<'_, Db>) -> Resultado<Perfil> {
+    preferencias::perfil(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_perfil(db: State<'_, Db>, perfil: Perfil) -> Resultado<Perfil> {
+    let perfil = perfil.validar().map_err(Error::Validacion)?;
+    preferencias::guardar(&db.conexion(), preferencias::PERFIL, &perfil)?;
+    Ok(perfil)
+}
+
 // ---------- Voz ----------
 
 /// Lo que ve Ajustes de la voz.
@@ -552,6 +606,7 @@ pub async fn voces_elevenlabs() -> Resultado<Vec<elevenlabs::VozDeCuenta>> {
 pub fn guardar_ajustes_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, ajustes: AjustesVoz) -> Resultado<AjustesVoz> {
     let ajustes = ajustes.validar().map_err(Error::Validacion)?;
     preferencias::guardar(&db.conexion(), preferencias::VOZ, &ajustes)?;
+    crate::bandeja::marcar_tilde(&app, ajustes.activada && ajustes.palabra_clave);
     voz.mandar(&app, &ajustes, Orden::Configurar(ajustes.clone()));
     Ok(ajustes)
 }
@@ -627,7 +682,13 @@ pub fn activar_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>) -> Re
         let ajustes = preferencias::voz(&conexion)?;
         let hoy = crate::repos::texto_fecha(ahora.hoy);
         let leido: Option<String> = preferencias::leer(&conexion, preferencias::RESUMEN_LEIDO)?;
-        let toca = ajustes.activada && ajustes.leer_resumen && voz.modelos_listos() && leido.as_deref() != Some(hoy.as_str());
+        // Si lo abrió "Oye Nova", estás por pedir algo: el resumen queda para la próxima.
+        let por_palabra = voz.tomar_despertado();
+        let toca = ajustes.activada
+            && ajustes.leer_resumen
+            && !por_palabra
+            && voz.modelos_listos()
+            && leido.as_deref() != Some(hoy.as_str());
         let resumen = if toca {
             preferencias::guardar(&conexion, preferencias::RESUMEN_LEIDO, &hoy)?;
             crate::asistente::consultas::datos_resumen(&conexion, &ahora).ok().map(|d| crate::dominio::resumen::texto(&d))
@@ -811,7 +872,22 @@ mod tests {
         assert_eq!(claves(&vista["ajustes"]), ["modeloGroq", "modeloOllama", "proveedor", "urlOllama"]);
         assert_eq!(vista["ajustes"]["proveedor"], "groq");
 
-        let error = serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
+        // AjustesAvisos (src/lib/tipos.ts)
+        let avisos = serde_json::to_value(AjustesAvisos::default()).unwrap();
+        assert_eq!(
+            claves(&avisos),
+            [
+                "desde", "enVoz", "eventos", "hasta", "horaVencimientos", "minutosAntes", "minutosViaje", "noMolestar",
+                "noMolestarPausaPalabra", "partidos", "salir", "vencimientos"
+            ]
+        );
+
+        // Perfil, Tono (src/lib/tipos.ts)
+        let perfil = serde_json::to_value(Perfil::default()).unwrap();
+        assert_eq!(claves(&perfil), ["chistes", "comoLlamarte", "sobreVos", "tono"]);
+        assert_eq!(perfil["tono"], "con_onda");
+
+        let error =serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
         assert_eq!(error, json!({ "tipo": "validacion", "mensaje": "Ponele un título." }));
     }
 
