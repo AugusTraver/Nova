@@ -28,8 +28,8 @@
 - Los modelos de Whisper y Piper se descargan en una carpeta de datos de la app, no dentro del repo.
 
 ## Estado actual
-- Versión en curso: **v0.6** (hecha en la rama `v0.6`, falta probarla un día entero y fusionar a `main`)
-- Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón), v0.2 (datos reales locales), v0.3 (asistente por texto con Groq u Ollama), v0.4 (fútbol, noticias, resumen del día y clima), v0.5 (voz local con Whisper y Piper)
+- Versión en curso: **v0.7** (por empezar: instalable y de todos los días)
+- Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón), v0.2 (datos reales locales), v0.3 (asistente por texto con Groq u Ollama), v0.4 (fútbol, noticias, resumen del día y clima), v0.5 (voz local con Whisper y Piper), v0.6 (palabra clave "Oye Nova" y avisos)
 - Notas:
   - Dirección visual aprobada: **"Atmósfera"**. Cielo translúcido que cambia según la hora (`src/theme/cielo.ts` + bloques `data-cielo` en `tokens.css`), esfera de luz en el centro y widgets sin tarjetas que la orbitan (`src/app/Orbita.tsx`). Tipografías Fraunces + Instrument Sans. Nada de etiquetas en mayúsculas ni monoespaciadas. Los widgets nuevos tienen que seguir esta estética.
   - Se descartaron dos estéticas: vidrio con violeta (v0.1) y negro con ámbar tipo "instrumento".
@@ -49,3 +49,4 @@
   - Palabra clave y avisos (v0.6, detalle en SPEC 5.7): "Oye Nova" en `voz/palabra.rs` (modelo `oye_nova.onnx` en la carpeta de modelos de voz, no en el repo), pausas en `voz/sistema.rs`, bandeja en `bandeja.rs`. Los avisos: lógica en `dominio/avisos.rs`, lo ya mandado en `repos/avisos.rs`, las notificaciones en `notificaciones.rs` y la revisión cada minuto en `fondo.rs`. En el navegador, `?despertar` hace el pulso de la esfera a los 2 segundos.
   - Para probar la palabra clave con una grabación: `NOVA_GRABACION_PALABRA=archivo.wav NOVA_VECES_PALABRA=11 cargo test --release -- --ignored detecta_en_una_grabacion --nocapture` (WAV mono de 16 kHz).
   - "Sobre vos" (perfil) en `dominio/perfil.rs`: cómo llamarte, tono y chistes, y un texto libre que va al prompt.
+  - Compilación rápida: `src-tauri/.cargo/config.toml` usa el linker de Rust (`rust-lld`) y el perfil de desarrollo guarda poca información de depuración. Un cambio chico en Rust tarda unos 25 s en vez de casi 3 minutos.

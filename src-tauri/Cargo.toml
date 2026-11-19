@@ -39,6 +39,15 @@ zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
 livekit-wakeword = "0.2"
 
 
+# Compilar más rápido en desarrollo: de Nova solo se guardan las líneas (los
+# errores siguen diciendo archivo y línea) y de las librerías, nada. Eso
+# achica mucho el .exe de desarrollo y lo que tarda en armarse.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 # El modelo de "Oye Nova" sin optimizar tarda más que el audio en tiempo
 # real: en desarrollo se compila optimizado (solo estas librerías).
 [profile.dev.package.tract-core]

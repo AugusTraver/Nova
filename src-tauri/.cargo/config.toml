@@ -1,0 +1,6 @@
+# Compilar más rápido en Windows (v0.6).
+# El linker de Rust (rust-lld, viene con Rust) arma el .exe bastante más
+# rápido que el de Microsoft (link.exe). Si alguna vez falla, borrá estas
+# dos líneas y vuelve a usar el de siempre.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
