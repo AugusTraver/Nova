@@ -49,6 +49,11 @@ impl Microfono {
 
         let avisar_error = avisar.clone();
         let al_fallar = move |e: cpal::Error| {
+            // Un "xrun" es un pedacito de audio que se perdió (la compu estuvo
+            // ocupada): el micrófono sigue andando, no hay que cerrarlo.
+            if e.kind() == cpal::ErrorKind::Xrun {
+                return eprintln!("Micrófono: se perdió un pedacito de audio.");
+            }
             let _ = avisar_error.send(envolver(DelMicrofono::Error(format!("El micrófono dejó de andar: {e}"))));
         };
         // `move` le pasa el canal al callback; `a_mono` junta los canales.

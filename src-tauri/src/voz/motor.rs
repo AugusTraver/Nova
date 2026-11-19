@@ -344,7 +344,13 @@ impl Motor {
             Orden::Microfono(DelMicrofono::Audio(muestras)) => self.oir(&muestras),
             Orden::Microfono(DelMicrofono::Error(e)) => {
                 self.cerrar_microfono();
-                self.error(e);
+                if self.activo {
+                    self.error(e);
+                } else {
+                    // Panel cerrado: se intenta abrir de nuevo para seguir esperando "Oye Nova".
+                    eprintln!("Voz: {e}");
+                    self.preparar_palabra();
+                }
             }
             Orden::Salir(listo) => {
                 let _ = listo.send(());

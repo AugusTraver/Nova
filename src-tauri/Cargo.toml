@@ -39,6 +39,29 @@ zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
 livekit-wakeword = "0.2"
 
 
+# El modelo de "Oye Nova" sin optimizar tarda más que el audio en tiempo
+# real: en desarrollo se compila optimizado (solo estas librerías).
+[profile.dev.package.tract-core]
+opt-level = 3
+[profile.dev.package.tract-linalg]
+opt-level = 3
+[profile.dev.package.tract-data]
+opt-level = 3
+[profile.dev.package.tract-hir]
+opt-level = 3
+[profile.dev.package.tract-onnx]
+opt-level = 3
+[profile.dev.package.tract-nnef]
+opt-level = 3
+[profile.dev.package.tract-onnx-opl]
+opt-level = 3
+[profile.dev.package.ndarray]
+opt-level = 3
+[profile.dev.package.ort-tract]
+opt-level = 3
+[profile.dev.package.livekit-wakeword]
+opt-level = 3
+
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1
