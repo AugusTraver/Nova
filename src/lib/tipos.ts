@@ -350,6 +350,8 @@ export interface AjustesVoz {
   usarGpu: boolean;
   /** Con el panel cerrado, "Oye Nova" lo abre y empieza a escuchar. */
   palabraClave: boolean;
+  /** Desenchufada, "Oye Nova" descansa. */
+  palabraPausaBateria: boolean;
   /** Región del recurso de Azure ("eastus"); vacía = voz local. */
   regionAzure: string;
   /** La voz de Microsoft ("es-MX-DaliaNeural"). */
@@ -400,4 +402,22 @@ export interface CiudadEncontrada {
   region: string;
   latitud: number;
   longitud: number;
+}
+
+/** Avisos del sistema (preferencia `avisos`). Las horas van como "09:00". */
+export interface AjustesAvisos {
+  eventos: boolean;
+  /** 10, 15, 30 o 60. */
+  minutosAntes: number;
+  vencimientos: boolean;
+  horaVencimientos: string;
+  partidos: boolean;
+  /** "Hora de salir" antes de la primera clase o examen del día. */
+  salir: boolean;
+  minutosViaje: number;
+  noMolestar: boolean;
+  desde: string;
+  hasta: string;
+  noMolestarPausaPalabra: boolean;
+  enVoz: boolean;
 }

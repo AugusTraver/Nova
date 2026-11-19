@@ -2,6 +2,7 @@
 //! No saben nada de Tauri, así que se testean con una base en memoria.
 
 pub mod automaticas;
+pub mod avisos;
 pub mod cache;
 pub mod eventos;
 pub mod materias;

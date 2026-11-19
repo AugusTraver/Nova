@@ -3,6 +3,7 @@ import { BotonTexto, Formulario, Interruptor } from "../components/Formulario";
 import { api, mensajeDeError, mensajeDelAsistente } from "../lib/api";
 import { atajoDesdeTecla, nombreAtajo } from "../lib/atajo";
 import type {
+  AjustesAvisos as TipoAjustesAvisos,
   AjustesClima,
   AjustesIa,
   AjustesNoticias,
@@ -15,6 +16,7 @@ import type {
 } from "../lib/tipos";
 import { useDatos } from "../store/datos";
 import { AjustesAsistente } from "./AjustesAsistente";
+import { AjustesAvisos } from "./AjustesAvisos";
 import { AjustesInternet } from "./AjustesInternet";
 import { AjustesPerfil } from "./AjustesPerfil";
 import { AjustesVoz } from "./AjustesVoz";
@@ -40,6 +42,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const [clima, setClima] = useState<AjustesClima | null>(null);
   const [voz, setVoz] = useState<VistaVoz | null>(null);
   const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [avisos, setAvisos] = useState<TipoAjustesAvisos | null>(null);
 
   useEffect(() => {
     api.obtenerAjustes().then(setAjustes, (e: unknown) => setError(mensajeDeError(e)));
@@ -49,6 +52,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     api.obtenerAjustesClima().then(setClima, fallo);
     api.estadoVoz().then(setVoz, fallo);
     api.obtenerPerfil().then(setPerfil, fallo);
+    api.obtenerAvisos().then(setAvisos, fallo);
     api.obtenerAjustesIa().then(
       (vista) => {
         setIa(vista.ajustes);
@@ -101,6 +105,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     try {
       await api.guardarAjustes(ajustes);
       if (perfil) await api.guardarPerfil(perfil);
+      if (avisos) await api.guardarAvisos(avisos);
       await guardarIa();
       if (jugadores) await api.guardarJugadores(jugadores);
       if (noticias) await api.guardarAjustesNoticias(noticias);
@@ -128,6 +133,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   return (
     <Formulario titulo="Ajustes" error={error} guardando={guardando} alGuardar={() => void guardar()} alCancelar={alTerminar}>
       {perfil && <AjustesPerfil perfil={perfil} alCambiar={setPerfil} />}
+      {avisos && <AjustesAvisos avisos={avisos} alCambiar={setAvisos} />}
 
       <section className="mt-2 flex flex-col gap-1.5">
         <h3 className="text-[13px] text-tinta-3">Atajo para abrir y cerrar Nova</h3>

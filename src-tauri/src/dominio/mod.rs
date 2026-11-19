@@ -1,5 +1,6 @@
 //! Lógica de negocio pura: no toca la base ni el sistema, se testea sola.
 
+pub mod avisos;
 pub mod fechas_relativas;
 pub mod futbol;
 pub mod lenguaje;

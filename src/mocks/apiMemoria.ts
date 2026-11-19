@@ -14,6 +14,7 @@ import type {
   Materia,
   Ocurrencia,
   Perfil,
+  AjustesAvisos,
   Progreso,
   Responsabilidad,
   Turno,
@@ -118,6 +119,20 @@ export function crearApiMemoria(): Api {
   };
   let ajustesClima: AjustesClima = { mostrar: true, ciudad: "Buenos Aires", latitud: -34.61, longitud: -58.38 };
   let perfil: Perfil = { comoLlamarte: "", tono: "con_onda", chistes: false, sobreVos: "" };
+  let avisos: AjustesAvisos = {
+    eventos: true,
+    minutosAntes: 30,
+    vencimientos: true,
+    horaVencimientos: "09:00",
+    partidos: true,
+    salir: true,
+    minutosViaje: 60,
+    noMolestar: true,
+    desde: "23:00",
+    hasta: "08:00",
+    noMolestarPausaPalabra: true,
+    enVoz: false,
+  };
   /** Evento esperando el "sí" para borrarse. */
   let pendiente: Evento | null = null;
 
@@ -318,6 +333,22 @@ export function crearApiMemoria(): Api {
     },
     buscarCiudades: (texto) =>
       esperar(texto.length < 2 ? [] : [{ nombre: texto, region: "Buenos Aires, Argentina", latitud: -34.6, longitud: -58.4 }]),
+
+    obtenerAvisos: () => esperar(avisos),
+    guardarAvisos: (nuevos) => {
+      if (![10, 15, 30, 60].includes(nuevos.minutosAntes))
+        return Promise.reject({ tipo: "validacion", mensaje: "El aviso antes de un evento puede ser de 10, 15, 30 o 60 minutos." });
+      if (nuevos.minutosViaje < 5 || nuevos.minutosViaje > 240)
+        return Promise.reject({ tipo: "validacion", mensaje: "El viaje tiene que durar entre 5 minutos y 4 horas." });
+      if (nuevos.noMolestar && nuevos.desde === nuevos.hasta)
+        return Promise.reject({ tipo: "validacion", mensaje: "\"No molestar\" tiene que empezar y terminar a horas distintas." });
+      avisos = nuevos;
+      return esperar(avisos);
+    },
+    probarAviso: () => {
+      console.info("Aviso de prueba: «Así te aviso»");
+      return esperar(undefined);
+    },
 
     obtenerPerfil: () => esperar(perfil),
     guardarPerfil: (nuevo) => {

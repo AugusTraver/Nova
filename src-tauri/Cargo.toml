@@ -49,6 +49,10 @@ strip = true
 
 [target."cfg(windows)".dependencies]
 windows-native-keyring-store = "1"
+# Avisos de Windows que abren el panel al tocarlos (v0.6).
+tauri-winrt-notification = "0.7"
+# Saber si la sesión está bloqueada o la compu va a batería (pausar "Oye Nova").
+windows-sys = { version = "0.61", features = ["Win32_System_StationsAndDesktops", "Win32_System_Power"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time"] }

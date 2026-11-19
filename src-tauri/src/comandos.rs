@@ -27,6 +27,7 @@ use crate::futbol::vista::VistaFutbol;
 use crate::repos::cache::Cacheado;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
+use crate::dominio::avisos::AjustesAvisos;
 use crate::dominio::perfil::Perfil;
 use crate::dominio::reglas::Reglas;
 use crate::dominio::texto::OrigenResponsabilidad;
@@ -432,6 +433,39 @@ pub fn guardar_ajustes_clima(
     Ok(ajustes)
 }
 
+// ---------- Avisos ----------
+
+#[tauri::command]
+pub fn obtener_avisos(db: State<'_, Db>) -> Resultado<AjustesAvisos> {
+    preferencias::avisos(&db.conexion())
+}
+
+#[tauri::command]
+pub fn guardar_avisos(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, avisos: AjustesAvisos) -> Resultado<AjustesAvisos> {
+    let avisos = avisos.validar().map_err(Error::Validacion)?;
+    let ajustes_voz = {
+        let conexion = db.conexion();
+        preferencias::guardar(&conexion, preferencias::AVISOS, &avisos)?;
+        preferencias::voz(&conexion)?
+    };
+    // "No molestar" puede pausar "Oye Nova".
+    voz.mandar(&app, &ajustes_voz, Orden::ConfigurarAvisos(avisos.clone()));
+    Ok(avisos)
+}
+
+/// Un aviso de muestra, para ver cómo se ve (botón en Ajustes).
+#[tauri::command]
+pub fn probar_aviso(app: AppHandle) {
+    crate::notificaciones::mostrar(
+        &app,
+        &crate::dominio::avisos::Aviso {
+            clave: "prueba".into(),
+            titulo: "Así te aviso".into(),
+            cuerpo: "Tocame y se abre el panel.".into(),
+        },
+    );
+}
+
 // ---------- Perfil ----------
 
 #[tauri::command]
@@ -566,6 +600,7 @@ pub async fn voces_elevenlabs() -> Resultado<Vec<elevenlabs::VozDeCuenta>> {
 pub fn guardar_ajustes_voz(app: AppHandle, db: State<'_, Db>, voz: State<'_, Voz>, ajustes: AjustesVoz) -> Resultado<AjustesVoz> {
     let ajustes = ajustes.validar().map_err(Error::Validacion)?;
     preferencias::guardar(&db.conexion(), preferencias::VOZ, &ajustes)?;
+    crate::bandeja::marcar_tilde(&app, ajustes.activada && ajustes.palabra_clave);
     voz.mandar(&app, &ajustes, Orden::Configurar(ajustes.clone()));
     Ok(ajustes)
 }
@@ -830,6 +865,16 @@ mod tests {
         assert_eq!(claves(&vista), ["ajustes", "tieneKey"]);
         assert_eq!(claves(&vista["ajustes"]), ["modeloGroq", "modeloOllama", "proveedor", "urlOllama"]);
         assert_eq!(vista["ajustes"]["proveedor"], "groq");
+
+        // AjustesAvisos (src/lib/tipos.ts)
+        let avisos = serde_json::to_value(AjustesAvisos::default()).unwrap();
+        assert_eq!(
+            claves(&avisos),
+            [
+                "desde", "enVoz", "eventos", "hasta", "horaVencimientos", "minutosAntes", "minutosViaje", "noMolestar",
+                "noMolestarPausaPalabra", "partidos", "salir", "vencimientos"
+            ]
+        );
 
         // Perfil, Tono (src/lib/tipos.ts)
         let perfil = serde_json::to_value(Perfil::default()).unwrap();

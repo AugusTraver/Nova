@@ -23,6 +23,7 @@ import type {
   Noticia,
   Ocurrencia,
   Perfil,
+  AjustesAvisos,
   Progreso,
   Responsabilidad,
   Turno,
@@ -90,6 +91,11 @@ export interface Api {
   obtenerAjustesClima(): Promise<AjustesClima>;
   guardarAjustesClima(ajustes: AjustesClima): Promise<AjustesClima>;
   buscarCiudades(texto: string): Promise<CiudadEncontrada[]>;
+
+  obtenerAvisos(): Promise<AjustesAvisos>;
+  guardarAvisos(avisos: AjustesAvisos): Promise<AjustesAvisos>;
+  /** Muestra una notificación de muestra. */
+  probarAviso(): Promise<void>;
 
   obtenerPerfil(): Promise<Perfil>;
   guardarPerfil(perfil: Perfil): Promise<Perfil>;
@@ -169,6 +175,10 @@ const apiTauri: Api = {
   obtenerAjustesClima: () => invoke("obtener_ajustes_clima"),
   guardarAjustesClima: (ajustes) => invoke("guardar_ajustes_clima", { ajustes }),
   buscarCiudades: (texto) => invoke("buscar_ciudades", { texto }),
+
+  obtenerAvisos: () => invoke("obtener_avisos"),
+  guardarAvisos: (avisos) => invoke("guardar_avisos", { avisos }),
+  probarAviso: () => invoke("probar_aviso"),
 
   obtenerPerfil: () => invoke("obtener_perfil"),
   guardarPerfil: (perfil) => invoke("guardar_perfil", { perfil }),
