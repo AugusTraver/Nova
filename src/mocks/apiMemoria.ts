@@ -318,8 +318,9 @@ export function crearApiMemoria(): Api {
 
     estadoVoz: vozDePrueba.estado,
     guardarAjustesVoz: vozDePrueba.guardar,
-    guardarKeyAzure: vozDePrueba.guardarKeyAzure,
-    probarVozAzure: vozDePrueba.probarAzure,
+    guardarKeyVoz: vozDePrueba.guardarKey,
+    probarVoz: vozDePrueba.probar,
+    vocesElevenlabs: vozDePrueba.vocesElevenlabs,
     bajarModelosVoz: vozDePrueba.bajar,
     activarVoz: vozDePrueba.activar,
     desactivarVoz: vozDePrueba.desactivar,

@@ -29,6 +29,9 @@ import type {
   VistaClima,
   VistaFutbol,
   VistaVoz,
+  ProveedorVoz,
+  PruebaVoz,
+  VozDeCuenta,
 } from "./tipos";
 
 export interface Api {
@@ -89,10 +92,12 @@ export interface Api {
 
   estadoVoz(): Promise<VistaVoz>;
   guardarAjustesVoz(ajustes: AjustesVoz): Promise<AjustesVoz>;
-  /** Guarda la key de Azure en el llavero ("" la borra). Devuelve si quedó una. */
-  guardarKeyAzure(key: string): Promise<boolean>;
-  /** Prueba la voz de Azure con lo guardado; si anda, Nova saluda. */
-  probarVozAzure(): Promise<void>;
+  /** Guarda la key de un proveedor en el llavero ("" la borra). Devuelve si quedó una. */
+  guardarKeyVoz(proveedor: ProveedorVoz, key: string): Promise<boolean>;
+  /** El comparador: con lo guardado, Nova dice la frase de prueba con esa voz. */
+  probarVoz(proveedor: ProveedorVoz): Promise<PruebaVoz>;
+  /** Las voces de la cuenta de ElevenLabs (con la key guardada). */
+  vocesElevenlabs(): Promise<VozDeCuenta[]>;
   /** Baja Whisper, Piper y los modelos (avisa el progreso con `voz:descarga`). */
   bajarModelosVoz(): Promise<void>;
   /** Se abrió el panel: escuchar. Devuelve el resumen si lo va a leer. */
@@ -163,8 +168,9 @@ const apiTauri: Api = {
 
   estadoVoz: () => invoke("estado_voz"),
   guardarAjustesVoz: (ajustes) => invoke("guardar_ajustes_voz", { ajustes }),
-  guardarKeyAzure: (key) => invoke("guardar_key_azure", { key }),
-  probarVozAzure: () => invoke("probar_voz_azure"),
+  guardarKeyVoz: (proveedor, key) => invoke("guardar_key_voz", { proveedor, key }),
+  probarVoz: (proveedor) => invoke("probar_voz", { proveedor }),
+  vocesElevenlabs: () => invoke("voces_elevenlabs"),
   bajarModelosVoz: () => invoke("bajar_modelos_voz"),
   activarVoz: () => invoke("activar_voz"),
   desactivarVoz: () => invoke("desactivar_voz"),
