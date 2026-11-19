@@ -30,7 +30,7 @@ Sin objetivos comerciales. Es para un solo usuario (yo).
 | IA (cerebro) | Capa de proveedores intercambiables: **API con plan gratuito** (por defecto) u **Ollama local** | Tiene que soportar *tool calling* |
 | Voz → texto | **Whisper** local (whisper.cpp / `whisper-rs`) | Español |
 | Texto → voz | **Piper** local (binario sidecar) con voz en español | |
-| Palabra clave ("Oye Nova") | **openWakeWord** o similar, local | Recién en v0.6 |
+| Palabra clave ("Oye Nova") | **livekit-wakeword** (Rust puro), modelo propio entrenado para "Oye Nova", local | Desde v0.6 |
 | Sistema operativo | **Windows 10 Home 22H2** (único objetivo) | Tauri usa WebView2 (ya viene en Windows 10). Desenfoque de fondo con efecto *acrylic* o *blur* (crate `window-vibrancy`). Los binarios sidecar (Piper, whisper.cpp) en versión Windows x64. |
 
 Costo objetivo: **$0**. Todo lo pago se reemplaza por algo local o por un plan gratuito.
@@ -237,6 +237,23 @@ Reglas:
 - Notificaciones del sistema: "En 30 minutos tenés clase", "Vence hoy: estudiar para Análisis", "Arranca el partido".
 - Configurables y silenciables.
 
+### 5.7 Decisiones de v0.6 (palabra clave y avisos)
+- **"Oye Nova"** (`voz/palabra.rs`): con el panel cerrado, el motor de voz deja el micrófono abierto y le pasa el audio a un modelo chiquito (`livekit-wakeword`, ONNX en Rust puro, sin ONNX Runtime). Todo local: el audio no sale de la compu.
+  - **El modelo** se entrenó para Nova con `livekit-wakeword train` (frases generadas con voces de TTS en español). No va en el repo: vive en la carpeta de modelos de voz (`%LOCALAPPDATA%\com.augustraver.nova\voz\modelos\oye_nova.onnx`, ~7 MB). Sin ese archivo, la palabra clave no se activa y el resto anda igual.
+  - **Cuándo abre:** el modelo puntúa cada 80 ms. Desde 0,70 abre directo; entre 0,35 y 0,70 lo confirma Whisper buscando "nova" en los últimos 2,5 s. Con una grabación del micrófono real detectó 10 de 11. Subirle el volumen no cambiaba los puntajes, así que no hay control de ganancia.
+  - **Al despertar** el motor ya se pone a escuchar (no se pierde "Oye Nova, ¿qué tengo mañana?" dicho de corrido), pide abrir el panel, la esfera hace un pulso en el borde y ese día no se lee el resumen (taparía el pedido).
+  - **Whisper queda abierto** mientras la palabra clave está activa (confirma los dudosos).
+  - **Pausas:** con la sesión bloqueada (no se puede abrir el escritorio de entrada), a batería (activable) y en "no molestar" (activable). Se revisa cada 5 s (`voz/sistema.rs`).
+  - **Consumo:** el modelo descansa después de 3 s de silencio (debajo de −54 dB) y arranca de cero con los 2 s anteriores cuando vuelve el sonido. Con el panel cerrado el ciclo del motor duerme 500 ms en vez de 33.
+  - **Bandeja:** mientras espera la palabra, el ícono lleva un puntito y el texto dice "escuchando «Oye Nova»". El menú tiene el tilde "Escuchar «Oye Nova»".
+- **Avisos** (`dominio/avisos.rs`, puro con tests): la tarea de fondo revisa cada minuto qué toca.
+  - **Tipos:** antes de cada evento con hora (10, 15, 30 o 60 min; 30 por defecto); "Hora de salir" antes de la primera clase o examen del día según el viaje (60 min por defecto); lo pendiente que vence hoy, todo junto a una hora (09:00); "Arranca Boca/la Selección" al empezar el partido.
+  - **No repetir:** cada aviso tiene una clave (`evento:<id>:<inicio>`, `salir:<fecha>`, `vence:<fecha>`, `partido:<id>`) que se guarda en `avisos_enviados` antes de mostrarlo. Se borran a la semana.
+  - **Ventanas:** cada aviso vale un rato (el de un evento, hasta que empieza; el de salir, hasta 10 min antes; el del partido, media hora). Si la compu estaba apagada o en "no molestar" y la ventana pasó, se descarta.
+  - **No molestar:** de 23:00 a 08:00 por defecto (cruza la medianoche). Lo que sigue valiendo al terminar llega en ese momento.
+  - **En voz alta:** opcional y apagado por defecto.
+  - **Notificaciones de Windows** con `tauri-winrt-notification` (`notificaciones.rs`): tocar una abre el panel. En desarrollo salen como "Windows PowerShell" porque Nova no está instalada (Windows pide un AppUserModelID registrado); instalada usa el identificador de la app.
+
 ## 6. Modelo de datos (SQLite)
 
 ```
@@ -256,10 +273,13 @@ responsabilidades(id, titulo, descripcion?, fecha_limite?, prioridad['baja'|'med
 
 mensajes(id, rol['usuario'|'asistente'|'herramienta'], contenido, creado_en)
 
+avisos_enviados(clave, enviado_en)      -- v0.6: avisos del sistema ya mandados
+
 preferencias(clave, valor_json)
   -- atajo, proveedor_ia, modelo, equipos (Boca, Selección), jugadores_seguidos,
   -- intereses_noticias, feeds_rss,
-  -- reglas_auto_responsabilidades, leer_resumen_al_abrir, ciudad_clima, tema
+  -- reglas_auto_responsabilidades, leer_resumen_al_abrir, ciudad_clima, tema,
+  -- voz (incluye palabra_clave), avisos, perfil
 ```
 - Fechas en ISO 8601 con zona horaria. Los eventos de todo el día y las fechas límite se guardan como fecha sola (`2026-11-20`); el `fin` de un evento de todo el día es el último día incluido.
 - Los eventos recurrentes se guardan como serie y las repeticiones se calculan al pedir un rango. Editar una repetición cambia toda la serie; para una fecha suelta existe "saltear".
@@ -267,7 +287,7 @@ preferencias(clave, valor_json)
 - Migraciones versionadas desde el primer día (`PRAGMA user_version`, archivos en `src-tauri/migraciones/`).
 
 ## 7. Configuración
-Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, API keys (guardadas en el llavero), equipos, intereses y feeds de noticias, reglas de responsabilidades automáticas, voz (activar/desactivar, velocidad), arranque con el sistema, clima on/off.
+Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, API keys (guardadas en el llavero), equipos, intereses y feeds de noticias, reglas de responsabilidades automáticas, voz (activar/desactivar, velocidad, "Oye Nova"), avisos y "no molestar", sobre vos, arranque con el sistema, clima on/off.
 
 ## 8. Requisitos no funcionales
 - **Rápido:** el panel tiene que abrirse en menos de 300 ms desde el atajo. Animaciones a 60 fps.
