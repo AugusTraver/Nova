@@ -74,9 +74,36 @@ pub fn vuelve_a_pedir_borrar(texto: &str, titulo: &str) -> bool {
         .any(|p| palabras.contains(&p))
 }
 
+/// A veces el modelo devuelve la misma respuesta dos veces pegada
+/// ("Listo, X.Listo, X."). Si el texto es una frase repetida, queda una.
+pub fn sin_repetir(texto: &str) -> String {
+    let texto = texto.trim();
+    let caracteres: Vec<char> = texto.chars().collect();
+    let n = caracteres.len();
+    // Se prueba cortar en la mitad, salteando los espacios del medio.
+    for corte in (n / 2).saturating_sub(2)..=(n / 2 + 2).min(n) {
+        let primera: String = caracteres[..corte].iter().collect();
+        let segunda: String = caracteres[corte..].iter().collect();
+        if primera.trim().chars().count() >= 8 && primera.trim() == segunda.trim() {
+            return primera.trim().to_string();
+        }
+    }
+    texto.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn saca_la_respuesta_repetida() {
+        let doble = "Listo, pasear al perro a las seis de la mañana.Listo, pasear al perro a las seis de la mañana.";
+        assert_eq!(sin_repetir(doble), "Listo, pasear al perro a las seis de la mañana.");
+        assert_eq!(sin_repetir("Dale, anotado. Dale, anotado."), "Dale, anotado.");
+        // Lo normal queda igual.
+        assert_eq!(sin_repetir("Sí, sí."), "Sí, sí.");
+        assert_eq!(sin_repetir("Tenés parcial el jueves."), "Tenés parcial el jueves.");
+    }
 
     #[test]
     fn repetir_el_pedido_de_borrar_lo_mismo_confirma() {

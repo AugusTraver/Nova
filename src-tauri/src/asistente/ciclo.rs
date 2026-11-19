@@ -14,6 +14,7 @@ use super::mensajes::Mensaje;
 use super::prompt::{self, Contexto, DIAS_DE_AGENDA};
 use super::proveedor::ProveedorIa;
 use crate::db::Db;
+use crate::dominio::lenguaje::sin_repetir;
 use crate::dominio::texto::EstadoResponsabilidad;
 use crate::error::{Resultado, invalido};
 use crate::repos::{Ahora, eventos, materias, mensajes, preferencias, responsabilidades};
@@ -180,7 +181,7 @@ pub async fn responder_con<P: ProveedorIa>(
         let respuesta = proveedor.completar(&conversacion, &definiciones).await?;
 
         if respuesta.llamadas.is_empty() {
-            let texto = if respuesta.texto.is_empty() { "Listo.".to_string() } else { respuesta.texto };
+            let texto = if respuesta.texto.is_empty() { "Listo.".to_string() } else { sin_repetir(&respuesta.texto) };
             guardar(db, &Mensaje::Asistente { texto: texto.clone(), llamadas: vec![] }, ahora)?;
             return Ok(Turno { respuesta: texto, confirmacion });
         }
