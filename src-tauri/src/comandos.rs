@@ -433,6 +433,12 @@ pub fn guardar_ajustes_clima(
     Ok(ajustes)
 }
 
+/// Los micrófonos conectados, para elegir en Ajustes.
+#[tauri::command]
+pub async fn listar_microfonos() -> Vec<String> {
+    tauri::async_runtime::spawn_blocking(crate::voz::dispositivos::microfonos).await.unwrap_or_default()
+}
+
 // ---------- Avisos ----------
 
 #[tauri::command]

@@ -13,6 +13,7 @@ let ajustes: AjustesVoz = {
   usarGpu: true,
   palabraClave: true,
   palabraPausaBateria: true,
+  microfono: "",
   regionAzure: "",
   vozAzure: "es-MX-DaliaNeural",
   proveedor: "azure",
@@ -47,6 +48,7 @@ function escuchar() {
 }
 
 export const vozDePrueba = {
+  microfonos: async (): Promise<string[]> => ["Micrófono (Razer Barracuda X 2.4)", "Micrófono de los auriculares (Wireless Controller)"],
   estado: async (): Promise<VistaVoz> => ({ ajustes, modelosListos, megasFaltantes: modelosListos ? 0 : 1340, hayGpu: true, conKey }),
   guardarKey: async (proveedor: ProveedorVoz, key: string) => {
     conKey = conKey.filter((p) => p !== proveedor);

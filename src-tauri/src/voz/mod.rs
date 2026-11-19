@@ -56,6 +56,8 @@ pub struct AjustesVoz {
     pub palabra_clave: bool,
     /// Desenchufada, "Oye Nova" descansa (cuida la batería).
     pub palabra_pausa_bateria: bool,
+    /// El nombre del micrófono elegido ("" = el que tenga Windows por defecto).
+    pub microfono: String,
     /// Región del recurso de Azure ("eastus"). Vacía = no usar Azure. La
     /// key no va acá: va al llavero.
     pub region_azure: String,
@@ -80,6 +82,7 @@ impl Default for AjustesVoz {
             usar_gpu: true,
             palabra_clave: true,
             palabra_pausa_bateria: true,
+            microfono: String::new(),
             region_azure: String::new(),
             voz_azure: azure::VOZ_POR_DEFECTO.into(),
             proveedor: nube::Proveedor::default(),
@@ -369,7 +372,8 @@ mod dispositivos_reales {
     #[ignore]
     fn el_microfono_entrega_audio() {
         let (tx, rx) = std::sync::mpsc::channel::<DelMicrofono>();
-        let mic = Microfono::abrir(tx, |m| m).unwrap();
+        let nombre = std::env::var("NOVA_MICROFONO").unwrap_or_default();
+        let mic = Microfono::abrir(&nombre, tx, |m| m).unwrap();
         assert!(mic.frecuencia >= 16_000);
         let mut muestras = 0;
         let limite = std::time::Instant::now() + Duration::from_secs(2);

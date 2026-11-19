@@ -65,6 +65,7 @@ pub fn run() {
             comandos::obtener_clima,
             comandos::obtener_ajustes_clima,
             comandos::guardar_ajustes_clima,
+            comandos::listar_microfonos,
             comandos::obtener_avisos,
             comandos::guardar_avisos,
             comandos::probar_aviso,

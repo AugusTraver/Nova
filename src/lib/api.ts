@@ -101,6 +101,8 @@ export interface Api {
   guardarPerfil(perfil: Perfil): Promise<Perfil>;
 
   estadoVoz(): Promise<VistaVoz>;
+  /** Los micrófonos conectados (por nombre). */
+  listarMicrofonos(): Promise<string[]>;
   guardarAjustesVoz(ajustes: AjustesVoz): Promise<AjustesVoz>;
   /** Guarda la key de un proveedor en el llavero ("" la borra). Devuelve si quedó una. */
   guardarKeyVoz(proveedor: ProveedorVoz, key: string): Promise<boolean>;
@@ -184,6 +186,7 @@ const apiTauri: Api = {
   guardarPerfil: (perfil) => invoke("guardar_perfil", { perfil }),
 
   estadoVoz: () => invoke("estado_voz"),
+  listarMicrofonos: () => invoke("listar_microfonos"),
   guardarAjustesVoz: (ajustes) => invoke("guardar_ajustes_voz", { ajustes }),
   guardarKeyVoz: (proveedor, key) => invoke("guardar_key_voz", { proveedor, key }),
   probarVoz: (proveedor) => invoke("probar_voz", { proveedor }),

@@ -359,6 +359,7 @@ export function crearApiMemoria(): Api {
     },
 
     estadoVoz: vozDePrueba.estado,
+    listarMicrofonos: vozDePrueba.microfonos,
     guardarAjustesVoz: vozDePrueba.guardar,
     guardarKeyVoz: vozDePrueba.guardarKey,
     probarVoz: vozDePrueba.probar,

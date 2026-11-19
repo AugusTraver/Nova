@@ -352,6 +352,8 @@ export interface AjustesVoz {
   palabraClave: boolean;
   /** Desenchufada, "Oye Nova" descansa. */
   palabraPausaBateria: boolean;
+  /** El micrófono elegido por nombre ("" = el de Windows). */
+  microfono: string;
   /** Región del recurso de Azure ("eastus"); vacía = voz local. */
   regionAzure: string;
   /** La voz de Microsoft ("es-MX-DaliaNeural"). */

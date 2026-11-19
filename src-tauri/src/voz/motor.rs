@@ -319,6 +319,10 @@ impl Motor {
             }
             Orden::Configurar(ajustes) => {
                 let cambio_gpu = ajustes.usar_gpu != self.ajustes.usar_gpu;
+                if ajustes.microfono != self.ajustes.microfono {
+                    // Otro micrófono: se cierra el de ahora y abajo se abre el nuevo.
+                    self.cerrar_microfono();
+                }
                 if let Some(s) = &self.sintetizador {
                     s.configurar(ajustes.clone());
                 }
@@ -391,7 +395,7 @@ impl Motor {
         if let Some(frecuencia) = self.microfono_de_prueba {
             self.remuestreador.get_or_insert_with(|| Remuestreador::new(frecuencia, FRECUENCIA_WHISPER));
         } else if self.microfono.is_none() {
-            match Microfono::abrir(self.canal.clone(), del_microfono) {
+            match Microfono::abrir(&self.ajustes.microfono, self.canal.clone(), del_microfono) {
                 Ok(m) => {
                     self.remuestreador = Some(Remuestreador::new(m.frecuencia, FRECUENCIA_WHISPER));
                     self.microfono = Some(m);
@@ -467,7 +471,7 @@ impl Motor {
         if let Some(frecuencia) = self.microfono_de_prueba {
             self.remuestreador.get_or_insert_with(|| Remuestreador::new(frecuencia, FRECUENCIA_WHISPER));
         } else if self.microfono.is_none() {
-            match Microfono::abrir(self.canal.clone(), del_microfono) {
+            match Microfono::abrir(&self.ajustes.microfono, self.canal.clone(), del_microfono) {
                 Ok(m) => {
                     self.remuestreador = Some(Remuestreador::new(m.frecuencia, FRECUENCIA_WHISPER));
                     self.microfono = Some(m);
