@@ -111,9 +111,14 @@ Cada versión termina en algo que **funciona y se puede usar**. No se pasa a la 
 - Abrir programas instalados (Visual Studio Code, Spotify, la calculadora).
 - Abrir carpetas, leer archivos y modificarlos con confirmación, mostrando el antes y después, con opción de deshacer.
 - Solo dentro de las carpetas permitidas en Ajustes, y con un interruptor para apagarlo todo.
-- Extras a elegir: controlar la música, temporizadores, buscar en internet, portapapeles, ventanas, horas ambiguas.
+- Buscar en internet con una API de búsqueda aparte, con plan gratis (no la búsqueda incluida de Groq, para no gastar sus tokens):
+  - "buscá X" abre la búsqueda en el navegador;
+  - "fijate quién ganó X" busca, lee unos pocos resultados y contesta en una frase, diciendo de dónde lo sacó.
+  - Nova decide sola cuándo buscar: si es algo que ya sabe o que está en sus datos (agenda, fútbol, noticias), no busca; si es algo actual o que no sabe, busca.
+- Sincronización con Google Calendar, en los dos sentidos: lo que agendo en Nova aparece en Calendar y lo que agendo en Calendar aparece en Nova. Con el permiso de Google (OAuth) guardado en el llavero.
+- Extras a elegir: controlar la música, temporizadores, portapapeles, ventanas, horas ambiguas.
 
-**Terminado cuando:** por voz abro un video de YouTube y Visual Studio Code, cambio una palabra de un archivo confirmándolo y lo deshago, y Nova no toca nada fuera de las carpetas permitidas.
+**Terminado cuando:** por voz abro un video de YouTube y Visual Studio Code, le pregunto algo que no sabe y me contesta buscando en internet, un evento creado en Nova aparece en Google Calendar (y uno creado en Calendar aparece en Nova), cambio una palabra de un archivo confirmándolo y lo deshago, y Nova no toca nada fuera de las carpetas permitidas.
 
 ## v0.8 — Instalable y de todos los días
 **Objetivo:** que Nova se instale y aguante el uso diario sin abrir la terminal.
@@ -126,17 +131,26 @@ Cada versión termina en algo que **funciona y se puede usar**. No se pasa a la 
 
 **Terminado cuando:** instalo Nova, reinicio Windows, arranca sola, "Oye Nova" la abre, me llega un aviso que dice "Nova" y la uso una semana sin abrir la terminal.
 
-## v1.0 — Pulido
-**Objetivo:** que se sienta un producto terminado.
+## v1.0 — Pulido y conexiones
+**Objetivo:** que se sienta un producto terminado y que Nova esté conectada a mis cosas.
 - Definir la estética final (partiendo de "Atmósfera"): microanimaciones y sonidos sutiles.
 - README con capturas y GIFs para mostrarlo.
-- (Si hay tiempo) Sincronización con Google Calendar.
+- Conexiones (evaluar MCP, Model Context Protocol, como forma común de conectarlas en vez de programar cada una a mano; cualquier acción que mande o cambie algo afuera, siempre con confirmación):
+  - **Celular:** hablarle a Nova desde el teléfono (agendar, preguntar, "¿qué tengo hoy?") y que los avisos lleguen también ahí. Cómo (un bot de Telegram, una app web o algo propio) se decide al empezar la versión.
+  - **Gmail:** "¿me llegó algo de la facu?", los mails importantes en el resumen del día, mandar un mail.
+  - **Spotify:** "poné algo para estudiar", "¿qué está sonando?", pasar de tema, elegir playlists.
+  - **Google Drive:** buscar y abrir mis apuntes y documentos ("abrí el resumen de Análisis").
+  - **GitHub:** cómo vienen mis repos, avisos de issues y pull requests.
+  - **Discord:** avisos de mis servidores y mensajes directos.
+  - **WhatsApp (opcional):** no tiene API oficial para cuentas personales; entra solo si aparece una forma segura de hacerlo.
 - (A evaluar) Actualizaciones automáticas.
+
+**Terminado cuando:** desde el celular le pido algo a Nova y lo hace, me resume los mails del día, pone música en Spotify, encuentra un apunte en Drive y me avisa de algo de GitHub o Discord.
 
 ## Ideas para después de v1.0
 - Widgets reordenables y redimensionables.
 - Memoria a largo plazo del asistente (recordar preferencias y datos que le cuento).
-- Más herramientas: Spotify a fondo, modo foco con temporizador.
+- Más herramientas: modo foco con temporizador.
 - Sistema de plugins para agregar widgets y herramientas nuevas.
 - Versión para compartir con otras personas.
 

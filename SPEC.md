@@ -77,7 +77,7 @@ Costo objetivo: **$0**. Todo lo pago se reemplaza por algo local o por un plan g
 - Muestra hoy y los próximos días con los eventos.
 - Tipos de evento: `clase`, `examen`, `entrega`, `cumpleaños`, `partido`, `otro`. Cada uno con su color o ícono.
 - Crear, editar y borrar eventos desde el widget o por voz.
-- v1: calendario **local** (SQLite). Más adelante: sincronización con Google Calendar.
+- v1: calendario **local** (SQLite). En v0.7: sincronización con Google Calendar en los dos sentidos.
 
 ### 4.2 Responsabilidades
 Lista de cosas que tengo que **hacer**, distinta del calendario (que dice lo que **pasa**).
@@ -314,4 +314,4 @@ Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, AP
 - Mobile.
 - Hardware externo.
 - Widgets reordenables (mejora futura).
-- Sincronización con Google Calendar (después de v1.0 o en v1.0 si hay tiempo).
+- Sincronización con Google Calendar (v0.7).
