@@ -5,6 +5,7 @@ mod atajos;
 mod bandeja;
 mod clima;
 mod comandos;
+mod compu;
 mod db;
 mod dominio;
 mod error;
@@ -27,6 +28,8 @@ use crate::repos::{Ahora, automaticas, preferencias};
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // Elegir carpetas permitidas en Ajustes (v0.7.1).
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             ventana::ocultar_panel,
             comandos::listar_materias,
@@ -53,6 +56,9 @@ pub fn run() {
             comandos::guardar_ajustes_ia,
             comandos::guardar_api_key,
             comandos::probar_conexion,
+            comandos::obtener_ajustes_compu,
+            comandos::guardar_ajustes_compu,
+            comandos::guardar_key_youtube,
             comandos::obtener_futbol,
             comandos::buscar_jugadores,
             comandos::obtener_jugadores,
@@ -102,7 +108,10 @@ pub fn run() {
                 preferencias::atajo(&conexion).unwrap_or_else(|_| preferencias::ATAJO_POR_DEFECTO.into())
             }; // acá se suelta el candado de la conexión
             app.manage(db);
-            app.manage(Asistente::default());
+            // Las copias para deshacer cambios de archivos, en la carpeta local
+            // de la app (nunca en el repo ni junto a tus archivos).
+            let copias = app.path().app_local_data_dir()?.join("deshacer");
+            app.manage(Asistente::new(compu::Compu::real(copias)));
             app.manage(fondo::Fondo::default());
             fondo::arrancar(app.handle());
             // Los programas y modelos de voz van en la carpeta local (no la

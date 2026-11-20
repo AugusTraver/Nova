@@ -14,6 +14,8 @@ use super::mensajes::Mensaje;
 use super::prompt::{self, Contexto, DIAS_DE_AGENDA};
 use super::proveedor::ProveedorIa;
 use super::seleccion;
+use crate::compu::archivos::VistaCambio;
+use crate::compu::{self, Compu};
 use crate::db::Db;
 use crate::dominio::lenguaje::sin_repetir;
 use crate::dominio::texto::EstadoResponsabilidad;
@@ -28,14 +30,28 @@ const HORAS_DE_HISTORIAL: i64 = 2;
 const LARGO_MAXIMO: usize = 2000;
 
 /// Estado del asistente entre turnos (Tauri lo guarda con `app.manage`).
-#[derive(Default)]
 pub struct Asistente {
     /// Un borrado esperando el "sí". `Mutex` porque lo pueden tocar dos
     /// comandos a la vez.
     pendiente: Mutex<Option<AccionPendiente>>,
+    /// Lo que hace cosas en la compu (v0.7.1).
+    pub compu: Compu,
+}
+
+/// En los tests, una compu que solo anota lo que le piden.
+#[cfg(test)]
+impl Default for Asistente {
+    fn default() -> Self {
+        let (compu, _) = Compu::de_prueba(Vec::new(), std::env::temp_dir().join("nova-copias-de-prueba"));
+        Asistente::new(compu)
+    }
 }
 
 impl Asistente {
+    pub fn new(compu: Compu) -> Self {
+        Asistente { pendiente: Mutex::default(), compu }
+    }
+
     fn tomar_pendiente(&self) -> Option<AccionPendiente> {
         self.pendiente.lock().unwrap_or_else(|e| e.into_inner()).take()
     }
@@ -71,6 +87,8 @@ pub struct Turno {
     pub respuesta: String,
     /// Si quedó un borrado esperando el "sí": la pregunta para los botones.
     pub confirmacion: Option<String>,
+    /// Si lo que espera el "sí" es un cambio de archivo: su antes y después.
+    pub cambio: Option<VistaCambio>,
 }
 
 fn guardar(db: &Db, mensaje: &Mensaje, ahora: &Ahora) -> Resultado<()> {
@@ -115,15 +133,21 @@ pub fn resolver_pendiente(db: &Db, estado: &Asistente, aceptar: bool, avisos: &d
     let Some(accion) = estado.tomar_pendiente() else {
         return invalido("No hay nada esperando confirmación.");
     };
-    let respuesta = if aceptar {
-        let (texto, cambios) = herramientas::ejecutar_pendiente(&mut db.conexion(), &accion)?;
-        avisos.cambios(&cambios);
-        texto
-    } else {
-        "Dale, no toco nada.".to_string()
+    let respuesta = match (aceptar, &accion) {
+        (false, _) => "Dale, no toco nada.".to_string(),
+        // Un archivo que no se pudo cambiar no es un error del turno: Nova
+        // lo dice ("El archivo cambió desde que te lo mostré…").
+        (true, AccionPendiente::Archivo(cambio)) => {
+            compu::herramientas::aplicar(&estado.compu, db, cambio, ahora).unwrap_or_else(|motivo| motivo)
+        }
+        (true, _) => {
+            let (texto, cambios) = herramientas::ejecutar_pendiente(&mut db.conexion(), &accion)?;
+            avisos.cambios(&cambios);
+            texto
+        }
     };
     guardar(db, &Mensaje::Asistente { texto: respuesta.clone(), llamadas: vec![] }, ahora)?;
-    Ok(Turno { respuesta, confirmacion: None })
+    Ok(Turno { respuesta, confirmacion: None, cambio: None })
 }
 
 /// Un turno completo a partir de lo que escribió el usuario (los tests lo
@@ -174,6 +198,7 @@ pub async fn responder_con<P: ProveedorIa>(
 
     avisos.progreso(Progreso::Pensando);
     let (contexto, historial) = preparar(db, ahora)?;
+    let ajustes_compu = preferencias::compu(&db.conexion())?;
     let usuario = Mensaje::Usuario(texto.to_string());
     guardar(db, &usuario, ahora)?;
 
@@ -182,20 +207,30 @@ pub async fn responder_con<P: ProveedorIa>(
     if por_voz {
         sistema.push_str(prompt::POR_VOZ);
     }
+    let anterior = historial.iter().rev().find_map(|m| match m {
+        Mensaje::Usuario(t) => Some(t.as_str()),
+        _ => None,
+    });
+    let elegidas = seleccion::para_el_pedido(texto, anterior);
+    let mut definiciones = herramientas::definiciones_de(elegidas.as_deref());
+    // Las de la compu, solo si el tema las pide y el interruptor está prendido.
+    let de_la_compu: Vec<&str> =
+        elegidas.iter().flatten().copied().filter(|n| compu::herramientas::es_de_la_compu(n)).collect();
+    if !de_la_compu.is_empty() && ajustes_compu.activa {
+        if let Some(lista) = definiciones.as_array_mut() {
+            lista.extend(compu::herramientas::definiciones(&de_la_compu, &ajustes_compu));
+        }
+        sistema.push_str(prompt::COMPU);
+    }
+
     conversacion.push(Mensaje::Sistema(sistema));
     conversacion.extend(historial.iter().cloned());
     if let Some(aviso) = descartada {
         conversacion.push(Mensaje::Sistema(aviso));
     }
     conversacion.push(usuario);
-
-    let anterior = historial.iter().rev().find_map(|m| match m {
-        Mensaje::Usuario(t) => Some(t.as_str()),
-        _ => None,
-    });
-    let elegidas = seleccion::para_el_pedido(texto, anterior);
-    let definiciones = herramientas::definiciones_de(elegidas.as_deref());
     let mut confirmacion = None;
+    let mut cambio = None;
 
     for _ in 0..MAXIMO_VUELTAS {
         let respuesta = proveedor.completar(&conversacion, &definiciones).await?;
@@ -203,7 +238,7 @@ pub async fn responder_con<P: ProveedorIa>(
         if respuesta.llamadas.is_empty() {
             let texto = if respuesta.texto.is_empty() { "Listo.".to_string() } else { sin_repetir(&respuesta.texto) };
             guardar(db, &Mensaje::Asistente { texto: texto.clone(), llamadas: vec![] }, ahora)?;
-            return Ok(Turno { respuesta: texto, confirmacion });
+            return Ok(Turno { respuesta: texto, confirmacion, cambio });
         }
 
         let paso = Mensaje::Asistente { texto: respuesta.texto, llamadas: respuesta.llamadas.clone() };
@@ -212,13 +247,18 @@ pub async fn responder_con<P: ProveedorIa>(
 
         for llamada in respuesta.llamadas {
             avisos.progreso(Progreso::Herramienta { nombre: llamada.nombre.clone() });
-            // El candado se suelta al terminar esta línea (antes del próximo await).
-            let salida = herramientas::ejecutar(&mut db.conexion(), &llamada.nombre, &llamada.argumentos, ahora);
+            let salida = if compu::herramientas::es_de_la_compu(&llamada.nombre) {
+                compu::herramientas::ejecutar(&estado.compu, db, &llamada.nombre, &llamada.argumentos, ahora).await
+            } else {
+                // El candado se suelta al terminar esta línea (antes del próximo await).
+                herramientas::ejecutar(&mut db.conexion(), &llamada.nombre, &llamada.argumentos, ahora)
+            };
             if !salida.cambios.is_empty() {
                 avisos.cambios(&salida.cambios);
             }
             if let Some(accion) = salida.pendiente {
                 confirmacion = Some(accion.pregunta().to_string());
+                cambio = accion.vista().cloned();
                 estado.dejar_pendiente(accion);
             }
             let resultado = Mensaje::Herramienta {
@@ -234,7 +274,7 @@ pub async fn responder_con<P: ProveedorIa>(
 
     let texto = "Me enredé un poco. ¿Me lo decís más simple?".to_string();
     guardar(db, &Mensaje::Asistente { texto: texto.clone(), llamadas: vec![] }, ahora)?;
-    Ok(Turno { respuesta: texto, confirmacion })
+    Ok(Turno { respuesta: texto, confirmacion, cambio })
 }
 
 #[cfg(test)]

@@ -39,29 +39,51 @@ pub enum Fuente {
 #[derive(Debug, Clone, PartialEq)]
 pub enum AccionPendiente {
     BorrarEvento { id: i64, titulo: String, pregunta: String },
+    /// Cambiar, crear, borrar o deshacer un archivo (v0.7.1). Va en una
+    /// `Box` (en el montón) porque es mucho más grande que la otra variante.
+    Archivo(Box<crate::compu::archivos::Cambio>),
 }
 
 impl AccionPendiente {
     pub fn pregunta(&self) -> &str {
         match self {
             AccionPendiente::BorrarEvento { pregunta, .. } => pregunta,
+            AccionPendiente::Archivo(cambio) => &cambio.pregunta,
+        }
+    }
+
+    /// El antes y después, si es un cambio de archivo (para la pantalla).
+    pub fn vista(&self) -> Option<&crate::compu::archivos::VistaCambio> {
+        match self {
+            AccionPendiente::Archivo(cambio) => Some(&cambio.vista),
+            AccionPendiente::BorrarEvento { .. } => None,
         }
     }
 
     /// ¿El mensaje responde a esta pregunta? `Some(true)` = sí (un "sí" o
     /// volver a pedir borrar lo mismo), `Some(false)` = no, `None` = otra cosa.
     pub fn respuesta(&self, texto: &str) -> Option<bool> {
-        let AccionPendiente::BorrarEvento { titulo, .. } = self;
-        interpretar_confirmacion(texto).or_else(|| vuelve_a_pedir_borrar(texto, titulo).then_some(true))
+        match self {
+            AccionPendiente::BorrarEvento { titulo, .. } => {
+                interpretar_confirmacion(texto).or_else(|| vuelve_a_pedir_borrar(texto, titulo).then_some(true))
+            }
+            AccionPendiente::Archivo(_) => interpretar_confirmacion(texto),
+        }
     }
 
     /// Para avisarle al modelo que la pregunta se descartó.
     pub fn descartada(&self) -> String {
-        let AccionPendiente::BorrarEvento { titulo, .. } = self;
-        format!(
-            "Aviso: el borrado de «{titulo}» que esperaba confirmación quedó cancelado porque el usuario dijo otra cosa. \
-             NO está borrado. No digas que lo borraste; si lo quiere borrar, llamá de nuevo a borrar_evento."
-        )
+        match self {
+            AccionPendiente::BorrarEvento { titulo, .. } => format!(
+                "Aviso: el borrado de «{titulo}» que esperaba confirmación quedó cancelado porque el usuario dijo otra cosa. \
+                 NO está borrado. No digas que lo borraste; si lo quiere borrar, llamá de nuevo a borrar_evento."
+            ),
+            AccionPendiente::Archivo(cambio) => format!(
+                "Aviso: el cambio en «{}» que esperaba confirmación quedó cancelado porque el usuario dijo otra cosa. \
+                 NO está hecho. No digas que lo hiciste; si lo quiere, llamá de nuevo a la herramienta.",
+                cambio.vista.archivo
+            ),
+        }
     }
 }
 
@@ -205,19 +227,23 @@ pub fn definiciones() -> Value {
     Value::Array(
         herramientas
             .into_iter()
-            .map(|(nombre, descripcion, mut propiedades, requeridos)| {
-                aceptar_null(&mut propiedades, &requeridos);
-                json!({
-                    "type": "function",
-                    "function": {
-                        "name": nombre,
-                        "description": descripcion,
-                        "parameters": { "type": "object", "properties": propiedades, "required": requeridos }
-                    }
-                })
-            })
+            .map(|(nombre, descripcion, propiedades, requeridos)| funcion(nombre, descripcion, propiedades, &requeridos))
             .collect(),
     )
+}
+
+/// Una definición en el formato de "function calling" (también la usan las
+/// herramientas de la compu).
+pub(crate) fn funcion(nombre: &str, descripcion: &str, mut propiedades: Value, requeridos: &[&str]) -> Value {
+    aceptar_null(&mut propiedades, requeridos);
+    json!({
+        "type": "function",
+        "function": {
+            "name": nombre,
+            "description": descripcion,
+            "parameters": { "type": "object", "properties": propiedades, "required": requeridos }
+        }
+    })
 }
 
 /// Los modelos a veces mandan `null` en un campo opcional ("materia": null).
@@ -662,6 +688,8 @@ pub fn ejecutar_pendiente(conexion: &mut Connection, accion: &AccionPendiente) -
             eventos::borrar(conexion, *id)?;
             Ok((format!("Listo, borré «{}».", evento.titulo), vec![Fuente::Agenda, Fuente::Responsabilidades]))
         }
+        // Los de archivos los hace `compu::herramientas::aplicar` (ver ciclo.rs).
+        AccionPendiente::Archivo(_) => Err(Error::Sistema("Ese cambio lo hace la compu.".into())),
     }
 }
 

@@ -13,6 +13,7 @@ use crate::asistente::herramientas::Fuente;
 use crate::asistente::mensajes::{Mensaje, RespuestaModelo};
 use crate::asistente::openai::ClienteCompatible;
 use crate::asistente::proveedor::{AjustesIa, ProveedorIa, TipoProveedor};
+use crate::compu::{self, AjustesCompu};
 use crate::clima::{AjustesClima, CiudadEncontrada, ClienteClima, VistaClima};
 use crate::db::Db;
 use crate::noticias::{self, AjustesNoticias, Noticia};
@@ -279,6 +280,56 @@ pub fn guardar_api_key(key: String) -> Resultado<bool> {
         return invalido("Esa key no parece válida.");
     }
     llavero::guardar(cuenta, key)?;
+    Ok(true)
+}
+
+// ---------- Compu (v0.7.1) ----------
+
+/// Lo que ve Ajustes: el interruptor, las carpetas, las páginas y si hay una
+/// key de YouTube guardada (nunca la key).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VistaAjustesCompu {
+    pub ajustes: AjustesCompu,
+    pub tiene_key_youtube: bool,
+    /// Para el botón "volver a las de siempre".
+    pub carpetas_por_defecto: Vec<String>,
+}
+
+fn vista_compu(ajustes: AjustesCompu) -> Resultado<VistaAjustesCompu> {
+    Ok(VistaAjustesCompu {
+        ajustes,
+        tiene_key_youtube: llavero::leer(compu::youtube::CUENTA_LLAVERO)?.is_some(),
+        carpetas_por_defecto: AjustesCompu::por_defecto().carpetas,
+    })
+}
+
+#[tauri::command]
+pub fn obtener_ajustes_compu(db: State<'_, Db>) -> Resultado<VistaAjustesCompu> {
+    vista_compu(preferencias::compu(&db.conexion())?)
+}
+
+/// Las carpetas se validan acá (no en la interfaz): tienen que existir y no
+/// pueden ser del sistema.
+#[tauri::command]
+pub fn guardar_ajustes_compu(db: State<'_, Db>, ajustes: AjustesCompu) -> Resultado<VistaAjustesCompu> {
+    let ajustes = ajustes.validar(&compu::sistema::carpetas_del_sistema()).map_err(Error::Validacion)?;
+    preferencias::guardar(&db.conexion(), preferencias::COMPU, &ajustes)?;
+    vista_compu(ajustes)
+}
+
+/// La key de la API de YouTube, al llavero. Vacía = borrarla.
+#[tauri::command]
+pub fn guardar_key_youtube(key: String) -> Resultado<bool> {
+    let key = key.trim();
+    if key.is_empty() {
+        llavero::borrar(compu::youtube::CUENTA_LLAVERO)?;
+        return Ok(false);
+    }
+    if key.len() > 100 || !key.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return invalido("Esa key no parece de Google.");
+    }
+    llavero::guardar(compu::youtube::CUENTA_LLAVERO, key)?;
     Ok(true)
 }
 
@@ -856,8 +907,8 @@ mod tests {
         assert_eq!(claves(&serde_json::to_value(&fisica).unwrap()), ["color", "id", "nombre"]);
 
         // Asistente (src/lib/tipos.ts: Turno, Progreso, Fuente, VistaAjustesIa).
-        let turno = Turno { respuesta: "Listo.".into(), confirmacion: Some("¿Borro?".into()) };
-        assert_eq!(claves(&serde_json::to_value(&turno).unwrap()), ["confirmacion", "respuesta"]);
+        let turno = Turno { respuesta: "Listo.".into(), confirmacion: Some("¿Borro?".into()), cambio: None };
+        assert_eq!(claves(&serde_json::to_value(&turno).unwrap()), ["cambio", "confirmacion", "respuesta"]);
         assert_eq!(serde_json::to_value(Progreso::Pensando).unwrap(), json!({ "tipo": "pensando" }));
         assert_eq!(
             serde_json::to_value(Progreso::Herramienta { nombre: "crear_evento".into() }).unwrap(),
@@ -889,6 +940,35 @@ mod tests {
 
         let error =serde_json::to_value(Error::Validacion("Ponele un título.".into())).unwrap();
         assert_eq!(error, json!({ "tipo": "validacion", "mensaje": "Ponele un título." }));
+    }
+
+    /// Compu (src/lib/tipos.ts: VistaCambio, LineaCambio, AjustesCompu, VistaAjustesCompu).
+    #[test]
+    fn contrato_de_la_compu() {
+        use crate::compu::archivos::VistaCambio;
+        use crate::dominio::compu::antes_y_despues;
+        let ayd = antes_y_despues("el martes
+", "el jueves
+");
+        let vista = VistaCambio { archivo: "notas.txt".into(), carpeta: "Documentos".into(), accion: "cambiar", lineas: ayd.lineas, mas: 0, nota: None };
+        let v = serde_json::to_value(&vista).unwrap();
+        assert_eq!(claves(&v), ["accion", "archivo", "carpeta", "lineas", "mas", "nota"]);
+        assert_eq!(v["lineas"][0], json!({ "tipo": "sale", "inicio": "el ", "marca": "martes", "fin": "" }));
+        let turno = serde_json::to_value(Turno { respuesta: "¿Cambio?".into(), confirmacion: None, cambio: Some(vista) }).unwrap();
+        assert_eq!(turno["cambio"]["accion"], "cambiar");
+
+        let ajustes = AjustesCompu {
+            activa: true,
+            carpetas: vec![r"C:\Docs".into()],
+            paginas: vec![compu::PaginaGuardada { nombre: "Facu".into(), direccion: "https://x.com/".into() }],
+        };
+        let v = serde_json::to_value(VistaAjustesCompu { ajustes, tiene_key_youtube: false, carpetas_por_defecto: vec![] }).unwrap();
+        assert_eq!(claves(&v), ["ajustes", "carpetasPorDefecto", "tieneKeyYoutube"]);
+        assert_eq!(claves(&v["ajustes"]), ["activa", "carpetas", "paginas"]);
+        assert_eq!(claves(&v["ajustes"]["paginas"][0]), ["direccion", "nombre"]);
+        // Lo que manda la interfaz (sin campos: los de por defecto).
+        let leido: AjustesCompu = serde_json::from_value(json!({ "activa": false })).unwrap();
+        assert!(!leido.activa);
     }
 
     #[test]
