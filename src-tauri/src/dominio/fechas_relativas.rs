@@ -232,6 +232,31 @@ pub fn resolver_hora_fin(texto: &str, inicio: NaiveTime) -> Result<(NaiveTime, b
     Ok((literal.min(con_regla), true))
 }
 
+/// El modelo a veces pasa "de 6 a 7" a "06:00" y "07:00", y con el cero
+/// adelante la hora cuenta como dicha en 24 horas: el evento quedaba a la
+/// mañana. Si el usuario no la dijo con el cero ni aclaró que era a la
+/// mañana, se le saca el cero para que valga la regla de la tarde (v0.7.1).
+pub fn hora_como_la_dijo(hora: &str, pedido: &str) -> String {
+    let h = hora.trim();
+    let bytes = h.as_bytes();
+    let con_cero = bytes.len() == 5
+        && bytes[0] == b'0'
+        && (b'1'..=b'7').contains(&bytes[1])
+        && (bytes[2] == b':' || bytes[2] == b'.')
+        && bytes[3..].iter().all(u8::is_ascii_digit);
+    if !con_cero {
+        return h.to_string();
+    }
+    let p = normalizar(pedido);
+    let aclaro_manana = ["de la manana", "a la manana", "por la manana", "en la manana", "madrugada", " am", "a.m", "temprano"]
+        .iter()
+        .any(|m| p.contains(m));
+    if aclaro_manana || p.contains(&h[..2]) {
+        return h.to_string();
+    }
+    h[1..].to_string()
+}
+
 /// `regla_tarde`: si de 1 a 7 sin aclarar se lee como de la tarde.
 fn resolver_hora_con(texto: &str, regla_tarde: bool) -> Result<NaiveTime, String> {
     let original = texto.trim();
@@ -339,6 +364,28 @@ pub fn combinar(fecha: NaiveDate, hora: NaiveTime, huso: FixedOffset) -> DateTim
     huso.from_local_datetime(&fecha.and_time(hora))
         .single()
         .unwrap_or_else(|| huso.from_utc_datetime(&fecha.and_time(hora)))
+}
+
+#[cfg(test)]
+mod tests_hora_como_la_dijo {
+    use super::*;
+
+    #[test]
+    fn saca_el_cero_que_puso_el_modelo() {
+        assert_eq!(hora_como_la_dijo("06:00", "agendame fútbol de 6 a 7"), "6:00");
+        assert_eq!(resolver_hora(&hora_como_la_dijo("06:00", "de 6 a 7")).unwrap(), NaiveTime::from_hms_opt(18, 0, 0).unwrap());
+        assert_eq!(hora_como_la_dijo("07:30", "mañana a las 7 y media"), "7:30");
+    }
+
+    #[test]
+    fn respeta_lo_que_aclaraste() {
+        assert_eq!(hora_como_la_dijo("06:00", "a las 6 de la mañana"), "06:00");
+        assert_eq!(hora_como_la_dijo("06:00", "a las 06:00"), "06:00");
+        assert_eq!(hora_como_la_dijo("05:00", "salgo a correr a las 5 am"), "05:00");
+        assert_eq!(hora_como_la_dijo("18:00", "a las 6"), "18:00");
+        assert_eq!(hora_como_la_dijo("09:00", "a las 9"), "09:00");
+        assert_eq!(hora_como_la_dijo("6", "a las 6"), "6");
+    }
 }
 
 #[cfg(test)]

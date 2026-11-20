@@ -250,8 +250,9 @@ pub async fn responder_con<P: ProveedorIa>(
             let salida = if compu::herramientas::es_de_la_compu(&llamada.nombre) {
                 compu::herramientas::ejecutar(&estado.compu, db, &llamada.nombre, &llamada.argumentos, ahora).await
             } else {
+                let argumentos = herramientas::con_horas_del_pedido(&llamada.nombre, &llamada.argumentos, texto);
                 // El candado se suelta al terminar esta línea (antes del próximo await).
-                herramientas::ejecutar(&mut db.conexion(), &llamada.nombre, &llamada.argumentos, ahora)
+                herramientas::ejecutar(&mut db.conexion(), &llamada.nombre, &argumentos, ahora)
             };
             if !salida.cambios.is_empty() {
                 avisos.cambios(&salida.cambios);
