@@ -28,7 +28,7 @@
 - Los modelos de Whisper y Piper se descargan en una carpeta de datos de la app, no dentro del repo.
 
 ## Estado actual
-- Versión en curso: **v0.7** (por empezar: Nova usa la compu). Después: v0.8 (instalable y de todos los días)
+- Versión en curso: **v0.7.1** (por empezar: Nova usa la compu). Después: v0.7.2 (Google Calendar), v0.7.3 (buscar información en internet) y v0.8 (instalable y de todos los días)
 - Completadas: v0.1 (esqueleto y panel), v0.1.1 (rediseño "Atmósfera" y escucha sin botón), v0.2 (datos reales locales), v0.3 (asistente por texto con Groq u Ollama), v0.4 (fútbol, noticias, resumen del día y clima), v0.5 (voz local con Whisper y Piper), v0.6 (palabra clave "Oye Nova" y avisos), v0.6.1 (gastar menos tokens de Groq)
 - Notas:
   - Dirección visual aprobada: **"Atmósfera"**. Cielo translúcido que cambia según la hora (`src/theme/cielo.ts` + bloques `data-cielo` en `tokens.css`), esfera de luz en el centro y widgets sin tarjetas que la orbitan (`src/app/Orbita.tsx`). Tipografías Fraunces + Instrument Sans. Nada de etiquetas en mayúsculas ni monoespaciadas. Los widgets nuevos tienen que seguir esta estética.

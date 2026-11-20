@@ -105,20 +105,35 @@ Cada versión termina en algo que **funciona y se puede usar**. No se pasa a la 
 
 **Terminado cuando:** un pedido típico gasta bastante menos que antes, medido con Groq de verdad, y los errores "armó mal un pedido" dejan de aparecer.
 
-## v0.7 — Nova usa la compu
-**Objetivo:** que Nova haga cosas en la compu cuando se lo pido.
-- Abrir páginas y videos de YouTube.
+## v0.7.1 — Nova usa la compu
+**Objetivo:** que Nova haga cosas en la compu cuando se lo pido: abrir programas, páginas, videos y archivos.
+- Abrir páginas en el navegador: una dirección ("abrí la página de la facultad") o una pestaña con una búsqueda de Google ("buscame en Google recetas de pizza").
+- YouTube: abrir un video ("poneme el primer video que sale cuando buscás Riquelme", "un video de lo-fi").
 - Abrir programas instalados (Visual Studio Code, Spotify, la calculadora).
 - Abrir carpetas, leer archivos y modificarlos con confirmación, mostrando el antes y después, con opción de deshacer.
 - Solo dentro de las carpetas permitidas en Ajustes, y con un interruptor para apagarlo todo.
-- Buscar en internet con una API de búsqueda aparte, con plan gratis (no la búsqueda incluida de Groq, para no gastar sus tokens):
-  - "buscá X" abre la búsqueda en el navegador;
-  - "fijate quién ganó X" busca, lee unos pocos resultados y contesta en una frase, diciendo de dónde lo sacó.
-  - Nova decide sola cuándo buscar: si es algo que ya sabe o que está en sus datos (agenda, fútbol, noticias), no busca; si es algo actual o que no sabe, busca.
-- Sincronización con Google Calendar, en los dos sentidos: lo que agendo en Nova aparece en Calendar y lo que agendo en Calendar aparece en Nova. Con el permiso de Google (OAuth) guardado en el llavero.
 - Extras a elegir: controlar la música, temporizadores, portapapeles, ventanas, horas ambiguas.
 
-**Terminado cuando:** por voz abro un video de YouTube y Visual Studio Code, le pregunto algo que no sabe y me contesta buscando en internet, un evento creado en Nova aparece en Google Calendar (y uno creado en Calendar aparece en Nova), cambio una palabra de un archivo confirmándolo y lo deshago, y Nova no toca nada fuera de las carpetas permitidas.
+Acá Nova solo **abre** cosas: no lee la página ni contesta con lo que dice. Eso es v0.7.3.
+
+**Terminado cuando:** por voz abro el primer video de YouTube de una búsqueda, una pestaña de Google con lo que pedí y Visual Studio Code; cambio una palabra de un archivo confirmándolo y lo deshago; Nova no toca nada fuera de las carpetas permitidas, y un pedido típico no gasta más tokens que en v0.6.1.
+
+## v0.7.2 — Google Calendar
+**Objetivo:** que la agenda de Nova y mi Google Calendar sean la misma.
+- Sincronización en los dos sentidos: lo que agendo en Nova (a mano o con el asistente) aparece en Calendar, y lo que agendo en Calendar aparece en Nova. Editar o borrar de un lado se refleja en el otro, sin duplicados.
+- Las responsabilidades automáticas salen de los eventos, vengan de donde vengan.
+- Sin internet, Nova funciona igual con lo local y sincroniza cuando vuelve.
+- El permiso de Google (OAuth) guardado en el llavero.
+
+**Terminado cuando:** un evento creado en Nova aparece en Google Calendar, uno creado en Calendar aparece en Nova con sus responsabilidades automáticas, y editar o borrar de un lado se ve en el otro.
+
+## v0.7.3 — Buscar información en internet
+**Objetivo:** que Nova conteste cosas que no sabe buscándolas, sin abrir el navegador.
+- "Fijate quién ganó anoche River", "¿a qué hora abre tal lugar?": busca con una API de búsqueda aparte, con plan gratis (no la búsqueda incluida de Groq, para no gastar sus tokens), lee unos pocos resultados y contesta en una o dos frases, diciendo de dónde lo sacó.
+- Nova decide sola cuándo buscar: si la respuesta está en sus datos (agenda, fútbol, noticias) o es algo que no cambia, no busca; si es algo actual o que no sabe, busca.
+- Si no encuentra algo confiable o se acaba el plan gratis, lo dice y ofrece abrir la búsqueda en el navegador (lo de v0.7.1).
+
+**Terminado cuando:** le pregunto por voz algo actual que no sabe y me contesta buscando, diciendo de dónde lo sacó, sin pasarse del límite por minuto de Groq.
 
 ## v0.8 — Instalable y de todos los días
 **Objetivo:** que Nova se instale y aguante el uso diario sin abrir la terminal.
