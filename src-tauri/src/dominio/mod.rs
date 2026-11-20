@@ -13,4 +13,5 @@ pub mod refresco;
 pub mod resumen;
 pub mod reglas;
 pub mod superposicion;
+pub mod temporizadores;
 pub mod texto;

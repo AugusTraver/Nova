@@ -10,6 +10,7 @@ pub mod materias;
 pub mod mensajes;
 pub mod preferencias;
 pub mod responsabilidades;
+pub mod temporizadores;
 
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, SecondsFormat};
 

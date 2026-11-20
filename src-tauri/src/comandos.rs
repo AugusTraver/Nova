@@ -6,7 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::asistente::ciclo::{self, Asistente, Avisos, Progreso, Turno};
 use crate::asistente::herramientas::Fuente;
@@ -218,7 +218,11 @@ pub async fn enviar_mensaje(
         return ciclo::responder_con(&SinModelo, &db, &asistente, &texto, por_voz, &avisos, &ahora).await;
     }
     let cliente = cliente_ia(&db)?;
-    ciclo::responder_con(&cliente, &db, &asistente, &texto, por_voz, &avisos, &ahora).await
+    let turno = ciclo::responder_con(&cliente, &db, &asistente, &texto, por_voz, &avisos, &ahora).await;
+    // Si el turno puso un temporizador, la tarea de fondo tiene que
+    // recalcular cuánto dormir (si no, podría avisar hasta un minuto tarde).
+    avisos.app.state::<Fondo>().despertar();
+    turno
 }
 
 /// Los botones "Sí, borralo" / "No" debajo de la esfera.

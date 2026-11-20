@@ -23,6 +23,7 @@ const PASOS: Record<string, string> = {
   borrar_archivo: "Buscando el archivo…",
   deshacer_cambio: "Buscando el último cambio…",
   controlar_musica: "Tocando la música…",
+  poner_temporizador: "Poniendo el temporizador…",
 };
 
 export function textoDelPaso(progreso: Progreso): string {

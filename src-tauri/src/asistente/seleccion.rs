@@ -29,6 +29,8 @@ enum Tema {
     Compu,
     Archivos,
     Musica,
+    /// v0.7.1: "avisame en 10 minutos que…".
+    Temporizador,
 }
 
 impl Tema {
@@ -37,7 +39,7 @@ impl Tema {
     #[cfg(test)]
     const DE_SIEMPRE: [Tema; 6] =
         [Tema::Agenda, Tema::Responsabilidades, Tema::Materias, Tema::Futbol, Tema::Noticias, Tema::Resumen];
-    const TODOS: [Tema; 9] = [
+    const TODOS: [Tema; 10] = [
         Tema::Agenda,
         Tema::Responsabilidades,
         Tema::Materias,
@@ -47,6 +49,7 @@ impl Tema {
         Tema::Compu,
         Tema::Archivos,
         Tema::Musica,
+        Tema::Temporizador,
     ];
 
     fn es_de_la_compu(self) -> bool {
@@ -64,6 +67,7 @@ impl Tema {
             Tema::Compu => &ABRIR,
             Tema::Archivos => &ARCHIVOS,
             Tema::Musica => &MUSICA,
+            Tema::Temporizador => &["poner_temporizador"],
         }
     }
 
@@ -98,6 +102,7 @@ impl Tema {
             Tema::Musica => &[
                 "pausa*", "musica", "tema", "cancion*", "volumen", "silenci*", "mute", "play", "despausa*",
             ],
+            Tema::Temporizador => &["avisame", "avisar*", "temporizador*", "timer", "alarma*", "minuto*", "despertame"],
         }
     }
 
@@ -309,6 +314,14 @@ mod tests {
         assert!(h.contains(&"crear_archivo") && sin_agenda(&h), "{h:?}");
         let h = elegidas("borrá tp-viejo.docx");
         assert!(h.contains(&"borrar_archivo") && !h.contains(&"borrar_evento"), "{h:?}");
+    }
+
+    #[test]
+    fn un_temporizador() {
+        let h = elegidas("avisame en 10 minutos que saque la ropa");
+        assert!(h.contains(&"poner_temporizador"), "{h:?}");
+        assert!(!h.iter().any(|n| crate::compu::herramientas::es_de_la_compu(n)));
+        assert!(elegidas("poneme una alarma a las 7").contains(&"poner_temporizador"));
     }
 
     #[test]

@@ -11,10 +11,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::consultas;
-use crate::dominio::fechas_relativas::{combinar, nombre_dia_con_tilde, nombre_mes, resolver_fecha, resolver_hora, resolver_hora_fin};
+use crate::dominio::fechas_relativas::{hora_como_la_dijo, combinar, nombre_dia_con_tilde, nombre_mes, resolver_fecha, resolver_hora, resolver_hora_fin};
 use crate::dominio::lenguaje::{interpretar_confirmacion, normalizar, vuelve_a_pedir_borrar};
 use crate::dominio::momento::Momento;
 use crate::dominio::superposicion;
+use crate::dominio::temporizadores;
 use crate::dominio::texto::{EstadoResponsabilidad, OrigenResponsabilidad, Prioridad, Recurrencia, TipoEvento};
 use crate::error::Error;
 use crate::repos::eventos::{self, DatosEvento, Evento};
@@ -217,6 +218,16 @@ pub fn definiciones() -> Value {
         ),
         ("consultar_noticias", "Los titulares elegidos para el usuario.", json!({}), vec![]),
         (
+            "poner_temporizador",
+            "Avisa con una notificación en unos minutos o a una hora de hoy ('avisame en 10 minutos que…').",
+            json!({
+                "texto": { "type": "string", "description": "De qué avisar, corto." },
+                "minutos": { "type": "integer" },
+                "hora": { "type": "string", "description": hora }
+            }),
+            vec!["texto"],
+        ),
+        (
             "resumen_del_dia",
             "El resumen de hoy (agenda, pendientes, fútbol, clima y una noticia). Para '¿qué tengo hoy?'.",
             json!({}),
@@ -268,19 +279,47 @@ fn aceptar_null(propiedades: &mut Value, requeridos: &[&str]) {
 /// Solo las definiciones nombradas (`None` = todas). Ver `seleccion`.
 pub fn definiciones_de(nombres: Option<&[&str]>) -> Value {
     let todas = definiciones();
-    let Some(nombres) = nombres else { return todas };
+    let elegida = |n: &str| match nombres {
+        Some(nombres) => nombres.contains(&n),
+        // Sin tema reconocido van las de siempre: el temporizador (v0.7.1)
+        // solo cuando el pedido habla de avisar, así ese caso no gasta más.
+        None => !SOLO_SI_SE_PIDEN.contains(&n),
+    };
     Value::Array(
         todas
             .as_array()
             .into_iter()
             .flatten()
-            .filter(|d| d["function"]["name"].as_str().is_some_and(|n| nombres.contains(&n)))
+            .filter(|d| d["function"]["name"].as_str().is_some_and(elegida))
             .cloned()
             .collect(),
     )
 }
 
+/// Las que no van cuando no se reconoce el tema.
+const SOLO_SI_SE_PIDEN: [&str; 1] = ["poner_temporizador"];
+
 /// Ejecuta una herramienta. Nunca falla: los errores vuelven como texto.
+/// Las horas de `crear_evento` y `editar_evento` como las dijo el usuario
+/// (ver `hora_como_la_dijo`). `pedido` es su mensaje.
+pub fn con_horas_del_pedido(nombre: &str, argumentos: &str, pedido: &str) -> String {
+    if !matches!(nombre, "crear_evento" | "editar_evento") {
+        return argumentos.to_string();
+    }
+    let Ok(mut valor) = serde_json::from_str::<Value>(argumentos) else { return argumentos.to_string() };
+    let mut cambio = false;
+    for campo in ["hora", "hora_fin"] {
+        if let Some(hora) = valor.get(campo).and_then(Value::as_str) {
+            let corregida = hora_como_la_dijo(hora, pedido);
+            if corregida != hora {
+                valor[campo] = json!(corregida);
+                cambio = true;
+            }
+        }
+    }
+    if cambio { valor.to_string() } else { argumentos.to_string() }
+}
+
 pub fn ejecutar(conexion: &mut Connection, nombre: &str, argumentos: &str, ahora: &Ahora) -> Salida {
     let resultado = match nombre {
         "crear_evento" => leer(argumentos).and_then(|a| crear_evento(conexion, a, ahora)),
@@ -296,6 +335,7 @@ pub fn ejecutar(conexion: &mut Connection, nombre: &str, argumentos: &str, ahora
         "consultar_tabla" => consultas::consultar_tabla(conexion, ahora).map(solo_lectura),
         "consultar_jugador" => leer(argumentos).and_then(|a| consultas::consultar_jugador(conexion, a, ahora)).map(solo_lectura),
         "consultar_noticias" => consultas::consultar_noticias(conexion).map(solo_lectura),
+        "poner_temporizador" => leer(argumentos).and_then(|a| poner_temporizador(conexion, a, ahora)),
         "resumen_del_dia" => consultas::resumen_del_dia(conexion, ahora).map(solo_lectura),
         otro => Err(format!("No existe la herramienta «{otro}».")),
     };
@@ -329,6 +369,22 @@ fn texto_error(e: Error) -> String {
 /// Convierte "" en `None` (los modelos a veces mandan campos vacíos).
 fn con_valor(texto: Option<String>) -> Option<String> {
     texto.map(|t| t.trim().to_string()).filter(|t| !t.is_empty())
+}
+
+// ---------- Temporizadores (v0.7.1) ----------
+
+#[derive(Deserialize)]
+struct ArgsTemporizador {
+    texto: String,
+    minutos: Option<i64>,
+    hora: Option<String>,
+}
+
+fn poner_temporizador(conexion: &mut Connection, a: ArgsTemporizador, ahora: &Ahora) -> Paso<Salida> {
+    let texto = temporizadores::validar_texto(&a.texto)?;
+    let vence = temporizadores::cuando(a.minutos, con_valor(a.hora).as_deref(), ahora.momento)?;
+    crate::repos::temporizadores::crear(conexion, &texto, vence, ahora).map_err(texto_error)?;
+    Ok(solo_lectura(json!({ "te_aviso": temporizadores::describir(vence, ahora.momento), "de": texto })))
 }
 
 // ---------- Materias ----------
@@ -1085,7 +1141,7 @@ mod tests {
     }
 
     #[test]
-    fn las_definiciones_tienen_las_catorce_herramientas() {
+    fn las_definiciones_tienen_las_quince_herramientas() {
         let nombres: Vec<String> = definiciones()
             .as_array()
             .unwrap()
@@ -1097,12 +1153,42 @@ mod tests {
             [
                 "crear_evento", "editar_evento", "borrar_evento", "listar_eventos", "crear_responsabilidad",
                 "completar_responsabilidad", "listar_responsabilidades", "crear_materia", "listar_materias",
-                "consultar_partidos", "consultar_tabla", "consultar_jugador", "consultar_noticias", "resumen_del_dia"
+                "consultar_partidos", "consultar_tabla", "consultar_jugador", "consultar_noticias", "poner_temporizador",
+                "resumen_del_dia"
             ]
         );
+        // Sin tema reconocido van las 14 de siempre (no el temporizador): ese
+        // caso no gasta más que en v0.6.1.
+        let de_siempre = definiciones_de(None);
+        assert_eq!(de_siempre.as_array().unwrap().len(), 14);
         // Groq gratis tiene un límite de tokens por minuto: las definiciones
         // van en cada pedido, así que tienen que seguir siendo cortas.
-        assert!(definiciones().to_string().len() < 6500, "{}", definiciones().to_string().len());
+        assert!(de_siempre.to_string().len() < 6500, "{}", de_siempre.to_string().len());
+    }
+
+    /// "De 6 a 7" se agendaba a las 06:00 porque el modelo mandaba "06:00".
+    #[test]
+    fn de_6_a_7_es_a_la_tarde() {
+        let mut base = db::en_memoria();
+        let args = json!({ "titulo": "Fútbol", "tipo": "otro", "fecha": "jueves", "hora": "06:00", "hora_fin": "07:00" }).to_string();
+        let corregidos = con_horas_del_pedido("crear_evento", &args, "agendame fútbol el jueves de 6 a 7");
+        let salida = ejecutar(&mut base, "crear_evento", &corregidos, &ahora());
+        assert!(salida.para_modelo.contains("18:00"), "{}", salida.para_modelo);
+        let evento = &eventos::listar_todos(&base).unwrap()[0];
+        assert!(evento.inicio.contains("T18:00") && evento.fin.as_deref().unwrap_or("").contains("T19:00"), "{evento:?}");
+        // Si dijo "de la mañana", queda a la mañana; y las otras herramientas no se tocan.
+        assert_eq!(con_horas_del_pedido("crear_evento", &args, "de 6 a 7 de la mañana"), args);
+        assert_eq!(con_horas_del_pedido("crear_materia", r#"{"hora":"06:00"}"#, "6"), r#"{"hora":"06:00"}"#);
+    }
+
+    #[test]
+    fn pone_un_temporizador() {
+        let mut base = db::en_memoria();
+        let (v, salida) = correr(&mut base, "poner_temporizador", json!({ "texto": "sacar la ropa", "minutos": 10 }));
+        assert_eq!(v["te_aviso"], "hoy a las 14:10");
+        assert!(salida.cambios.is_empty());
+        let (v, _) = correr(&mut base, "poner_temporizador", json!({ "texto": "x" }));
+        assert!(v["error"].is_string());
     }
 
     #[test]

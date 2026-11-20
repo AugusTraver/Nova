@@ -259,6 +259,11 @@ export function crearApiMemoria(): Api {
       return hecho("abrir_programa", `Abrí ${que} (de prueba).`);
     }
     if (/paus[aá]|siguiente tema|sub[ií] el volumen|baj[aá] el volumen/.test(t)) return hecho("controlar_musica", "Listo (de prueba).");
+    const temporizador = /avisame en (\d+) minutos? (?:que )?(.+)$/.exec(t);
+    if (temporizador) {
+      const [, minutos, que] = temporizador;
+      return hecho("poner_temporizador", `Dale, en ${minutos} minutos te aviso que ${que} (de prueba: en el navegador no avisa).`);
+    }
     return null;
   }
 
