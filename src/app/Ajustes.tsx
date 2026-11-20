@@ -12,11 +12,13 @@ import type {
   Ajustes as TipoAjustes,
   Regla,
   Reglas,
+  VistaAjustesCompu,
   VistaVoz,
 } from "../lib/tipos";
 import { useDatos } from "../store/datos";
 import { AjustesAsistente } from "./AjustesAsistente";
 import { AjustesAvisos } from "./AjustesAvisos";
+import { AjustesCompu } from "./AjustesCompu";
 import { AjustesInternet } from "./AjustesInternet";
 import { AjustesPerfil } from "./AjustesPerfil";
 import { AjustesVoz } from "./AjustesVoz";
@@ -43,6 +45,8 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const [voz, setVoz] = useState<VistaVoz | null>(null);
   const [perfil, setPerfil] = useState<Perfil | null>(null);
   const [avisos, setAvisos] = useState<TipoAjustesAvisos | null>(null);
+  const [compu, setCompu] = useState<VistaAjustesCompu | null>(null);
+  const [keyYoutube, setKeyYoutube] = useState<string | null>(null);
 
   useEffect(() => {
     api.obtenerAjustes().then(setAjustes, (e: unknown) => setError(mensajeDeError(e)));
@@ -53,6 +57,7 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     api.estadoVoz().then(setVoz, fallo);
     api.obtenerPerfil().then(setPerfil, fallo);
     api.obtenerAvisos().then(setAvisos, fallo);
+    api.obtenerAjustesCompu().then(setCompu, fallo);
     api.obtenerAjustesIa().then(
       (vista) => {
         setIa(vista.ajustes);
@@ -107,6 +112,16 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
       if (perfil) await api.guardarPerfil(perfil);
       if (avisos) await api.guardarAvisos(avisos);
       await guardarIa();
+      if (compu) {
+        // Rust resuelve y valida las carpetas: si una no sirve, el error dice cuál.
+        const vista = await api.guardarAjustesCompu(compu.ajustes);
+        setCompu(vista);
+        if (keyYoutube !== null) {
+          const tiene = await api.guardarKeyYoutube(keyYoutube);
+          setCompu({ ...vista, tieneKeyYoutube: tiene });
+          setKeyYoutube(null);
+        }
+      }
       if (jugadores) await api.guardarJugadores(jugadores);
       if (noticias) await api.guardarAjustesNoticias(noticias);
       if (clima) await api.guardarAjustesClima(clima);
@@ -196,6 +211,17 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
           keyNueva={keyNueva}
           alCambiarKey={setKeyNueva}
           guardarIa={guardarIa}
+        />
+      )}
+
+      {compu && (
+        <AjustesCompu
+          ajustes={compu.ajustes}
+          alCambiar={(ajustes) => setCompu({ ...compu, ajustes })}
+          carpetasPorDefecto={compu.carpetasPorDefecto}
+          tieneKeyYoutube={compu.tieneKeyYoutube}
+          keyNueva={keyYoutube}
+          alCambiarKey={setKeyYoutube}
         />
       )}
 
