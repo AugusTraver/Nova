@@ -16,6 +16,7 @@ const MIGRACIONES: &[&str] = &[
     include_str!("../../migraciones/002_mensajes_datos.sql"),
     include_str!("../../migraciones/003_cache_externa.sql"),
     include_str!("../../migraciones/004_avisos.sql"),
+    include_str!("../../migraciones/005_cambios_archivos.sql"),
 ];
 
 pub fn migrar(conexion: &mut Connection) -> Result<(), Error> {
