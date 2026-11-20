@@ -2889,6 +2889,7 @@ dependencies = [
  "tauri-winrt-notification",
  "thiserror 2.0.21",
  "tokio",
+ "url",
  "window-vibrancy",
  "windows-native-keyring-store",
  "windows-sys 0.61.2",
