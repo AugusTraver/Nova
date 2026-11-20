@@ -28,6 +28,8 @@ import type {
   Responsabilidad,
   Turno,
   VistaAjustesIa,
+  AjustesCompu,
+  VistaAjustesCompu,
   VistaClima,
   VistaFutbol,
   VistaVoz,
@@ -68,6 +70,13 @@ export interface Api {
   confirmarAccion(aceptar: boolean, alProgreso: (p: Progreso) => void): Promise<Turno>;
   borrarHistorial(): Promise<void>;
   obtenerAjustesIa(): Promise<VistaAjustesIa>;
+  /** Acceso a la compu (v0.7.1). Rust valida las carpetas. */
+  obtenerAjustesCompu(): Promise<VistaAjustesCompu>;
+  guardarAjustesCompu(ajustes: AjustesCompu): Promise<VistaAjustesCompu>;
+  /** Vacía = borrarla. Devuelve si quedó una guardada. */
+  guardarKeyYoutube(key: string): Promise<boolean>;
+  /** El selector de carpetas de Windows; null si se canceló. */
+  elegirCarpeta(): Promise<string | null>;
   guardarAjustesIa(ajustes: AjustesIa): Promise<VistaAjustesIa>;
   /** Guarda la API key en el llavero ("" la borra). Devuelve si quedó una. */
   guardarApiKey(key: string): Promise<boolean>;
@@ -158,6 +167,14 @@ const apiTauri: Api = {
   confirmarAccion: (aceptar, alProgreso) => invoke("confirmar_accion", { aceptar, progreso: canal(alProgreso) }),
   borrarHistorial: () => invoke("borrar_historial"),
   obtenerAjustesIa: () => invoke("obtener_ajustes_ia"),
+  obtenerAjustesCompu: () => invoke("obtener_ajustes_compu"),
+  guardarAjustesCompu: (ajustes) => invoke("guardar_ajustes_compu", { ajustes }),
+  guardarKeyYoutube: (key) => invoke("guardar_key_youtube", { key }),
+  elegirCarpeta: async () => {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const elegida = await open({ directory: true, multiple: false, title: "Elegí una carpeta para Nova" });
+    return typeof elegida === "string" ? elegida : null;
+  },
   guardarAjustesIa: (ajustes) => invoke("guardar_ajustes_ia", { ajustes }),
   guardarApiKey: (key) => invoke("guardar_api_key", { key }),
   probarConexion: () => invoke("probar_conexion"),

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Esfera } from "../esfera/Esfera";
 import { useAhora } from "../lib/useAhora";
 import { esferaSegun } from "../lib/voz";
+import { useAsistente } from "../store/asistente";
 import { useDatos } from "../store/datos";
 import { useVoz } from "../store/voz";
 import { type Edicion, usePanel } from "../store/panel";
@@ -83,10 +84,14 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
   const edicion = usePanel((s) => s.edicion);
   const editar = usePanel((s) => s.editar);
   const terminarEdicion = usePanel((s) => s.terminarEdicion);
+  // Un cambio de archivo esperando el "sí" (v0.7.1): como al editar, el
+  // resto se apaga, y las noticias (que quedan justo debajo) se esconden
+  // para dejarle lugar al antes y después.
+  const confirmandoArchivo = useAsistente((s) => s.cambio !== null && s.confirmacion !== null);
   /** Props para el envoltorio de cada widget según qué se está editando. */
-  const estado = (propio?: Edicion) => ({
-    apagado: edicion !== null && edicion !== propio,
-    oculto: edicion === "ajustes",
+  const estado = (propio?: Edicion, debajoDeLaEsfera = false) => ({
+    apagado: (edicion !== null && edicion !== propio) || confirmandoArchivo,
+    oculto: edicion === "ajustes" || (confirmandoArchivo && debajoDeLaEsfera),
   });
   const alFrente = (propio: Edicion) => (edicion === propio ? "z-10" : "");
 
@@ -186,7 +191,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
         retraso={0.15}
         vaiven={13}
       >
-        <Atenuable {...estado()}>
+        <Atenuable {...estado(undefined, true)}>
           <Noticias ahora={ahora} />
         </Atenuable>
       </Orbita>

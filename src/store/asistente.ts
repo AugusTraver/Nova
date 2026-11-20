@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { api, mensajeDelAsistente } from "../lib/api";
 import { DURACION_ERROR_MS, textoDelPaso } from "../lib/asistente";
-import type { Progreso, Turno } from "../lib/tipos";
+import type { Progreso, Turno, VistaCambio } from "../lib/tipos";
 import { usePanel } from "./panel";
 
 interface EstadoAsistente {
@@ -13,6 +13,8 @@ interface EstadoAsistente {
   error: string | null;
   /** "¿Borro «X»…?" esperando los botones o un "sí" escrito. */
   confirmacion: string | null;
+  /** Si lo que espera el "sí" es un cambio de archivo: el antes y después. */
+  cambio: VistaCambio | null;
 
   /**
    * Manda un mensaje. Devuelve false si todavía está respondiendo el anterior.
@@ -41,11 +43,11 @@ export const useAsistente = create<EstadoAsistente>()((set, get) => {
 
   async function turno(pedido: string | null, correr: () => Promise<Turno>, porVoz = false) {
     window.clearTimeout(temporizadorError);
-    set({ pedido, paso: "Pensando…", respuesta: null, error: null, confirmacion: null });
+    set({ pedido, paso: "Pensando…", respuesta: null, error: null, confirmacion: null, cambio: null });
     usePanel.getState().ponerEsfera("pensando");
     try {
-      const { respuesta, confirmacion } = await correr();
-      set({ paso: null, respuesta, confirmacion });
+      const { respuesta, confirmacion, cambio } = await correr();
+      set({ paso: null, respuesta, confirmacion, cambio });
       usePanel.getState().ponerEsfera("reposo");
       // Si se lo pediste hablando, contesta hablando (la pregunta de
       // confirmación también: "¿Borro…?" se responde con la voz).
@@ -66,6 +68,7 @@ export const useAsistente = create<EstadoAsistente>()((set, get) => {
     respuesta: null,
     error: null,
     confirmacion: null,
+    cambio: null,
 
     enviar(texto, porVoz = false) {
       const limpio = texto.trim();
@@ -76,7 +79,7 @@ export const useAsistente = create<EstadoAsistente>()((set, get) => {
 
     mostrar(texto) {
       if (get().paso !== null) return;
-      set({ pedido: null, respuesta: texto, error: null, confirmacion: null });
+      set({ pedido: null, respuesta: texto, error: null, confirmacion: null, cambio: null });
     },
 
     confirmar(aceptar) {
@@ -87,13 +90,13 @@ export const useAsistente = create<EstadoAsistente>()((set, get) => {
     limpiar() {
       // Si está respondiendo, se deja terminar (el resultado igual se guarda).
       if (get().paso !== null) return;
-      // Un borrado sin responder se cancela: un "sí" escrito mañana no
+      // Un borrado (o un cambio de archivo) sin responder se cancela: un "sí" escrito mañana no
       // tiene que borrar algo que ya no está a la vista.
       if (get().confirmacion !== null) {
         api.confirmarAccion(false, () => {}).catch((e) => console.error("No se pudo cancelar", e));
       }
       window.clearTimeout(temporizadorError);
-      set({ pedido: null, respuesta: null, error: null, confirmacion: null });
+      set({ pedido: null, respuesta: null, error: null, confirmacion: null, cambio: null });
       usePanel.getState().ponerEsfera("reposo");
     },
   };
