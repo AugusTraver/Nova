@@ -579,4 +579,47 @@ mod tests {
         }
         println!("{total:>6} tokens en total ({} por pedido)", total / pedidos.len() as u64);
     }
+
+    /// Lo mismo con los pedidos de la compu (v0.7.1). La compu es de prueba:
+    /// no abre nada, y el archivo está en una carpeta temporal.
+    /// `cargo test tokens_de_la_compu -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn tokens_de_la_compu() {
+        let db = base_con_analisis();
+        let prueba = crate::compu::archivos::tests::Prueba::nueva("tokens");
+        let ajustes_compu = crate::compu::AjustesCompu {
+            carpetas: prueba.permitidas.iter().map(|c| c.display().to_string()).collect(),
+            ..Default::default()
+        };
+        preferencias::guardar(&db.conexion(), preferencias::COMPU, &ajustes_compu).unwrap();
+        let programas = vec![crate::compu::programas::Programa {
+            nombre: "Visual Studio Code".into(),
+            destino: "Visual Studio Code.lnk".into(),
+        }];
+        let (compu, manos) = Compu::de_prueba(programas, prueba.ruta("copias"));
+        let estado = Asistente::new(compu);
+        let cliente = crate::asistente::proveedor::AjustesIa::default()
+            .cliente(crate::llavero::leer("groq-api-key").unwrap())
+            .unwrap();
+        let avisos = Registro::default();
+        let pedidos = [
+            "buscame en Google recetas de pizza",
+            "abrí Visual Studio Code",
+            "en notas.txt cambiá martes por jueves",
+        ];
+        let mut total = 0;
+        for (i, pedido) in pedidos.iter().enumerate() {
+            if i > 0 {
+                tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+            }
+            let antes = cliente.tokens_usados();
+            let turno = responder(&cliente, &db, &estado, pedido, &avisos, &ahora()).await;
+            let gasto = cliente.tokens_usados() - antes;
+            total += gasto;
+            println!("{gasto:>6} tokens  «{pedido}» → {:?}", turno.map(|t| (t.respuesta, t.cambio.is_some())));
+        }
+        println!("{total:>6} tokens en total ({} por pedido)", total / pedidos.len() as u64);
+        println!("La compu de prueba hizo: {:?}", manos.0.lock().unwrap());
+    }
 }
