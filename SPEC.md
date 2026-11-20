@@ -300,7 +300,7 @@ Reglas:
   - **Música:** `controlar_musica` aprieta las teclas de medios de Windows (`SendInput`): pausar o seguir (es la misma tecla), siguiente, anterior, volumen (5 toques = 10 puntos) y silencio.
   - **Temporizadores:** `poner_temporizador` ("avisame en 10 minutos que…" o "a las 6"), hasta un día. Se guardan en `temporizadores` (migración 6) y la tarea de fondo se despierta justo para cada uno. Avisan con una notificación aunque sea "no molestar" (los pediste vos) y en voz si los avisos van en voz.
   - **Horas ambiguas:** "de 6 a 7" quedaba a las 06:00 porque el modelo mandaba "06:00", y con el cero la hora cuenta como de 24 horas. Si el usuario no la dijo con el cero ni aclaró "de la mañana", se le saca el cero y vale la regla de la tarde (`hora_como_la_dijo`).
-- **Para después:** el portapapeles (mandaría lo copiado a Groq) y manejar ventanas (cerrar programas es riesgoso).
+- **Para después:** el portapapeles (mandaría lo copiado a Groq) y manejar ventanas (cerrar programas es riesgoso). Poner una canción en Spotify va en v1.0 con la API oficial y tu cuenta (pide Premium): abrir `spotify:track:…` en Windows a veces muestra el tema sin reproducirlo.
 
 ## 6. Modelo de datos (SQLite)
 
