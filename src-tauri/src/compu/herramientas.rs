@@ -275,7 +275,9 @@ async fn poner_video(compu: &Compu, a: ArgsVideo) -> Paso<Salida> {
             Ok(hecho(json!({
                 "abierta": "la lista de resultados de YouTube (no un video)",
                 "por_que": motivo.explicacion(),
-                "nota": "Decile que abriste la lista de resultados y por qué."
+                // Si no, el modelo resume "no pude entrar al video" y no se
+                // entiende que falta la key.
+                "decile": format!("Te abrí la lista de resultados de YouTube porque {}.", motivo.explicacion())
             })))
         }
     }
@@ -493,6 +495,10 @@ mod tests {
         let (v, _) = b.correr("poner_video", json!({ "busqueda": "un video de lo-fi" })).await;
         assert_eq!(b.hechas(), ["abrir https://www.youtube.com/results?search_query=lo-fi"]);
         assert!(v["por_que"].as_str().unwrap().contains("key"));
+        assert_eq!(
+            v["decile"],
+            "Te abrí la lista de resultados de YouTube porque no tengo la key de YouTube (se carga en Ajustes)."
+        );
     }
 
     #[tokio::test]
