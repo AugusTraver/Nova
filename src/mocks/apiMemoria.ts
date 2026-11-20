@@ -7,6 +7,9 @@ import { aFecha, aIsoLocal, desdeFecha, sumarDias } from "../lib/fechas";
 import type {
   Ajustes,
   AjustesClima,
+  AjustesCompu,
+  LineaCambio,
+  VistaCambio,
   AjustesIa,
   AjustesNoticias,
   Evento,
@@ -135,16 +138,128 @@ export function crearApiMemoria(): Api {
   };
   /** Evento esperando el "sí" para borrarse. */
   let pendiente: Evento | null = null;
+  /** Un cambio de archivo de prueba esperando el "sí" (v0.7.1). */
+  let archivoPendiente: { vista: VistaCambio; hecho: string; despues: string } | null = null;
+  /** El "notas.txt" de prueba y cómo estaba antes del último cambio. */
+  let notas = "Reunión de grupo el martes\nLlevar los apuntes de Física\nComprar yerba\n";
+  let notasAntes: string | null = null;
+  let ajustesCompu: AjustesCompu = {
+    activa: true,
+    carpetas: [String.raw`C:\Users\vos\Documents`, String.raw`C:\Users\vos\Desktop`, String.raw`C:\Users\vos\Downloads`],
+    paginas: [{ nombre: "Facultad", direccion: "https://www.frba.utn.edu.ar/" }],
+  };
+  let tieneKeyYoutube = false;
 
   function confirmar(aceptar: boolean): Turno {
+    if (archivoPendiente) {
+      const cambio = archivoPendiente;
+      archivoPendiente = null;
+      if (!aceptar) return { respuesta: "Dale, no toco nada.", confirmacion: null, cambio: null };
+      notasAntes = cambio.vista.accion === "deshacer" ? null : notas;
+      notas = cambio.despues;
+      return { respuesta: cambio.hecho, confirmacion: null, cambio: null };
+    }
     const evento = pendiente;
     pendiente = null;
     if (!evento) throw { tipo: "validacion", mensaje: "No hay nada esperando confirmación." };
-    if (!aceptar) return { respuesta: "Dale, no toco nada.", confirmacion: null };
+    if (!aceptar) return { respuesta: "Dale, no toco nada.", confirmacion: null, cambio: null };
     eventos = eventos.filter((e) => e.id !== evento.id);
     responsabilidades = responsabilidades.filter((r) => r.eventoId !== evento.id);
     avisarCambiosLocal(["agenda", "responsabilidades"]);
-    return { respuesta: `Listo, borré «${evento.titulo}».`, confirmacion: null };
+    return { respuesta: `Listo, borré «${evento.titulo}».`, confirmacion: null, cambio: null };
+  }
+
+  /** Un antes y después simple: las líneas que cambian, con una de contexto. */
+  function vistaDePrueba(antes: string, despues: string, accion: VistaCambio["accion"]): VistaCambio {
+    const a = antes.split("\n").filter(Boolean);
+    const d = despues.split("\n").filter(Boolean);
+    const lineas: LineaCambio[] = [];
+    for (let i = 0; i < Math.max(a.length, d.length); i++) {
+      if (a[i] === d[i]) {
+        if (a[i - 1] !== d[i - 1] || a[i + 1] !== d[i + 1]) lineas.push({ tipo: "igual", inicio: a[i], marca: "", fin: "" });
+        continue;
+      }
+      if (a[i] !== undefined && d[i] !== undefined) {
+        let pre = 0;
+        while (pre < a[i].length && a[i][pre] === d[i][pre]) pre++;
+        while (pre > 0 && /\p{L}/u.test(a[i][pre - 1])) pre--;
+        let suf = 0;
+        while (suf < a[i].length - pre && suf < d[i].length - pre && a[i][a[i].length - 1 - suf] === d[i][d[i].length - 1 - suf]) suf++;
+        while (suf > 0 && /\p{L}/u.test(a[i][a[i].length - suf])) suf--;
+        const partir = (l: string) => ({ inicio: l.slice(0, pre), marca: l.slice(pre, l.length - suf), fin: l.slice(l.length - suf) });
+        lineas.push({ tipo: "sale", ...partir(a[i]) }, { tipo: "entra", ...partir(d[i]) });
+      } else if (a[i] !== undefined) {
+        lineas.push({ tipo: "sale", inicio: "", marca: a[i], fin: "" });
+      } else {
+        lineas.push({ tipo: "entra", inicio: "", marca: d[i], fin: "" });
+      }
+    }
+    return { archivo: "notas.txt", carpeta: "Documentos", accion, lineas: lineas.slice(0, 8), mas: Math.max(0, lineas.length - 8), nota: null };
+  }
+
+  /** Lo de la compu en el navegador: no abre nada, solo dice qué haría. */
+  async function compuDePrueba(t: string, alProgreso: (p: Progreso) => void): Promise<Turno | null> {
+    const hecho = async (herramienta: string, respuesta: string): Promise<Turno> => {
+      alProgreso({ tipo: "herramienta", nombre: herramienta });
+      await pausa(500);
+      return { respuesta, confirmacion: null, cambio: null };
+    };
+    const preguntar = async (herramienta: string, despues: string, accion: VistaCambio["accion"], pregunta: string, dicho: string) => {
+      alProgreso({ tipo: "herramienta", nombre: herramienta });
+      await pausa(500);
+      const vista = vistaDePrueba(notas, despues, accion);
+      archivoPendiente = { vista, hecho: dicho, despues };
+      return { respuesta: pregunta, confirmacion: pregunta, cambio: vista };
+    };
+    if (!ajustesCompu.activa && /(abr[ií]|poneme|google|youtube|archivo|\.txt)/.test(t)) {
+      return { respuesta: "El acceso a la compu está apagado en Ajustes.", confirmacion: null, cambio: null };
+    }
+    const cambio = /cambi[aá] (.+?) por (.+?)$/.exec(t);
+    if (cambio && (t.includes(".txt") || t.includes("archivo") || t.includes("notas"))) {
+      const [, buscar, poner] = cambio;
+      if (!notas.includes(buscar)) return { respuesta: `No encontré «${buscar}» en notas.txt.`, confirmacion: null, cambio: null };
+      return preguntar(
+        "cambiar_archivo",
+        notas.split(buscar).join(poner),
+        "cambiar",
+        "¿Cambio notas.txt así?",
+        `Listo, en notas.txt cambié «${buscar}» por «${poner}». Si querés, lo deshago.`,
+      );
+    }
+    if (/agreg[aá]le/.test(t) && t.includes("notas")) {
+      const linea = t.split(/l[ií]nea:?\s*/)[1]?.trim() || "Llamar a la abuela";
+      return preguntar("cambiar_archivo", `${notas}${linea}\n`, "cambiar", "¿Cambio notas.txt así?", "Listo, le agregué la línea a notas.txt.");
+    }
+    if (/deshac[eé]/.test(t)) {
+      if (notasAntes === null) return { respuesta: "No tengo nada para deshacer.", confirmacion: null, cambio: null };
+      return preguntar("deshacer_cambio", notasAntes, "deshacer", "¿Dejo notas.txt como estaba?", "Listo, notas.txt quedó como estaba.");
+    }
+    if (/qu[eé] dice|le[eé]/.test(t) && t.includes("notas")) {
+      return hecho("leer_archivo", `Dice: ${notas.trim().split("\n").join(", ")}.`);
+    }
+    if (t.includes("windows") || t.includes("system32")) {
+      return hecho("leer_archivo", "Eso está fuera de las carpetas que me dejaste usar, así que no lo toco.");
+    }
+    if (t.includes("youtube") || t.includes("video")) {
+      const busqueda = t.split(/busc[aá]s |video de |youtube /).pop()?.trim() || "lo-fi";
+      return hecho(
+        "poner_video",
+        tieneKeyYoutube
+          ? `Te puse el primer video de «${busqueda}» (de prueba).`
+          : `Te abrí la lista de YouTube de «${busqueda}»: no tengo la key de YouTube (se carga en Ajustes).`,
+      );
+    }
+    if (t.includes("google")) {
+      return hecho("buscar_en_google", `Te abrí la búsqueda de Google de «${t.split("google ").pop()?.trim() ?? ""}» (de prueba).`);
+    }
+    if (/^(abr[ií]|abrime)\s/.test(t)) {
+      const que = t.replace(/^(abr[ií]|abrime)\s+(la |el )?/, "");
+      if (que.includes("carpeta") || que.includes("descargas")) return hecho("abrir_archivo", "Te abrí Descargas (de prueba).");
+      if (/p[aá]gina|facultad/.test(que)) return hecho("abrir_pagina", "Te abrí la página de la facultad (de prueba).");
+      return hecho("abrir_programa", `Abrí ${que} (de prueba).`);
+    }
+    if (/paus[aá]|siguiente tema|sub[ií] el volumen|baj[aá] el volumen/.test(t)) return hecho("controlar_musica", "Listo (de prueba).");
+    return null;
   }
 
   /**
@@ -155,13 +270,17 @@ export function crearApiMemoria(): Api {
     alProgreso({ tipo: "pensando" });
     await pausa(900);
     const t = texto.toLowerCase().trim();
-    if (pendiente && /^(s[ií]|dale|ok)/.test(t)) return confirmar(true);
-    if (pendiente && /^no/.test(t)) return confirmar(false);
+    const hayPendiente = pendiente !== null || archivoPendiente !== null;
+    if (hayPendiente && /^(s[ií]|dale|ok)\b/.test(t)) return confirmar(true);
+    if (hayPendiente && /^no\b/.test(t)) return confirmar(false);
     pendiente = null;
+    archivoPendiente = null;
+    const deLaCompu = await compuDePrueba(t, alProgreso);
+    if (deLaCompu) return deLaCompu;
 
     if (t.includes("borr") && eventos.length > 0) {
       pendiente = eventos[eventos.length - 1];
-      return { respuesta: "¿Seguro?", confirmacion: `¿Borro «${pendiente.titulo}»?` };
+      return { respuesta: "¿Seguro?", confirmacion: `¿Borro «${pendiente.titulo}»?`, cambio: null };
     }
     if (t.includes("parcial") || t.includes("examen")) {
       alProgreso({ tipo: "herramienta", nombre: "crear_evento" });
@@ -178,11 +297,13 @@ export function crearApiMemoria(): Api {
       return {
         respuesta: "Listo, parcial de Análisis pasado mañana a las 9. Te anoté «Estudiar para Análisis Matemático II» para mañana.",
         confirmacion: null,
+        cambio: null,
       };
     }
     return {
       respuesta: "Acá en el navegador no tengo modelo: soy una respuesta de prueba. Abrime desde Nova para hablar en serio.",
       confirmacion: null,
+      cambio: null,
     };
   }
 
@@ -296,6 +417,21 @@ export function crearApiMemoria(): Api {
       tieneKey = key.trim() !== "";
       return esperar(tieneKey);
     },
+    obtenerAjustesCompu: () =>
+      esperar({ ajustes: ajustesCompu, tieneKeyYoutube, carpetasPorDefecto: ajustesCompu.carpetas.slice(0, 3) }),
+    guardarAjustesCompu: async (nuevos) => {
+      await pausa(60);
+      // Lo mismo que rechaza Rust (carpeta_prohibida), a grandes rasgos.
+      const mala = nuevos.carpetas.find((c) => /^[a-z]:\\?$|\\windows|program files|appdata/i.test(c.trim()));
+      if (mala) throw { tipo: "validacion", mensaje: `${mala}: Esa es una carpeta del sistema: no la puedo usar.` };
+      ajustesCompu = { ...nuevos, carpetas: nuevos.carpetas.map((c) => c.trim()).filter(Boolean) };
+      return { ajustes: ajustesCompu, tieneKeyYoutube, carpetasPorDefecto: [] };
+    },
+    guardarKeyYoutube: (key) => {
+      tieneKeyYoutube = key.trim() !== "";
+      return esperar(tieneKeyYoutube);
+    },
+    elegirCarpeta: async () => window.prompt("Carpeta (en Nova se abre el selector de Windows):", String.raw`C:\Users\vos\Facu`),
     probarConexion: async () => {
       await pausa(700);
       if (ajustesIa.proveedor === "groq" && !tieneKey) {
