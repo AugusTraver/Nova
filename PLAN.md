@@ -163,7 +163,7 @@ Acá Nova solo **abre** cosas: no lee la página ni contesta con lo que dice. Es
 **Terminado cuando:** desde el celular le pido algo a Nova y lo hace, me resume los mails del día, pone música en Spotify, encuentra un apunte en Drive y me avisa de algo de GitHub o Discord.
 
 ## Ideas para después de v1.0
-- Widgets reordenables y redimensionables.
+- Widgets redimensionables (arrastrarlos ya está, desde v0.7.1).
 - Memoria a largo plazo del asistente (recordar preferencias y datos que le cuento).
 - Más herramientas: modo foco con temporizador.
 - Sistema de plugins para agregar widgets y herramientas nuevas.

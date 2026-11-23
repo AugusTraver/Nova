@@ -29,6 +29,7 @@ use crate::repos::cache::Cacheado;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
 use crate::dominio::avisos::AjustesAvisos;
+use crate::dominio::disposicion::{self, Disposicion};
 use crate::dominio::perfil::Perfil;
 use crate::dominio::reglas::Reglas;
 use crate::dominio::texto::OrigenResponsabilidad;
@@ -335,6 +336,21 @@ pub fn guardar_key_youtube(key: String) -> Resultado<bool> {
     }
     llavero::guardar(compu::youtube::CUENTA_LLAVERO, key)?;
     Ok(true)
+}
+
+// ---------- Disposición de los widgets (v0.7.1) ----------
+
+#[tauri::command]
+pub fn obtener_disposicion(db: State<'_, Db>) -> Resultado<Disposicion> {
+    preferencias::disposicion(&db.conexion())
+}
+
+/// Guarda dónde quedó cada widget. Devuelve lo guardado (ya validado).
+#[tauri::command]
+pub fn guardar_disposicion(db: State<'_, Db>, disposicion: Disposicion) -> Resultado<Disposicion> {
+    let disposicion = disposicion::validar(disposicion).map_err(Error::Validacion)?;
+    preferencias::guardar(&db.conexion(), preferencias::DISPOSICION, &disposicion)?;
+    Ok(disposicion)
 }
 
 /// "Probar conexión" en Ajustes: un pedido mínimo al proveedor elegido.

@@ -29,6 +29,7 @@ import type {
   Turno,
   VistaAjustesIa,
   AjustesCompu,
+  Disposicion,
   VistaAjustesCompu,
   VistaClima,
   VistaFutbol,
@@ -75,6 +76,9 @@ export interface Api {
   guardarAjustesCompu(ajustes: AjustesCompu): Promise<VistaAjustesCompu>;
   /** Vacía = borrarla. Devuelve si quedó una guardada. */
   guardarKeyYoutube(key: string): Promise<boolean>;
+  /** Dónde dejó cada widget (v0.7.1). Rust valida y devuelve lo guardado. */
+  obtenerDisposicion(): Promise<Disposicion>;
+  guardarDisposicion(disposicion: Disposicion): Promise<Disposicion>;
   /** El selector de carpetas de Windows; null si se canceló. */
   elegirCarpeta(): Promise<string | null>;
   guardarAjustesIa(ajustes: AjustesIa): Promise<VistaAjustesIa>;
@@ -170,6 +174,8 @@ const apiTauri: Api = {
   obtenerAjustesCompu: () => invoke("obtener_ajustes_compu"),
   guardarAjustesCompu: (ajustes) => invoke("guardar_ajustes_compu", { ajustes }),
   guardarKeyYoutube: (key) => invoke("guardar_key_youtube", { key }),
+  obtenerDisposicion: () => invoke("obtener_disposicion"),
+  guardarDisposicion: (disposicion) => invoke("guardar_disposicion", { disposicion }),
   elegirCarpeta: async () => {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const elegida = await open({ directory: true, multiple: false, title: "Elegí una carpeta para Nova" });

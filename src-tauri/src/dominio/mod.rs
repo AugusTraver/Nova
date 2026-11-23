@@ -2,6 +2,7 @@
 
 pub mod avisos;
 pub mod compu;
+pub mod disposicion;
 pub mod fechas_relativas;
 pub mod futbol;
 pub mod lenguaje;

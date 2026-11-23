@@ -8,6 +8,7 @@ import type {
   Ajustes,
   AjustesClima,
   AjustesCompu,
+  Disposicion,
   LineaCambio,
   VistaCambio,
   AjustesIa,
@@ -143,6 +144,7 @@ export function crearApiMemoria(): Api {
   /** El "notas.txt" de prueba y cómo estaba antes del último cambio. */
   let notas = "Reunión de grupo el martes\nLlevar los apuntes de Física\nComprar yerba\n";
   let notasAntes: string | null = null;
+  let disposicion: Disposicion = {};
   let ajustesCompu: AjustesCompu = {
     activa: true,
     carpetas: [String.raw`C:\Users\vos\Documents`, String.raw`C:\Users\vos\Desktop`, String.raw`C:\Users\vos\Downloads`],
@@ -435,6 +437,11 @@ export function crearApiMemoria(): Api {
     guardarKeyYoutube: (key) => {
       tieneKeyYoutube = key.trim() !== "";
       return esperar(tieneKeyYoutube);
+    },
+    obtenerDisposicion: () => esperar(disposicion),
+    guardarDisposicion: (nueva) => {
+      disposicion = nueva;
+      return esperar(disposicion);
     },
     elegirCarpeta: async () => window.prompt("Carpeta (en Nova se abre el selector de Windows):", String.raw`C:\Users\vos\Facu`),
     probarConexion: async () => {

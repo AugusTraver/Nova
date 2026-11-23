@@ -59,6 +59,8 @@ pub fn run() {
             comandos::obtener_ajustes_compu,
             comandos::guardar_ajustes_compu,
             comandos::guardar_key_youtube,
+            comandos::obtener_disposicion,
+            comandos::guardar_disposicion,
             comandos::obtener_futbol,
             comandos::buscar_jugadores,
             comandos::obtener_jugadores,

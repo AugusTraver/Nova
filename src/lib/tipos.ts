@@ -152,6 +152,18 @@ export interface AjustesCompu {
   paginas: PaginaGuardada[];
 }
 
+/** Los widgets que se pueden arrastrar (dominio/disposicion.rs: WIDGETS). */
+export type IdWidget = "resumen" | "calendario" | "facu" | "futbol" | "responsabilidades" | "noticias";
+
+/** Cuánto se corrió un widget de su lugar, como fracción del panel (0.1 = un décimo del ancho o del alto). */
+export interface Corrimiento {
+  x: number;
+  y: number;
+}
+
+/** Dónde dejó cada widget. Los que no están, en su lugar de siempre. */
+export type Disposicion = Partial<Record<IdWidget, Corrimiento>>;
+
 /** Lo que ve Ajustes (la key de YouTube nunca sale de Rust). */
 export interface VistaAjustesCompu {
   ajustes: AjustesCompu;

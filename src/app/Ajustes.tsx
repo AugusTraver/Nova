@@ -16,6 +16,7 @@ import type {
   VistaVoz,
 } from "../lib/tipos";
 import { useDatos } from "../store/datos";
+import { useDisposicion } from "../store/disposicion";
 import { AjustesAsistente } from "./AjustesAsistente";
 import { AjustesAvisos } from "./AjustesAvisos";
 import { AjustesCompu } from "./AjustesCompu";
@@ -47,6 +48,9 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const [avisos, setAvisos] = useState<TipoAjustesAvisos | null>(null);
   const [compu, setCompu] = useState<VistaAjustesCompu | null>(null);
   const [keyYoutube, setKeyYoutube] = useState<string | null>(null);
+  // Los widgets vuelven a su lugar en el momento (no esperan a "Guardar").
+  const widgetsMovidos = useDisposicion((s) => Object.keys(s.disposicion).length > 0);
+  const restablecerWidgets = useDisposicion((s) => s.restablecer);
 
   useEffect(() => {
     api.obtenerAjustes().then(setAjustes, (e: unknown) => setError(mensajeDeError(e)));
@@ -159,6 +163,17 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
           <BotonTexto onClick={() => setCapturando((c) => !c)}>{capturando ? "Cancelar" : "Cambiar"}</BotonTexto>
         </div>
         <p className="text-[13px] text-tinta-3">Tiene que llevar Ctrl, Alt o Shift.</p>
+      </section>
+
+      <section className="mt-2 flex flex-col gap-1.5">
+        <h3 className="text-[13px] text-tinta-3">Widgets</h3>
+        <div className="flex items-baseline gap-4">
+          <p className="text-[15px] text-tinta-2">
+            {widgetsMovidos ? "Algunos están donde los dejaste." : "Todos en su lugar de siempre."}
+          </p>
+          {widgetsMovidos && <BotonTexto onClick={() => void restablecerWidgets()}>Volver a su lugar</BotonTexto>}
+        </div>
+        <p className="text-[13px] text-tinta-3">Arrastralos de cualquier parte que no sea un botón.</p>
       </section>
 
       <section className="mt-2 flex flex-col gap-4">

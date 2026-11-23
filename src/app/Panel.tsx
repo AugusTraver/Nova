@@ -1,9 +1,11 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { Esfera } from "../esfera/Esfera";
 import { useAhora } from "../lib/useAhora";
 import { esferaSegun } from "../lib/voz";
 import { useAsistente } from "../store/asistente";
+import { useDisposicion } from "../store/disposicion";
+import type { IdWidget } from "../lib/tipos";
 import { useDatos } from "../store/datos";
 import { useVoz } from "../store/voz";
 import { type Edicion, usePanel } from "../store/panel";
@@ -94,6 +96,18 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
     oculto: edicion === "ajustes" || (confirmandoArchivo && debajoDeLaEsfera),
   });
   const alFrente = (propio: Edicion) => (edicion === propio ? "z-10" : "");
+  // Dónde dejó cada widget (v0.7.1): se arrastran salvo mientras se edita algo.
+  const disposicion = useDisposicion((s) => s.disposicion);
+  const mover = useDisposicion((s) => s.mover);
+  useEffect(() => {
+    void useDisposicion.getState().cargar();
+  }, []);
+  const arrastre = (id: IdWidget) => ({
+    id,
+    corrimiento: disposicion[id],
+    activo: edicion === null && !confirmandoArchivo,
+    alSoltar: (widget: IdWidget, c: { x: number; y: number }) => void mover(widget, c),
+  });
 
   return (
     <motion.div
@@ -111,6 +125,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       {/* Arriba: el saludo */}
       <Orbita
         {...orbita}
+        arrastre={arrastre("resumen")}
         lado="arriba"
         posicion={{ top: "6cqh", left: "50%", width: "min(760px, 60cqw)", marginLeft: "max(-380px, -30cqw)" }}
         profundidad={6}
@@ -125,6 +140,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       {/* Izquierda */}
       <Orbita
         {...orbita}
+        arrastre={arrastre("calendario")}
         className={alFrente("calendario")}
         lado="izquierda"
         posicion={{ top: "25%", right: aDistancia("3cqw"), width: ANCHO_WIDGET }}
@@ -138,6 +154,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       </Orbita>
       <Orbita
         {...orbita}
+        arrastre={arrastre("facu")}
         className={alFrente("facu")}
         lado="izquierda"
         posicion={{ top: "58%", right: aDistancia("8cqw"), width: ANCHO_WIDGET }}
@@ -153,6 +170,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       {/* Derecha */}
       <Orbita
         {...orbita}
+        arrastre={arrastre("futbol")}
         lado="derecha"
         posicion={{
           top: "19%",
@@ -170,6 +188,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       </Orbita>
       <Orbita
         {...orbita}
+        arrastre={arrastre("responsabilidades")}
         className={alFrente("responsabilidades")}
         lado="derecha"
         posicion={{ top: "53%", left: aDistancia("3cqw"), width: ANCHO_WIDGET }}
@@ -185,6 +204,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       {/* Abajo: noticias */}
       <Orbita
         {...orbita}
+        arrastre={arrastre("noticias")}
         lado="abajo"
         posicion={{ bottom: "5cqh", left: "50%", width: "min(820px, 56cqw)", marginLeft: "max(-410px, -28cqw)" }}
         profundidad={5}
@@ -228,6 +248,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
 
       {/* Centro: la esfera, su estado y la barra para escribirle */}
       <div
+        data-obstaculo
         className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
         style={{ top: CENTRO_Y, width: `calc(${RADIO} * 2)`, height: `calc(${RADIO} * 2)` }}
       >
@@ -246,6 +267,7 @@ export function Panel({ abierto, onCerrar, onSalidaCompleta }: PanelProps) {
       </div>
 
       <div
+        data-obstaculo
         className="pointer-events-none absolute left-1/2 flex -translate-x-1/2 flex-col items-center"
         style={{ top: `calc(${CENTRO_Y} + ${RADIO} + 8px)`, width: `min(30rem, calc(2 * ${RADIO} + 4cqw))` }}
       >

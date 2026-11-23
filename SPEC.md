@@ -301,6 +301,7 @@ Reglas:
   - **Temporizadores:** `poner_temporizador` ("avisame en 10 minutos que…" o "a las 6"), hasta un día. Se guardan en `temporizadores` (migración 6) y la tarea de fondo se despierta justo para cada uno. Avisan con una notificación aunque sea "no molestar" (los pediste vos) y en voz si los avisos van en voz.
   - **Horas ambiguas:** "de 6 a 7" quedaba a las 06:00 porque el modelo mandaba "06:00", y con el cero la hora cuenta como de 24 horas. Si el usuario no la dijo con el cero ni aclaró "de la mañana", se le saca el cero y vale la regla de la tarde (`hora_como_la_dijo`).
 - **Para después:** el portapapeles (mandaría lo copiado a Groq) y manejar ventanas (cerrar programas es riesgoso). Poner una canción en Spotify va en v1.0 con la API oficial y tu cuenta (pide Premium): abrir `spotify:track:…` en Windows a veces muestra el tema sin reproducirlo.
+- **Widgets que se arrastran** (pedido durante v0.7.1, adelantado de "después de v1.0"): se agarran de cualquier parte que no sea un botón, un link o un campo, y quedan donde los soltás. Al soltar, un imán suave (`src/lib/disposicion.ts`, con tests) los mete adentro de la pantalla y los corre lo mínimo para no tapar la esfera, la respuesta o la barra (marcadas con `data-obstaculo`) ni pisar a otro widget. Se guarda cuánto se corrió cada uno como fracción de la pantalla (preferencia `disposicion_widgets`, validada en `dominio/disposicion.rs`), así se ve igual con otra resolución. No se arrastran mientras se edita algo o se confirma un cambio de archivo. En Ajustes, "Volver a su lugar" los acomoda como siempre. Redimensionarlos sigue para después de v1.0.
 
 ## 6. Modelo de datos (SQLite)
 
@@ -333,7 +334,8 @@ preferencias(clave, valor_json)
   -- intereses_noticias, feeds_rss,
   -- reglas_auto_responsabilidades, leer_resumen_al_abrir, ciudad_clima, tema,
   -- voz (incluye palabra_clave), avisos, perfil,
-  -- compu (interruptor, carpetas permitidas, páginas guardadas)
+  -- compu (interruptor, carpetas permitidas, páginas guardadas),
+  -- disposicion_widgets (dónde quedó cada widget)
 ```
 - Fechas en ISO 8601 con zona horaria. Los eventos de todo el día y las fechas límite se guardan como fecha sola (`2026-11-20`); el `fin` de un evento de todo el día es el último día incluido.
 - Los eventos recurrentes se guardan como serie y las repeticiones se calculan al pedir un rango. Editar una repetición cambia toda la serie; para una fecha suelta existe "saltear".
