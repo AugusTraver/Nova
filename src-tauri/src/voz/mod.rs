@@ -242,6 +242,55 @@ mod real {
         Rutas::new(std::path::PathBuf::from(local).join("com.augustraver.nova").join("voz"))
     }
 
+    /// Lo que pasa al abrir el panel la primera vez en el día: `Activar` y
+    /// enseguida `Hablar` con el resumen. Tiene que sonar entero (la esfera
+    /// recibe niveles) y después volver a escuchar.
+    #[test]
+    #[ignore]
+    fn lee_el_resumen_al_abrir() {
+        use super::motor::{EVENTO_ESTADO, EVENTO_NIVEL, Motor, Orden};
+        use std::sync::{Arc, Mutex};
+
+        let eventos: Arc<Mutex<Vec<(String, serde_json::Value)>>> = Arc::default();
+        let anotar = eventos.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let motor = Motor::new(
+            Box::new(move |e, v| anotar.lock().unwrap().push((e.to_string(), v))),
+            rutas(),
+            super::AjustesVoz::default(),
+            tx.clone(),
+        )
+        .sin_microfono(48_000);
+        let hilo = std::thread::spawn(move || motor.correr(rx));
+        tx.send(Orden::Activar).unwrap();
+        tx.send(Orden::Hablar(
+            "Buen día. Hoy tenés clase de Análisis a las nueve y el parcial de Física a las catorce. \
+             Para hoy: estudiar para Análisis. Boca juega el domingo a las diecisiete. Afuera, veintidós grados y soleado."
+                .into(),
+        ))
+        .unwrap();
+        let estados = || -> Vec<String> {
+            eventos.lock().unwrap().iter().filter(|(e, _)| e == EVENTO_ESTADO).map(|(_, v)| v["estado"].as_str().unwrap_or("").to_string()).collect()
+        };
+        let limite = std::time::Instant::now() + std::time::Duration::from_secs(90);
+        loop {
+            let e = estados();
+            let hablo = e.iter().position(|x| x == "hablando");
+            if hablo.is_some_and(|i| e[i..].iter().any(|x| x == "escuchando")) {
+                break;
+            }
+            assert!(std::time::Instant::now() < limite, "no terminó de hablar: {e:?}");
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let sono = eventos.lock().unwrap().iter().filter(|(e, v)| e == EVENTO_NIVEL && v.as_f64().unwrap_or(0.0) > 0.05).count();
+        let (listo, esperar) = std::sync::mpsc::channel();
+        tx.send(Orden::Salir(listo)).unwrap();
+        esperar.recv().unwrap();
+        hilo.join().unwrap();
+        // Un resumen así dura más de 8 s: a 30 niveles por segundo, cientos.
+        assert!(sono > 150, "sonó muy poco ({sono} cuadros): {:?}", estados());
+    }
+
     /// El motor entero: le llega "por el micrófono" (a 48 kHz, con ruido de
     /// habitación) un pedido hablado, y tiene que avisar el texto final.
     #[test]
