@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nova · Privacidad</title>
+<style>
+  :root { --fondo: #f6f3ee; --texto: #23201c; --tenue: #6b645b; --acento: #3d6f8f; }
+  @media (prefers-color-scheme: dark) { :root { --fondo: #15171c; --texto: #e9e6e1; --tenue: #a29b91; --acento: #8cbcd9; } }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 17px/1.6 Georgia, "Times New Roman", serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-weight: 400; font-size: 2.2rem; margin: 0 0 4px; }
+  h2 { font-weight: 400; font-size: 1.3rem; margin-top: 2rem; }
+  p.bajada { color: var(--tenue); margin-top: 0; }
+  a { color: var(--acento); }
+  small { color: var(--tenue); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Nova</h1>
+  <p class="bajada">Un panel personal de escritorio con un asistente de voz. Es un proyecto de una sola persona, para uso propio.</p>
+  <p>El código está en <a href="https://github.com/AugusTraver/Nova">github.com/AugusTraver/Nova</a>.</p>
+
+  <h2 id="privacidad">Política de privacidad</h2>
+  <p>Nova corre en la computadora de quien la usa. No tiene servidores propios ni cuentas de usuario.</p>
+  <p><strong>Google Calendar.</strong> Si la conectás, Nova lee, crea, cambia y borra eventos de tus calendarios de Google para mantenerlos iguales a la agenda de la app. Esos eventos se guardan solo en una base de datos local, en tu computadora. No se mandan a ningún otro servicio, no se venden, no se usan para publicidad ni para entrenar modelos de inteligencia artificial.</p>
+  <p><strong>El permiso de Google</strong> se guarda en el llavero del sistema operativo (en Windows, el Administrador de credenciales), nunca en archivos de texto.</p>
+  <p><strong>Desconectar.</strong> Desde los ajustes de Nova se desconecta Google Calendar y se borra el permiso. También se puede quitar en <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>. Desconectar no borra eventos de ningún lado.</p>
+  <p>El uso de la información recibida de las APIs de Google respeta la <a href="https://developers.google.com/terms/api-services-user-data-policy">Política de Datos del Usuario de los Servicios de API de Google</a>, incluidos los requisitos de uso limitado.</p>
+  <p><strong>Contacto:</strong> por un issue en <a href="https://github.com/AugusTraver/Nova/issues">el repositorio</a>.</p>
+  <p><small>Última actualización: 26 de noviembre de 2026.</small></p>
+</main>
+</body>
+</html>
