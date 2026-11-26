@@ -41,6 +41,10 @@ cpal = "0.18.2"
 zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
 # "Oye Nova": modelo ONNX chiquito que corre en Rust puro (sin ONNX Runtime).
 livekit-wakeword = "0.2"
+# Google Calendar (v0.7.2): PKCE del permiso de Google (un hash SHA-256 y
+# bytes al azar). Las dos ya venían adentro de otras librerías.
+sha2 = "0.10"
+getrandom = "0.3"
 
 
 # Compilar más rápido en desarrollo: de Nova solo se guardan las líneas (los

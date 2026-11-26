@@ -123,7 +123,9 @@ Acá Nova solo **abre** cosas: no lee la página ni contesta con lo que dice. Es
 - Sincronización en los dos sentidos: lo que agendo en Nova (a mano o con el asistente) aparece en Calendar, y lo que agendo en Calendar aparece en Nova. Editar o borrar de un lado se refleja en el otro, sin duplicados.
 - Las responsabilidades automáticas salen de los eventos, vengan de donde vengan.
 - Sin internet, Nova funciona igual con lo local y sincroniza cuando vuelve.
-- El permiso de Google (OAuth) guardado en el llavero.
+- El permiso de Google (OAuth) guardado en el llavero. Conectar y desconectar desde Ajustes (desconectar no borra eventos).
+- Cuando llega algo de Calendar, el widget se actualiza solo; si Google falla, muestra un aviso chico sin romper el panel.
+- Las herramientas del asistente no cambian y no suman tokens.
 
 **Terminado cuando:** un evento creado en Nova aparece en Google Calendar, uno creado en Calendar aparece en Nova con sus responsabilidades automáticas, y editar o borrar de un lado se ve en el otro.
 

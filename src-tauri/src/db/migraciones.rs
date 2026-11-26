@@ -18,6 +18,7 @@ const MIGRACIONES: &[&str] = &[
     include_str!("../../migraciones/004_avisos.sql"),
     include_str!("../../migraciones/005_cambios_archivos.sql"),
     include_str!("../../migraciones/006_temporizadores.sql"),
+    include_str!("../../migraciones/007_google_calendar.sql"),
 ];
 
 pub fn migrar(conexion: &mut Connection) -> Result<(), Error> {

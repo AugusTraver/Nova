@@ -25,6 +25,7 @@ use crate::futbol::{self, JugadorEncontrado, JugadorSeguido};
 use crate::futbol::espn::ClienteEspn;
 use crate::futbol::proveedor::ProveedorFutbol;
 use crate::futbol::vista::VistaFutbol;
+use crate::google::{self, Google, oauth, sincronizar as sincro_google};
 use crate::repos::cache::Cacheado;
 use crate::repos::mensajes;
 use crate::{atajos, llavero};
@@ -81,25 +82,36 @@ pub fn listar_ocurrencias(db: State<'_, Db>, desde: String, hasta: String) -> Re
     eventos::ocurrencias(&db.conexion(), desde, hasta)
 }
 
+// Cada cambio en la agenda despierta la tarea de fondo: si Google Calendar
+// está conectado, se sube enseguida (v0.7.2).
+
 #[tauri::command]
-pub fn crear_evento(db: State<'_, Db>, datos: DatosEvento) -> Resultado<Evento> {
-    eventos::crear(&mut db.conexion(), datos, &Ahora::del_sistema())
+pub fn crear_evento(db: State<'_, Db>, fondo: State<'_, Fondo>, datos: DatosEvento) -> Resultado<Evento> {
+    let evento = eventos::crear(&mut db.conexion(), datos, &Ahora::del_sistema())?;
+    fondo.despertar();
+    Ok(evento)
 }
 
 #[tauri::command]
-pub fn editar_evento(db: State<'_, Db>, id: i64, datos: DatosEvento) -> Resultado<Evento> {
-    eventos::editar(&mut db.conexion(), id, datos, &Ahora::del_sistema())
+pub fn editar_evento(db: State<'_, Db>, fondo: State<'_, Fondo>, id: i64, datos: DatosEvento) -> Resultado<Evento> {
+    let evento = eventos::editar(&mut db.conexion(), id, datos, &Ahora::del_sistema())?;
+    fondo.despertar();
+    Ok(evento)
 }
 
 #[tauri::command]
-pub fn borrar_evento(db: State<'_, Db>, id: i64) -> Resultado<()> {
-    eventos::borrar(&mut db.conexion(), id)
+pub fn borrar_evento(db: State<'_, Db>, fondo: State<'_, Fondo>, id: i64) -> Resultado<()> {
+    eventos::borrar(&mut db.conexion(), id, &Ahora::del_sistema())?;
+    fondo.despertar();
+    Ok(())
 }
 
 /// Saltea una fecha de una serie (`saltear: true`) o la vuelve a poner.
 #[tauri::command]
-pub fn saltear_fecha(db: State<'_, Db>, id: i64, fecha: String, saltear: bool) -> Resultado<Evento> {
-    eventos::cambiar_excepcion(&mut db.conexion(), id, &fecha, saltear, &Ahora::del_sistema())
+pub fn saltear_fecha(db: State<'_, Db>, fondo: State<'_, Fondo>, id: i64, fecha: String, saltear: bool) -> Resultado<Evento> {
+    let evento = eventos::cambiar_excepcion(&mut db.conexion(), id, &fecha, saltear, &Ahora::del_sistema())?;
+    fondo.despertar();
+    Ok(evento)
 }
 
 // ---------- Responsabilidades ----------
@@ -188,6 +200,10 @@ impl Avisos for AvisosTauri {
 
     fn cambios(&self, fuentes: &[Fuente]) {
         let _ = self.app.emit(EVENTO_DATOS_CAMBIADOS, fuentes);
+        // Lo que el asistente cambió en la agenda se sube ya a Google.
+        if fuentes.contains(&Fuente::Agenda) {
+            self.app.state::<Fondo>().despertar();
+        }
     }
 }
 
@@ -336,6 +352,149 @@ pub fn guardar_key_youtube(key: String) -> Resultado<bool> {
     }
     llavero::guardar(compu::youtube::CUENTA_LLAVERO, key)?;
     Ok(true)
+}
+
+// ---------- Google Calendar (v0.7.2) ----------
+
+/// Lo que ven Ajustes y el widget del calendario. Nunca el ID, el secreto ni
+/// el permiso: solo si están.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VistaGoogle {
+    pub tiene_cliente: bool,
+    pub conectado: bool,
+    /// Esperando que aceptes en el navegador.
+    pub conectando: bool,
+    /// El último error (sin internet, permiso vencido…), si lo hubo.
+    pub error: Option<String>,
+    /// La última vez que sincronizó bien (ISO 8601).
+    pub sincronizado_en: Option<String>,
+    pub primera_vez: Option<sincro_google::Resumen>,
+}
+
+fn vista_google(db: &Db, google: &Google) -> Resultado<VistaGoogle> {
+    let conectado = google::conectado();
+    let cache = crate::repos::cache::leer::<sincro_google::EstadoCalendar>(&db.conexion(), sincro_google::CLAVE)?;
+    Ok(VistaGoogle {
+        tiene_cliente: oauth::Cliente::del_llavero()?.is_some(),
+        conectado,
+        conectando: google.conectando(),
+        error: if conectado { cache.error } else { None },
+        sincronizado_en: if conectado { cache.obtenido_en } else { None },
+        primera_vez: cache.datos.and_then(|d| d.primera_vez),
+    })
+}
+
+#[tauri::command]
+pub fn obtener_google(db: State<'_, Db>, google: State<'_, Google>) -> Resultado<VistaGoogle> {
+    vista_google(&db, &google)
+}
+
+/// El ID y el secreto del cliente de Google Cloud, al llavero. Los dos
+/// vacíos = borrarlos. Si cambia el cliente, el permiso viejo ya no sirve.
+#[tauri::command]
+pub fn guardar_cliente_google(db: State<'_, Db>, google: State<'_, Google>, id: String, secreto: String) -> Resultado<VistaGoogle> {
+    let (id, secreto) = (id.trim(), secreto.trim());
+    if id.is_empty() && secreto.is_empty() {
+        llavero::borrar(oauth::CUENTA_CLIENTE_ID)?;
+        llavero::borrar(oauth::CUENTA_CLIENTE_SECRETO)?;
+        return vista_google(&db, &google);
+    }
+    validar_cliente_google(id, secreto).map_err(Error::Validacion)?;
+    let anterior = llavero::leer(oauth::CUENTA_CLIENTE_ID)?;
+    if anterior.as_deref().is_some_and(|a| a != id) {
+        llavero::borrar(oauth::CUENTA_PERMISO)?;
+        google.api.olvidar_acceso();
+    }
+    llavero::guardar(oauth::CUENTA_CLIENTE_ID, id)?;
+    llavero::guardar(oauth::CUENTA_CLIENTE_SECRETO, secreto)?;
+    vista_google(&db, &google)
+}
+
+fn validar_cliente_google(id: &str, secreto: &str) -> Result<(), String> {
+    if !id.ends_with(".apps.googleusercontent.com") || id.len() > 200 || id.chars().any(char::is_whitespace) {
+        return Err("Ese ID no parece de Google: termina en «.apps.googleusercontent.com».".into());
+    }
+    if secreto.len() < 10 || secreto.len() > 200 || secreto.chars().any(char::is_whitespace) {
+        return Err("Ese secreto no parece válido.".into());
+    }
+    Ok(())
+}
+
+/// Abre el navegador para que aceptes y espera la vuelta (hasta 5 minutos).
+/// Es `async`: mientras espera, Nova sigue andando.
+#[tauri::command]
+pub async fn conectar_google(app: AppHandle) -> Resultado<VistaGoogle> {
+    let cliente = oauth::Cliente::del_llavero()?
+        .ok_or_else(|| Error::Validacion("Primero cargá el ID y el secreto del cliente.".into()))?;
+    if !app.state::<Google>().empezar_conexion() {
+        return invalido("Ya hay una conexión en curso: terminala en el navegador.");
+    }
+    let resultado = conectar(&app, &cliente).await;
+    let google = app.state::<Google>();
+    google.terminar_conexion();
+    resultado?;
+    app.state::<Fondo>().despertar();
+    vista_google(&app.state::<Db>(), &google)
+}
+
+async fn conectar(app: &AppHandle, cliente: &oauth::Cliente) -> Resultado<()> {
+    let intento = oauth::Intento::nuevo(&cliente.id)?;
+    compu::sistema::abrir(std::ffi::OsStr::new(&intento.direccion), None).map_err(Error::Sistema)?;
+
+    // Esperar la vuelta bloquea: va a un hilo aparte (`spawn_blocking`). El
+    // `move` le pasa el intento a ese hilo y lo devuelve al terminar.
+    let app_hilo = app.clone();
+    let (intento, codigo) = tauri::async_runtime::spawn_blocking(move || {
+        let google = app_hilo.state::<Google>();
+        let codigo = intento.esperar_codigo(&|| google.cancelado());
+        (intento, codigo)
+    })
+    .await
+    .map_err(|e| Error::Sistema(format!("Se cortó la espera de Google: {e}")))?;
+    let codigo = codigo?;
+
+    let google = app.state::<Google>();
+    let tokens = oauth::cambiar_codigo(google.api.http(), cliente, &codigo, &intento).await?;
+    let permiso = tokens.refresh_token.ok_or_else(|| {
+        Error::Validacion("Google no mandó un permiso duradero. Quitá Nova en myaccount.google.com/permissions y probá de nuevo.".into())
+    })?;
+    llavero::guardar(oauth::CUENTA_PERMISO, &permiso)?;
+    google.api.recordar_acceso(tokens.access_token, tokens.expires_in);
+    // Se empieza de cero: la primera vuelta trae todo y junta por id, sin duplicar.
+    sincro_google::olvidar(&app.state::<Db>().conexion())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn cancelar_conexion_google(google: State<'_, Google>) {
+    google.cancelar_conexion();
+}
+
+/// Le saca el permiso a Nova. No borra eventos de ningún lado.
+#[tauri::command]
+pub async fn desconectar_google(app: AppHandle) -> Resultado<VistaGoogle> {
+    let google = app.state::<Google>();
+    if let Some(permiso) = llavero::leer(oauth::CUENTA_PERMISO)? {
+        // Si no hay internet, igual se borra del llavero.
+        if let Err(e) = oauth::revocar(google.api.http(), &permiso).await {
+            eprintln!("Google Calendar: {e}");
+        }
+    }
+    llavero::borrar(oauth::CUENTA_PERMISO)?;
+    google.api.olvidar_acceso();
+    let db = app.state::<Db>();
+    sincro_google::olvidar(&db.conexion())?;
+    let _ = app.emit(EVENTO_DATOS_CAMBIADOS, [Fuente::Agenda]);
+    vista_google(&db, &google)
+}
+
+/// "Sincronizar ahora": vence la espera y despierta la tarea de fondo.
+#[tauri::command]
+pub fn sincronizar_google(db: State<'_, Db>, fondo: State<'_, Fondo>) -> Resultado<()> {
+    crate::repos::cache::vencer(&db.conexion(), sincro_google::CLAVE, &Ahora::del_sistema())?;
+    fondo.despertar();
+    Ok(())
 }
 
 // ---------- Disposición de los widgets (v0.7.1) ----------
@@ -909,8 +1068,8 @@ mod tests {
         assert_eq!(
             claves(&ocurrencia["evento"]),
             [
-                "excepciones", "fin", "id", "inicio", "materiaId", "notas", "persona", "recurrencia",
-                "repetirHasta", "tipo", "titulo", "todoElDia"
+                "deGoogle", "excepciones", "fin", "id", "inicio", "materiaId", "notas", "persona",
+                "recurrencia", "repetirHasta", "soloLectura", "tipo", "titulo", "todoElDia"
             ]
         );
 
@@ -989,6 +1148,30 @@ mod tests {
         // Lo que manda la interfaz (sin campos: los de por defecto).
         let leido: AjustesCompu = serde_json::from_value(json!({ "activa": false })).unwrap();
         assert!(!leido.activa);
+    }
+
+    /// Google Calendar (src/lib/tipos.ts: VistaGoogle, ResumenGoogle).
+    #[test]
+    fn contrato_de_google() {
+        let vista = VistaGoogle {
+            tiene_cliente: true,
+            conectado: true,
+            conectando: false,
+            error: None,
+            sincronizado_en: Some("2026-11-17T12:00:00-03:00".into()),
+            primera_vez: Some(sincro_google::Resumen { traidos: 3, subidos: 2, juntados: 1, borrados: 0 }),
+        };
+        let v = serde_json::to_value(&vista).unwrap();
+        assert_eq!(claves(&v), ["conectado", "conectando", "error", "primeraVez", "sincronizadoEn", "tieneCliente"]);
+        assert_eq!(claves(&v["primeraVez"]), ["borrados", "juntados", "subidos", "traidos"]);
+    }
+
+    #[test]
+    fn valida_el_cliente_de_google() {
+        assert!(validar_cliente_google("123-abc.apps.googleusercontent.com", "GOCSPX-abcdefghij").is_ok());
+        assert!(validar_cliente_google("123-abc", "GOCSPX-abcdefghij").is_err());
+        assert!(validar_cliente_google("123 abc.apps.googleusercontent.com", "GOCSPX-abcdefghij").is_err());
+        assert!(validar_cliente_google("123-abc.apps.googleusercontent.com", "corto").is_err());
     }
 
     #[test]

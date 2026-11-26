@@ -38,9 +38,13 @@ export interface Evento {
   repetirHasta: string | null;
   /** Fechas salteadas de la serie. */
   excepciones: string[];
+  /** Vino de Google Calendar (v0.7.2). */
+  deGoogle: boolean;
+  /** Repetición de una serie de Google que Nova no sabe repetir: se edita desde Calendar. */
+  soloLectura: boolean;
 }
 
-export type DatosEvento = Omit<Evento, "id" | "excepciones">;
+export type DatosEvento = Omit<Evento, "id" | "excepciones" | "deGoogle" | "soloLectura">;
 
 /** Una repetición concreta de un evento. */
 export interface Ocurrencia {
@@ -169,6 +173,27 @@ export interface VistaAjustesCompu {
   ajustes: AjustesCompu;
   tieneKeyYoutube: boolean;
   carpetasPorDefecto: string[];
+}
+
+/** Lo que hizo la primera sincronización con Google Calendar (v0.7.2). */
+export interface ResumenGoogle {
+  traidos: number;
+  subidos: number;
+  juntados: number;
+  borrados: number;
+}
+
+/** Google Calendar en Ajustes y en el widget. El ID, el secreto y el permiso nunca salen de Rust. */
+export interface VistaGoogle {
+  tieneCliente: boolean;
+  conectado: boolean;
+  /** Esperando que aceptes en el navegador. */
+  conectando: boolean;
+  /** El último error ("Sin conexión con Google Calendar", permiso vencido…). */
+  error: string | null;
+  /** La última vez que sincronizó bien (ISO 8601). */
+  sincronizadoEn: string | null;
+  primeraVez: ResumenGoogle | null;
 }
 
 /** Avisos mientras el asistente trabaja. */

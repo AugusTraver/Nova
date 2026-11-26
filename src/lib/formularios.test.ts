@@ -74,6 +74,7 @@ describe("formulario de eventos", () => {
     const evento: Evento = {
       id: 9, titulo: "Viaje", tipo: "otro", inicio: "2026-12-01", fin: "2026-12-05", todoElDia: true,
       materiaId: null, persona: null, notas: null, recurrencia: "ninguna", repetirHasta: null, excepciones: [],
+      deGoogle: false, soloLectura: false,
     };
     const r = datosDesdeFormEvento(formDesdeEvento(evento));
     expect(r.ok && r.datos.fin).toBe("2026-12-05");
@@ -114,6 +115,8 @@ describe("formulario de eventos", () => {
       recurrencia: "semanal",
       repetirHasta: "2026-12-05",
       excepciones: [],
+      deGoogle: false,
+      soloLectura: false,
     };
     const f = formDesdeEvento(evento);
     expect([f.fecha, f.horaInicio, f.horaFin, f.repetirHasta]).toEqual(["2026-11-18", "15:00", "17:00", "2026-12-05"]);

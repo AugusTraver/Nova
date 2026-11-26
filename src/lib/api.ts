@@ -31,6 +31,7 @@ import type {
   AjustesCompu,
   Disposicion,
   VistaAjustesCompu,
+  VistaGoogle,
   VistaClima,
   VistaFutbol,
   VistaVoz,
@@ -76,6 +77,16 @@ export interface Api {
   guardarAjustesCompu(ajustes: AjustesCompu): Promise<VistaAjustesCompu>;
   /** Vacía = borrarla. Devuelve si quedó una guardada. */
   guardarKeyYoutube(key: string): Promise<boolean>;
+  /** Google Calendar (v0.7.2). El ID, el secreto y el permiso van al llavero. */
+  obtenerGoogle(): Promise<VistaGoogle>;
+  /** Los dos vacíos = borrarlos. */
+  guardarClienteGoogle(id: string, secreto: string): Promise<VistaGoogle>;
+  /** Abre el navegador y espera (hasta 5 minutos) a que aceptes. */
+  conectarGoogle(): Promise<VistaGoogle>;
+  cancelarConexionGoogle(): Promise<void>;
+  /** Le saca el permiso a Nova. No borra eventos. */
+  desconectarGoogle(): Promise<VistaGoogle>;
+  sincronizarGoogle(): Promise<void>;
   /** Dónde dejó cada widget (v0.7.1). Rust valida y devuelve lo guardado. */
   obtenerDisposicion(): Promise<Disposicion>;
   guardarDisposicion(disposicion: Disposicion): Promise<Disposicion>;
@@ -174,6 +185,12 @@ const apiTauri: Api = {
   obtenerAjustesCompu: () => invoke("obtener_ajustes_compu"),
   guardarAjustesCompu: (ajustes) => invoke("guardar_ajustes_compu", { ajustes }),
   guardarKeyYoutube: (key) => invoke("guardar_key_youtube", { key }),
+  obtenerGoogle: () => invoke("obtener_google"),
+  guardarClienteGoogle: (id, secreto) => invoke("guardar_cliente_google", { id, secreto }),
+  conectarGoogle: () => invoke("conectar_google"),
+  cancelarConexionGoogle: () => invoke("cancelar_conexion_google"),
+  desconectarGoogle: () => invoke("desconectar_google"),
+  sincronizarGoogle: () => invoke("sincronizar_google"),
   obtenerDisposicion: () => invoke("obtener_disposicion"),
   guardarDisposicion: (disposicion) => invoke("guardar_disposicion", { disposicion }),
   elegirCarpeta: async () => {

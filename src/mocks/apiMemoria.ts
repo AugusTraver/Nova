@@ -22,10 +22,18 @@ import type {
   Progreso,
   Responsabilidad,
   Turno,
+  VistaGoogle,
 } from "../lib/tipos";
 import { LARGO_SOBRE_VOS } from "../lib/tipos";
 import * as externos from "./externos";
 import { vozDePrueba } from "./vozDePrueba";
+
+// Google Calendar de prueba (v0.7.2): `?calendar` arranca conectado, con una
+// serie de solo lectura, y a los 3 segundos "llega" un examen cargado desde
+// el celular; `?calendarsinred` muestra el aviso de sin conexión.
+const parametrosCalendar = new URLSearchParams(window.location.search);
+const calendarConectado = parametrosCalendar.has("calendar") || parametrosCalendar.has("calendarsinred");
+const calendarSinRed = parametrosCalendar.has("calendarsinred");
 
 function pausa(ms: number): Promise<void> {
   return new Promise((ok) => window.setTimeout(ok, ms));
@@ -57,6 +65,8 @@ export function crearApiMemoria(): Api {
     recurrencia: "ninguna",
     repetirHasta: null,
     excepciones: [],
+    deGoogle: false,
+    soloLectura: false,
     ...e,
   });
 
@@ -67,6 +77,39 @@ export function crearApiMemoria(): Api {
     evento(4, { titulo: "Parcial de Análisis II", tipo: "examen", inicio: aIsoLocal(dia(4), "09:00"), materiaId: 1 }),
     evento(5, { titulo: "Sistemas Operativos", tipo: "clase", inicio: aIsoLocal(dia(2), "18:00"), fin: aIsoLocal(dia(2), "21:00"), materiaId: 3, recurrencia: "semanal" }),
   ];
+  if (calendarConectado) {
+    eventos = [
+      ...eventos,
+      evento(6, { titulo: "Turno con el dentista", tipo: "otro", inicio: aIsoLocal(dia(1), "10:30"), deGoogle: true }),
+      // Lunes, miércoles y viernes: Nova no la sabe repetir, se edita en Calendar.
+      evento(7, { titulo: "Gimnasio", tipo: "otro", inicio: aIsoLocal(dia(2), "08:00"), deGoogle: true, soloLectura: true }),
+    ];
+  }
+
+  let google: VistaGoogle = {
+    tieneCliente: calendarConectado,
+    conectado: calendarConectado,
+    conectando: false,
+    error: calendarSinRed ? "Sin conexión con Google Calendar" : null,
+    sincronizadoEn: calendarConectado ? new Date(Date.now() - (calendarSinRed ? 3 : 0.1) * 3600_000).toISOString() : null,
+    primeraVez: calendarConectado ? { traidos: 2, subidos: 5, juntados: 0, borrados: 0 } : null,
+  };
+  let cancelarConexion = false;
+
+  if (parametrosCalendar.has("calendar")) {
+    window.setTimeout(() => {
+      eventos = [
+        ...eventos,
+        evento(8, { titulo: "Parcial de Sistemas Operativos", tipo: "examen", inicio: aIsoLocal(dia(5), "18:00"), materiaId: 3, deGoogle: true }),
+      ];
+      responsabilidades = [
+        ...responsabilidades,
+        resp(8, { titulo: "Estudiar para Sistemas Operativos", fechaLimite: dia(4), prioridad: "alta", origen: "auto", eventoId: 8, materiaId: 3 }),
+      ];
+      google = { ...google, sincronizadoEn: new Date().toISOString() };
+      avisarCambiosLocal(["agenda", "responsabilidades"]);
+    }, 3000);
+  }
 
   const resp = (id: number, r: Partial<Responsabilidad> & Pick<Responsabilidad, "titulo">): Responsabilidad => ({
     id,
@@ -359,7 +402,7 @@ export function crearApiMemoria(): Api {
           .sort((a, b) => a.fecha.localeCompare(b.fecha) || Number(a.evento.todoElDia ? 0 : 1) - Number(b.evento.todoElDia ? 0 : 1) || a.inicio.localeCompare(b.inicio)),
       ),
     crearEvento: (datos) => {
-      const e = { id: siguiente++, excepciones: [], ...datos };
+      const e: Evento = { id: siguiente++, excepciones: [], deGoogle: false, soloLectura: false, ...datos };
       eventos = [...eventos, e];
       return esperar(e);
     },
@@ -437,6 +480,45 @@ export function crearApiMemoria(): Api {
     guardarKeyYoutube: (key) => {
       tieneKeyYoutube = key.trim() !== "";
       return esperar(tieneKeyYoutube);
+    },
+    obtenerGoogle: () => esperar(google),
+    guardarClienteGoogle: (id, secreto) => {
+      if (!id.trim() && !secreto.trim()) {
+        google = { ...google, tieneCliente: false };
+        return esperar(google);
+      }
+      if (!id.trim().endsWith(".apps.googleusercontent.com")) {
+        return Promise.reject({ tipo: "validacion", mensaje: "Ese ID no parece de Google: termina en «.apps.googleusercontent.com»." });
+      }
+      google = { ...google, tieneCliente: true };
+      return esperar(google);
+    },
+    conectarGoogle: async () => {
+      cancelarConexion = false;
+      google = { ...google, conectando: true };
+      await pausa(2500);
+      google = { ...google, conectando: false };
+      if (cancelarConexion) throw { tipo: "validacion", mensaje: "Se canceló la conexión con Google." };
+      google = {
+        ...google,
+        conectado: true,
+        error: null,
+        sincronizadoEn: new Date().toISOString(),
+        primeraVez: { traidos: 0, subidos: eventos.length, juntados: 0, borrados: 0 },
+      };
+      return esperar(google);
+    },
+    cancelarConexionGoogle: async () => {
+      cancelarConexion = true;
+    },
+    desconectarGoogle: () => {
+      google = { ...google, conectado: false, error: null, sincronizadoEn: null, primeraVez: null };
+      avisarCambiosLocal(["agenda"]);
+      return esperar(google);
+    },
+    sincronizarGoogle: async () => {
+      if (google.conectado && !calendarSinRed) google = { ...google, error: null, sincronizadoEn: new Date().toISOString() };
+      avisarCambiosLocal(["agenda"]);
     },
     obtenerDisposicion: () => esperar(disposicion),
     guardarDisposicion: (nueva) => {

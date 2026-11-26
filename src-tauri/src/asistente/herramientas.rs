@@ -741,7 +741,7 @@ pub fn ejecutar_pendiente(conexion: &mut Connection, accion: &AccionPendiente) -
     match accion {
         AccionPendiente::BorrarEvento { id, .. } => {
             let evento = eventos::obtener(conexion, *id)?;
-            eventos::borrar(conexion, *id)?;
+            eventos::borrar(conexion, *id, &Ahora::del_sistema())?;
             Ok((format!("Listo, borré «{}».", evento.titulo), vec![Fuente::Agenda, Fuente::Responsabilidades]))
         }
         // Los de archivos los hace `compu::herramientas::aplicar` (ver ciclo.rs).

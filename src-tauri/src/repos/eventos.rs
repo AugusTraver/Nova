@@ -27,6 +27,11 @@ pub struct Evento {
     pub repetir_hasta: Option<String>,
     /// Fechas salteadas de la serie ("2026-11-23").
     pub excepciones: Vec<String>,
+    /// Vino de Google Calendar (el widget lo marca apenas).
+    pub de_google: bool,
+    /// Repetición de una serie de Google que Nova no sabe repetir: se edita
+    /// desde Calendar.
+    pub solo_lectura: bool,
 }
 
 /// Lo que manda la interfaz para crear o editar un evento.
@@ -74,7 +79,7 @@ impl Evento {
 }
 
 /// Valida y normaliza lo que llega de la interfaz.
-fn validar(conexion: &Connection, datos: DatosEvento) -> Resultado<DatosEvento> {
+pub(crate) fn validar(conexion: &Connection, datos: DatosEvento) -> Resultado<DatosEvento> {
     let titulo = datos.titulo.trim().to_string();
     if titulo.is_empty() {
         return invalido("El evento necesita un título.");
@@ -133,9 +138,13 @@ fn validar(conexion: &Connection, datos: DatosEvento) -> Resultado<DatosEvento> 
     })
 }
 
-const COLUMNAS: &str = "id, titulo, tipo, inicio, fin, todo_el_dia, materia_id, persona, notas, recurrencia, repetir_hasta";
+const COLUMNAS: &str =
+    "id, titulo, tipo, inicio, fin, todo_el_dia, materia_id, persona, notas, recurrencia, repetir_hasta, origen, solo_lectura";
 
-fn desde_fila(fila: &Row) -> rusqlite::Result<Evento> {
+/// El mensaje cuando querés tocar desde Nova algo que solo se cambia en Calendar.
+pub const SE_EDITA_EN_GOOGLE: &str = "Ese evento se repite de una forma que Nova no sabe manejar: cambialo desde Google Calendar.";
+
+pub(crate) fn desde_fila(fila: &Row) -> rusqlite::Result<Evento> {
     Ok(Evento {
         id: fila.get("id")?,
         titulo: fila.get("titulo")?,
@@ -149,11 +158,13 @@ fn desde_fila(fila: &Row) -> rusqlite::Result<Evento> {
         recurrencia: fila.get("recurrencia")?,
         repetir_hasta: fila.get("repetir_hasta")?,
         excepciones: Vec::new(),
+        de_google: fila.get::<_, String>("origen")? == "google",
+        solo_lectura: fila.get("solo_lectura")?,
     })
 }
 
 /// Lee eventos con un filtro SQL y les agrega sus excepciones.
-fn leer(conexion: &Connection, filtro: &str, parametros: impl rusqlite::Params) -> Resultado<Vec<Evento>> {
+pub(crate) fn leer(conexion: &Connection, filtro: &str, parametros: impl rusqlite::Params) -> Resultado<Vec<Evento>> {
     let sql = format!("SELECT {COLUMNAS} FROM eventos {filtro} ORDER BY inicio, id");
     let mut eventos: Vec<Evento> = conexion
         .prepare(&sql)?
@@ -236,13 +247,25 @@ pub fn crear(conexion: &mut Connection, datos: DatosEvento, ahora: &Ahora) -> Re
     Ok(evento)
 }
 
+/// Los de solo lectura no se tocan desde Nova (ni a mano ni con el asistente).
+fn editable(conexion: &Connection, id: i64) -> Resultado<()> {
+    if obtener(conexion, id)?.solo_lectura {
+        return invalido(SE_EDITA_EN_GOOGLE);
+    }
+    Ok(())
+}
+
+/// Cambiar un evento desde Nova lo marca para subirlo a Google
+/// (`cambiado_local = 1`). Lo que llega de Google entra por `repos::google`,
+/// que no lo marca: si no, iría y volvería para siempre.
 pub fn editar(conexion: &mut Connection, id: i64, datos: DatosEvento, ahora: &Ahora) -> Resultado<Evento> {
     let tx = conexion.transaction()?;
+    editable(&tx, id)?;
     let d = validar(&tx, datos)?;
     let cambiadas = tx.execute(
         "UPDATE eventos SET titulo = ?1, tipo = ?2, inicio = ?3, fin = ?4, todo_el_dia = ?5,
                 materia_id = ?6, persona = ?7, notas = ?8, recurrencia = ?9, repetir_hasta = ?10,
-                actualizado_en = ?11
+                actualizado_en = ?11, cambiado_local = 1
          WHERE id = ?12",
         params![
             d.titulo, d.tipo, d.inicio, d.fin, d.todo_el_dia, d.materia_id, d.persona, d.notas,
@@ -258,11 +281,35 @@ pub fn editar(conexion: &mut Connection, id: i64, datos: DatosEvento, ahora: &Ah
     Ok(evento)
 }
 
-pub fn borrar(conexion: &mut Connection, id: i64) -> Resultado<()> {
+/// Si el evento ya estaba en Google, queda anotado en `google_borrados` para
+/// borrarlo allá cuando haya internet.
+pub fn borrar(conexion: &mut Connection, id: i64, ahora: &Ahora) -> Resultado<()> {
     let tx = conexion.transaction()?;
-    automaticas::al_borrar_evento(&tx, id)?;
-    tx.execute("DELETE FROM eventos WHERE id = ?1", [id])?;
+    editable(&tx, id)?;
+    let id_externo: Option<String> =
+        tx.query_row("SELECT id_externo FROM eventos WHERE id = ?1", [id], |f| f.get(0))?;
+    if let Some(id_externo) = id_externo {
+        tx.execute(
+            "INSERT OR REPLACE INTO google_borrados (id_externo, borrado_en) VALUES (?1, ?2)",
+            params![id_externo, ahora.marca],
+        )?;
+    }
+    borrar_con_repeticiones(&tx, id)?;
     tx.commit()?;
+    Ok(())
+}
+
+/// Borra el evento y sus repeticiones movidas (`serie_id`), con sus
+/// automáticas. En Google, borrar la serie ya se lleva sus repeticiones.
+pub(crate) fn borrar_con_repeticiones(conexion: &Connection, id: i64) -> Resultado<()> {
+    let hijos: Vec<i64> = conexion
+        .prepare("SELECT id FROM eventos WHERE serie_id = ?1")?
+        .query_map([id], |f| f.get(0))?
+        .collect::<Result<_, _>>()?;
+    for hijo in hijos.into_iter().chain([id]) {
+        automaticas::al_borrar_evento(conexion, hijo)?;
+        conexion.execute("DELETE FROM eventos WHERE id = ?1", [hijo])?;
+    }
     Ok(())
 }
 
@@ -279,6 +326,9 @@ pub fn cambiar_excepcion(
     };
     let tx = conexion.transaction()?;
     let evento = obtener(&tx, id)?;
+    if evento.solo_lectura {
+        return invalido(SE_EDITA_EN_GOOGLE);
+    }
     if evento.recurrencia == Recurrencia::Ninguna {
         return invalido("Solo se pueden saltear fechas de un evento que se repite.");
     }
@@ -293,6 +343,10 @@ pub fn cambiar_excepcion(
             params![id, texto_fecha(dia)],
         )?;
     }
+    tx.execute(
+        "UPDATE eventos SET cambiado_local = 1, actualizado_en = ?1 WHERE id = ?2",
+        params![ahora.marca, id],
+    )?;
     let evento = obtener(&tx, id)?;
     automaticas::sincronizar_evento(&tx, &evento, ahora)?;
     tx.commit()?;
@@ -336,7 +390,7 @@ pub mod tests {
         let editada = editar(&mut base, clase.id, cambios, &ahora).unwrap();
         assert_eq!(editada.fin.as_deref(), Some("2026-11-18T18:00:00-03:00"));
 
-        borrar(&mut base, clase.id).unwrap();
+        borrar(&mut base, clase.id, &ahora).unwrap();
         assert!(matches!(obtener(&base, clase.id), Err(Error::NoEncontrado(_))));
     }
 

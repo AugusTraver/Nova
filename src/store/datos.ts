@@ -13,6 +13,7 @@ import type {
   Ocurrencia,
   Responsabilidad,
   VistaFutbol,
+  VistaGoogle,
 } from "../lib/tipos";
 
 /** Cuántos días hacia adelante se cargan (la agenda muestra 4; Facu cuenta hasta acá). */
@@ -37,6 +38,8 @@ interface EstadoDatos {
   futbol: Cacheado<VistaFutbol> | null;
   noticias: Cacheado<Noticia[]> | null;
   clima: VistaClima | null;
+  /** Google Calendar (v0.7.2): si está conectado y su último error. Se lee con la agenda. */
+  google: VistaGoogle | null;
   fuentes: Record<Fuente, EstadoFuente>;
 
   /** Pone al día las automáticas y recarga todo. Se llama al abrir el panel. */
@@ -76,6 +79,11 @@ export const useDatos = create<EstadoDatos>()((set, get) => {
   const lectores: Record<Fuente, () => Promise<void>> = {
     agenda: () => {
       const hoy = aFecha(new Date());
+      // El estado de Google va aparte: si falla, la agenda se muestra igual.
+      void api.obtenerGoogle().then(
+        (google) => set({ google }),
+        (e: unknown) => console.error("No se pudo leer Google Calendar", e),
+      );
       return cargar("agenda", "ocurrencias", () => api.listarOcurrencias(hoy, sumarDias(hoy, DIAS_CARGADOS)));
     },
     responsabilidades: () => cargar("responsabilidades", "responsabilidades", () => api.listarResponsabilidades()),
@@ -105,6 +113,7 @@ export const useDatos = create<EstadoDatos>()((set, get) => {
     futbol: null,
     noticias: null,
     clima: null,
+    google: null,
     fuentes: {
       agenda: sinCargar,
       responsabilidades: sinCargar,
