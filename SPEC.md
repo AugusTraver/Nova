@@ -77,7 +77,7 @@ Costo objetivo: **$0**. Todo lo pago se reemplaza por algo local o por un plan g
 - Muestra hoy y los próximos días con los eventos.
 - Tipos de evento: `clase`, `examen`, `entrega`, `cumpleaños`, `partido`, `otro`. Cada uno con su color o ícono.
 - Crear, editar y borrar eventos desde el widget o por voz.
-- v1: calendario **local** (SQLite). En v0.7.2: sincronización con Google Calendar en los dos sentidos.
+- v1: calendario **local** (SQLite). Desde v0.7.2: sincronización con Google Calendar en los dos sentidos (ver 4.9).
 
 ### 4.2 Responsabilidades
 Lista de cosas que tengo que **hacer**, distinta del calendario (que dice lo que **pasa**).
@@ -147,6 +147,28 @@ Solo fútbol. Prioridad: **Boca Juniors** > **Selección Argentina** > **jugador
   - Sin IA (sin key o con error), se ordena por palabras clave de los intereses y por lo reciente, con hasta 3 notas por fuente.
 - **Resumen del día:** una plantilla fija en `dominio/resumen.rs` (sin IA). La usan la herramienta `resumen_del_dia` y la lectura en voz alta de v0.5.
 - **Clima:** Open-Meteo cada 30 minutos, al lado de la fecha del saludo. La ciudad se busca en Ajustes y se puede ocultar.
+
+### 4.9 Decisiones de v0.7.2 (Google Calendar)
+- **Qué hace:** la agenda de Nova y el calendario principal de Google son la misma. Lo que creás, cambiás o borrás de un lado (a mano, con el asistente o desde el celular) aparece en el otro, sin duplicados. Las responsabilidades automáticas salen de los eventos, vengan de donde vengan, y no se suben a Google.
+- **La app de Google es tuya:** un proyecto "Nova" en Google Cloud con la API de Calendar, un cliente "App de escritorio" y la app publicada **en producción** (en modo de prueba el permiso vence a los 7 días). No está verificada: al conectar, Google muestra "Google no verificó esta app" y se entra por "Avanzado". Para publicarla, Google pidió una página principal y una política de privacidad: están en `https://augustraver.github.io/Nova/`, servidas desde la rama `gh-pages` del repo.
+- **Alcance mínimo:** `calendar.events.owned` (ver y editar eventos de los calendarios que son tuyos). Google lo marca como sensible.
+- **El permiso (OAuth para escritorio, `google/oauth.rs`):** Nova abre un puerto al azar en `127.0.0.1`, abre Google en el navegador con `compu::sistema::abrir` y espera la vuelta (hasta 5 minutos, cancelable), con PKCE (S256) y un `state` al azar. El ID del cliente, el secreto y el permiso de largo plazo (`refresh_token`) van al llavero (cuentas `google_cliente_id`, `google_cliente_secreto`, `google_permiso`); se cargan en Ajustes y nunca vuelven a la interfaz. El permiso corto (una hora) vive solo en memoria y se renueva solo.
+- **Sin librerías nuevas:** todo con `reqwest`. PKCE usa `sha2` y `getrandom`, que ya venían adentro de otras librerías, y un base64 de 15 líneas.
+- **Qué calendario:** el principal (lo que cargás en el celular va ahí por defecto).
+- **La primera vez:** se trae lo que no terminó hace más de 30 días y se suben los eventos de Nova con el mismo corte. Si un evento está de los dos lados (mismo título sin importar mayúsculas ni acentos, mismo inicio), se juntan en vez de duplicarse y queda lo de Nova. Ajustes muestra el resumen ("La primera vez subí 5 eventos, traje 2 y junté 1…").
+- **Cada cuánto (`fondo.rs`):** cada minuto con el panel abierto, cada 5 cerrado, enseguida al abrir el panel y enseguida después de un cambio en la agenda (desde el widget o el asistente). Google pide un `syncToken` y devuelve solo lo que cambió, borrados incluidos. Si dice 410, se vuelve a traer todo y se junta por id. Los avisos de cambios de Google (push) no se usan: piden una dirección HTTPS pública.
+- **Quién gana:** si un evento cambió de los dos lados, gana el cambio más nuevo (el `updated` de Google contra el `actualizado_en` de Nova); al subir se manda el `etag` (`If-Match`) y, si Google dice 412, se decide igual. Borrado de un lado y editado del otro: gana la edición y el evento vuelve. Todo en `dominio/google.rs`, con tests.
+- **Sin internet:** Nova anda igual con lo local. Lo que cambiás queda marcado (`cambiado_local`) y lo que borrás, anotado (`google_borrados`); se sube cuando vuelve. Los reintentos se espacian como los demás datos de internet. El widget muestra "Sin conexión con Google" en el renglón del título (el detalle, al pasar el mouse).
+- **Los datos (migración 7):** `eventos` suma `etag_google`, `actualizado_google`, `cambiado_local`, `solo_lectura`, `serie_externa`, `serie_id` y `serie_fecha`, con un índice único en `id_externo`. La tabla `google_borrados` guarda lo borrado pendiente. El `syncToken` y el último error van a `cache_externa` (clave `google:calendar`).
+- **Lo que Google no tiene:** el tipo, la materia y la persona viajan en `extendedProperties.private` del evento, así no se pierden al ir y volver. Un evento creado en Calendar sin eso toma el tipo del título (parcial, final o recuperatorio → examen; entrega o TP → entrega; cumple → cumpleaños; clase o teórica → clase; partido o "vs" → partido), la materia de su nombre en el título y la persona de "Cumple de Juan". Los cumpleaños de los contactos de Google entran como cumpleaños; el "lugar de trabajo" no se trae. Un evento con hora sin fin sube con una hora y se marca, así vuelve sin fin.
+- **La recurrencia:** la semanal (el mismo día del inicio) y la anual van como `RRULE` con `UNTIL`; las fechas salteadas, como `EXDATE` en UTC. De Google se aceptan también `COUNT` y `BYDAY`/`BYMONTH` que coinciden con el inicio. Una repetición borrada en Google queda salteada en Nova; una movida queda salteada en la serie y como evento suelto (`serie_id`), editable de los dos lados.
+  - **Series que Nova no sabe repetir** (diaria, mensual, cada 2 semanas, "lunes y miércoles"): se guardan sus repeticiones de los próximos 90 días como eventos sueltos de **solo lectura**, que se renuevan una vez por día. No abren el formulario y el asistente no las puede editar ni borrar ("cambialo desde Google Calendar").
+- **En vivo:** cuando llega algo de Google, la tarea de fondo avisa con `datos-cambiados` y el widget se actualiza solo.
+- **Detalle sutil:** lo que vino de Calendar lleva un anillito tenue después del título, sin etiqueta (el lector de pantalla dice "de Google Calendar").
+- **Conectar y desconectar:** en Ajustes, "Google Calendar". Desconectar revoca el permiso en Google, lo borra del llavero y olvida el `syncToken`; no borra eventos de ningún lado. Cambiar el ID del cliente borra el permiso viejo.
+- **El asistente:** sus herramientas no cambian y no suma tokens; la sincronización corre por debajo.
+- **Tests con tu cuenta** (marcados `#[ignore]`, solo leen): `cargo test lista_mi_calendario -- --ignored --nocapture`.
+- **En el navegador:** `?calendar` arranca conectado, con una serie de solo lectura, y a los 3 segundos "llega" un examen; `?calendarsinred` muestra el aviso.
 
 ## 5. Asistente
 
@@ -311,7 +333,9 @@ materias(id, nombre, color, creado_en)
 
 eventos(id, titulo, tipo, inicio, fin, todo_el_dia, materia_id?, persona?, notas,
         recurrencia['ninguna'|'semanal'|'anual'], repetir_hasta?,
-        origen['local'|'google'], id_externo?, creado_en, actualizado_en)
+        origen['local'|'google'], id_externo?, creado_en, actualizado_en,
+        etag_google?, actualizado_google?, cambiado_local, solo_lectura,   -- v0.7.2
+        serie_externa?, serie_id?, serie_fecha?)
 
 eventos_excepciones(evento_id, fecha)   -- fechas salteadas de una serie (feriados)
 
@@ -330,6 +354,8 @@ cambios_archivos(id, ruta, accion['cambiar'|'crear'|'borrar'|'deshacer'], copia?
 
 temporizadores(id, texto, vence_en, creado_en)          -- v0.7.1: se borran al avisar
 
+google_borrados(id_externo, borrado_en)  -- v0.7.2: borrados en Nova que falta avisar a Google
+
 preferencias(clave, valor_json)
   -- atajo, proveedor_ia, modelo, equipos (Boca, Selección), jugadores_seguidos,
   -- intereses_noticias, feeds_rss,
@@ -344,7 +370,7 @@ preferencias(clave, valor_json)
 - Migraciones versionadas desde el primer día (`PRAGMA user_version`, archivos en `src-tauri/migraciones/`).
 
 ## 7. Configuración
-Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, API keys (guardadas en el llavero), equipos, intereses y feeds de noticias, reglas de responsabilidades automáticas, voz (activar/desactivar, velocidad, "Oye Nova"), avisos y "no molestar", sobre vos, arranque con el sistema, clima on/off.
+Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, API keys (guardadas en el llavero), equipos, intereses y feeds de noticias, reglas de responsabilidades automáticas, voz (activar/desactivar, velocidad, "Oye Nova"), avisos y "no molestar", sobre vos, arranque con el sistema, clima on/off, Google Calendar (ID y secreto del cliente, conectar y desconectar).
 
 ## 8. Requisitos no funcionales
 - **Rápido:** el panel tiene que abrirse en menos de 300 ms desde el atajo. Animaciones a 60 fps.
@@ -357,5 +383,4 @@ Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, AP
 - Multiusuario o cuentas.
 - Mobile.
 - Hardware externo.
-- Widgets reordenables (mejora futura).
-- Sincronización con Google Calendar (v0.7.2).
+- Widgets redimensionables (mejora futura).
