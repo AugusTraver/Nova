@@ -14,7 +14,8 @@ const NOMBRE: Record<TipoProveedor, string> = { groq: "Groq", gemini: "Gemini", 
 /** Dónde se saca cada key y cómo empieza (para el placeholder). */
 const KEY: Record<"groq" | "gemini", { donde: string; empieza: string }> = {
   groq: { donde: "console.groq.com/keys", empieza: "gsk_…" },
-  gemini: { donde: "aistudio.google.com, en «Claves de API»", empieza: "AIza…" },
+  // Las de AI Studio empiezan con "AIza…" o, las nuevas, con "AQ.…".
+  gemini: { donde: "aistudio.google.com, en «Claves de API»", empieza: "Pegá la clave de AI Studio" },
 };
 
 /** "ninguno" en las opciones = `null` en los ajustes. */
