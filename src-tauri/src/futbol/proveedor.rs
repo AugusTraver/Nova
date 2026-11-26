@@ -23,5 +23,9 @@ pub trait ProveedorFutbol {
     fn buscar_jugadores(&self, texto: &str) -> impl Future<Output = Resultado<Vec<JugadorEncontrado>>> + Send;
 }
 
-/// `calendario` hace dos pedidos: los jugados y los que vienen.
-pub const PEDIDOS_CALENDARIO: u32 = 2;
+/// Lo máximo que gasta `calendario`: los jugados, los que vienen y, en
+/// enero, los jugados del año anterior.
+pub const PEDIDOS_CALENDARIO: u32 = 3;
+
+/// Lo máximo que gasta `jugador`: uno, y otro si ESPN eligió una liga vacía.
+pub const PEDIDOS_JUGADOR: u32 = 2;

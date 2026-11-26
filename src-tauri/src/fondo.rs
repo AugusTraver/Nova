@@ -27,7 +27,7 @@ use crate::dominio::noticias as eleccion;
 use crate::dominio::refresco;
 use crate::error::{Error, Resultado};
 use crate::futbol::espn::ClienteEspn;
-use crate::futbol::proveedor::{PEDIDOS_CALENDARIO, ProveedorFutbol};
+use crate::futbol::proveedor::{PEDIDOS_CALENDARIO, PEDIDOS_JUGADOR, ProveedorFutbol};
 use crate::futbol::vista::{clave_calendario, clave_jugador, clave_tabla, clave_vivo};
 use crate::futbol::{EQUIPOS, EstadoPartido, Partido};
 use crate::llavero;
@@ -189,7 +189,7 @@ async fn futbol(app: &AppHandle, db: &Db, espn: &ClienteEspn, panel_abierto: boo
     for jugador in &jugadores {
         let ahora = Ahora::del_sistema();
         let clave = clave_jugador(&jugador.id);
-        if vencida(db, &clave, &ahora) && permitido(db, 1, &ahora) {
+        if vencida(db, &clave, &ahora) && permitido(db, PEDIDOS_JUGADOR, &ahora) {
             let resultado = espn.jugador(&jugador.id, &jugador.nombre).await;
             anotar(db, &clave, &resultado, |_| refresco::proxima_manana(ahora.momento), &ahora);
             cambio = true;

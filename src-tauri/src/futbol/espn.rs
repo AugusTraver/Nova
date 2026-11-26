@@ -11,7 +11,7 @@
 
 use std::time::Duration;
 
-use chrono::{DateTime, NaiveDateTime, SecondsFormat, Utc};
+use chrono::{DateTime, Datelike, NaiveDateTime, SecondsFormat, Utc};
 use serde_json::Value;
 
 use super::proveedor::ProveedorFutbol;
@@ -29,8 +29,12 @@ const BUSQUEDA: &str = "https://site.web.api.espn.com/apis/search/v2";
 // ---------- Direcciones ----------
 
 /// "all" = todas las competencias del equipo (liga, copas, Conmebol).
-pub fn url_jugados(equipo_id: &str) -> String {
-    format!("{SITIO}/all/teams/{equipo_id}/schedule")
+///
+/// Va con la temporada (el año) porque, sin ella, ESPN elige la de la
+/// próxima competencia que tenga el equipo: en noviembre de 2026 Boca ya
+/// tenía la Recopa 2027 y devolvía cero partidos jugados.
+pub fn url_jugados(equipo_id: &str, temporada: i32) -> String {
+    format!("{SITIO}/all/teams/{equipo_id}/schedule?season={temporada}")
 }
 
 pub fn url_proximos(equipo_id: &str) -> String {
@@ -45,8 +49,37 @@ pub fn url_tabla(liga: &str) -> String {
     format!("{TABLAS}/{liga}/standings")
 }
 
-pub fn url_jugador(jugador_id: &str) -> String {
-    format!("{COMUN}/athletes/{jugador_id}/gamelog")
+/// `liga`: para pedir una en particular cuando la que elige ESPN viene vacía
+/// (ver `otra_liga_del_jugador`).
+pub fn url_jugador(jugador_id: &str, liga: Option<&str>) -> String {
+    match liga {
+        Some(liga) => format!("{COMUN}/athletes/{jugador_id}/gamelog?league={liga}"),
+        None => format!("{COMUN}/athletes/{jugador_id}/gamelog"),
+    }
+}
+
+/// Si el gamelog vino sin partidos, la primera de las otras ligas que ESPN
+/// ofrece para ese jugador (la de su club suele ir primero). Pasa cuando ESPN
+/// elige una copa que todavía no se jugó, como la Recopa del año que viene.
+pub fn otra_liga_del_jugador(json: &Value) -> Option<String> {
+    let tiene_partidos = json.get("events").and_then(Value::as_object).is_some_and(|e| !e.is_empty());
+    if tiene_partidos {
+        return None;
+    }
+    let filtro = json.get("filters")?.as_array()?.iter().find(|f| texto(f, "name").as_deref() == Some("league"))?;
+    let elegida = texto(filtro, "value");
+    filtro
+        .get("options")?
+        .as_array()?
+        .iter()
+        .filter_map(|o| texto(o, "value"))
+        .find(|liga| Some(liga) != elegida.as_ref())
+}
+
+/// Si en la temporada de este año todavía no hay nada jugado (enero), se
+/// piden también los de la anterior, para mostrar el último resultado.
+pub fn falta_la_temporada_anterior(jugados: &[Partido]) -> bool {
+    !jugados.iter().any(|p| p.estado != EstadoPartido::Programado)
 }
 
 pub fn url_busqueda(texto: &str) -> String {
@@ -449,7 +482,12 @@ fn no_entiendo() -> Error {
 
 impl ProveedorFutbol for ClienteEspn {
     async fn calendario(&self, equipo_id: &str) -> Resultado<Vec<Partido>> {
-        let jugados = leer_calendario(&self.pedir(&url_jugados(equipo_id)).await?);
+        let anio = chrono::Local::now().year();
+        let mut jugados = leer_calendario(&self.pedir(&url_jugados(equipo_id, anio)).await?);
+        if falta_la_temporada_anterior(&jugados) {
+            let anteriores = leer_calendario(&self.pedir(&url_jugados(equipo_id, anio - 1)).await?);
+            jugados = unir_calendarios(anteriores, jugados);
+        }
         let proximos = leer_calendario(&self.pedir(&url_proximos(equipo_id)).await?);
         Ok(unir_calendarios(jugados, proximos))
     }
@@ -463,7 +501,11 @@ impl ProveedorFutbol for ClienteEspn {
     }
 
     async fn jugador(&self, jugador_id: &str, nombre: &str) -> Resultado<EstadoJugador> {
-        leer_jugador(&self.pedir(&url_jugador(jugador_id)).await?, jugador_id, nombre).ok_or_else(no_entiendo)
+        let mut json = self.pedir(&url_jugador(jugador_id, None)).await?;
+        if let Some(liga) = otra_liga_del_jugador(&json) {
+            json = self.pedir(&url_jugador(jugador_id, Some(&liga))).await?;
+        }
+        leer_jugador(&json, jugador_id, nombre).ok_or_else(no_entiendo)
     }
 
     async fn buscar_jugadores(&self, texto: &str) -> Resultado<Vec<JugadorEncontrado>> {
@@ -483,7 +525,9 @@ mod tests {
 
     #[test]
     fn las_direcciones() {
-        assert_eq!(url_jugados("5"), "https://site.api.espn.com/apis/site/v2/sports/soccer/all/teams/5/schedule");
+        assert_eq!(url_jugados("5", 2026), "https://site.api.espn.com/apis/site/v2/sports/soccer/all/teams/5/schedule?season=2026");
+        assert!(url_jugador("400359", None).ends_with("/athletes/400359/gamelog"));
+        assert!(url_jugador("400359", Some("arg.1")).ends_with("/athletes/400359/gamelog?league=arg.1"));
         assert!(url_proximos("202").ends_with("/all/teams/202/schedule?fixture=true"));
         assert!(url_partido("401926286").ends_with("/all/summary?event=401926286"));
         assert_eq!(url_tabla("arg.1"), "https://site.api.espn.com/apis/v2/sports/soccer/arg.1/standings");
@@ -613,6 +657,50 @@ mod tests {
         let r = leer_busqueda(&ejemplo(include_str!("ejemplos/busqueda_jugador.json")));
         assert_eq!(r.len(), 2);
         assert_eq!(r[0], JugadorEncontrado { id: "153115".into(), nombre: "Leandro Paredes".into(), club: Some("Boca Juniors".into()) });
+    }
+
+    #[test]
+    fn si_espn_elige_una_liga_sin_partidos_se_pide_otra() {
+        // Lo que devolvía en noviembre de 2026 para un jugador de Boca.
+        let vacio = json!({ "filters": [
+            { "name": "season", "value": "2026" },
+            { "name": "league", "value": "conmebol.recopa", "options": [
+                { "value": "arg.1" }, { "value": "conmebol.sudamericana" }, { "value": "conmebol.recopa" }
+            ] }
+        ] });
+        assert_eq!(otra_liga_del_jugador(&vacio).as_deref(), Some("arg.1"));
+        // Si ya elegía la liga y vino vacía, prueba la siguiente.
+        let mut en_liga = vacio.clone();
+        en_liga["filters"][1]["value"] = json!("arg.1");
+        assert_eq!(otra_liga_del_jugador(&en_liga).as_deref(), Some("conmebol.sudamericana"));
+        // Con partidos, no se pide nada más.
+        assert_eq!(otra_liga_del_jugador(&ejemplo(include_str!("ejemplos/jugador_partidos.json"))), None);
+    }
+
+    #[test]
+    fn en_enero_se_pide_la_temporada_anterior() {
+        let proximos = leer_calendario(&ejemplo(include_str!("ejemplos/fixture_boca.json")));
+        assert!(!proximos.is_empty());
+        assert!(falta_la_temporada_anterior(&proximos));
+        assert!(falta_la_temporada_anterior(&[]));
+        let jugados = leer_calendario(&ejemplo(include_str!("ejemplos/calendario_boca.json")));
+        assert!(!falta_la_temporada_anterior(&jugados));
+    }
+
+    /// Usa internet (ESPN, gratis): `cargo test -- --ignored espn_de_verdad --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn espn_de_verdad() {
+        let espn = ClienteEspn::nuevo().unwrap();
+        let partidos = espn.calendario("5").await.unwrap();
+        let jugados = partidos.iter().filter(|p| p.estado == EstadoPartido::Terminado).count();
+        println!("Boca: {} partidos, {jugados} jugados", partidos.len());
+        for p in partidos.iter().rev().take(4) {
+            println!("  {} {} {} - {}", p.fecha, p.competencia, p.local.nombre, p.visitante.nombre);
+        }
+        assert!(jugados > 0, "sin partidos jugados: ESPN volvió a cambiar la temporada");
+        let aranda = espn.jugador("400359", "Tomás Aranda").await.unwrap();
+        println!("Aranda: {:?}", aranda.ultimo);
     }
 
     #[test]
