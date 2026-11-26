@@ -284,6 +284,15 @@ pub fn borrar_sueltas(conexion: &Connection, serie_externa: &str) -> Resultado<u
     Ok(ids.len())
 }
 
+/// Las fechas de una serie que reemplaza una repetición movida (no van
+/// como EXDATE a Google: si no, Google borraría también la movida).
+pub fn fechas_movidas(conexion: &Connection, serie_id: i64) -> Resultado<Vec<String>> {
+    Ok(conexion
+        .prepare("SELECT serie_fecha FROM eventos WHERE serie_id = ?1 AND serie_fecha IS NOT NULL")?
+        .query_map([serie_id], |f| f.get(0))?
+        .collect::<Result<_, _>>()?)
+}
+
 /// Las series de solo lectura que hay (para renovar sus repeticiones).
 pub fn series_sueltas(conexion: &Connection) -> Resultado<Vec<String>> {
     Ok(conexion

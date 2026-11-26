@@ -11,6 +11,7 @@ mod dominio;
 mod error;
 mod fondo;
 mod futbol;
+mod google;
 mod llavero;
 mod notificaciones;
 mod noticias;
