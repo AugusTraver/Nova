@@ -290,7 +290,7 @@ Reglas:
 - **Sin Ollama de respaldo por ahora:** se decidió no cambiar solo a Ollama. Con estos ahorros alcanza para el uso diario.
 
 ### 5.9 Decisiones de v0.7.1 (Nova usa la compu)
-- **Qué hace:** abre cosas (páginas, búsquedas de Google, videos de YouTube, programas, carpetas y archivos), lee archivos de texto y los cambia con confirmación. No lee páginas para contestar: eso es v0.7.3.
+- **Qué hace:** abre cosas (páginas, búsquedas de Google, videos de YouTube, programas, carpetas y archivos), lee archivos de texto y los cambia con confirmación. No lee páginas para contestar: eso es v0.7.4.
 - **Todo en Rust** (`src-tauri/src/compu/`), con las reglas puras en `dominio/compu.rs` (direcciones, rutas, tipos de archivo, reemplazos y el antes y después, con tests). El modelo nunca arma un comando ni una ruta que se ejecute: cada acción es una herramienta con argumentos validados.
 - **Herramientas:** `abrir_pagina`, `buscar_en_google`, `poner_video`, `abrir_programa` (con un archivo o carpeta opcional, "abrí notas.txt en VS Code"), `abrir_archivo`, `leer_archivo`, `cambiar_archivo`, `crear_archivo`, `borrar_archivo`, `deshacer_cambio` y `controlar_musica`. Se suman a las de la agenda según el tema (ver abajo).
 - **Abrir:** con `ShellExecuteW`, lo mismo que un doble clic. Las direcciones van al navegador por defecto y solo pueden ser `http` o `https`, con un sitio y sin usuario ni contraseña (`file:`, `javascript:`, `ms-settings:` y demás, no). Sin esquema se le pone `https://`.

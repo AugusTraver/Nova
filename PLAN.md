@@ -114,7 +114,7 @@ Cada versión termina en algo que **funciona y se puede usar**. No se pasa a la 
 - Solo dentro de las carpetas permitidas en Ajustes, y con un interruptor para apagarlo todo.
 - Extras a elegir: controlar la música, temporizadores, portapapeles, ventanas, horas ambiguas.
 
-Acá Nova solo **abre** cosas: no lee la página ni contesta con lo que dice. Eso es v0.7.3.
+Acá Nova solo **abre** cosas: no lee la página ni contesta con lo que dice. Eso es v0.7.4.
 
 **Terminado cuando:** por voz abro el primer video de YouTube de una búsqueda, una pestaña de Google con lo que pedí y Visual Studio Code; cambio una palabra de un archivo confirmándolo y lo deshago; Nova no toca nada fuera de las carpetas permitidas, y un pedido típico no gasta más tokens que en v0.6.1.
 
@@ -129,7 +129,18 @@ Acá Nova solo **abre** cosas: no lee la página ni contesta con lo que dice. Es
 
 **Terminado cuando:** un evento creado en Nova aparece en Google Calendar, uno creado en Calendar aparece en Nova con sus responsabilidades automáticas, y editar o borrar de un lado se ve en el otro.
 
-## v0.7.3 — Buscar información en internet
+## v0.7.3 — Más cupo para la IA (Gemini de respaldo)
+**Objetivo:** que Nova no se quede sin IA cuando se acaba el cupo de Groq, sin perder su velocidad.
+- Gemini como proveedor más (API compatible con OpenAI), con su key en el llavero. Por defecto, `gemini-3.5-flash-lite` (plan gratis: 15 pedidos y 250.000 tokens por minuto, 500 pedidos por día).
+- Un proveedor de respaldo: Groq sigue de principal y, cuando no le alcanzan los tokens del minuto (o del día) o devuelve un error pasajero, el pedido va a Gemini sin avisar. Cuando Groq vuelve a tener cupo, se vuelve a usar.
+- Nova recuerda cuánto cupo le queda a cada proveedor (los encabezados de Groq y los 429) y no le manda un pedido que no va a entrar.
+- Las tareas de fondo (elegir noticias) usan primero el respaldo, para no gastar el cupo de Groq.
+- En Ajustes: elegir el principal (Groq, Gemini u Ollama), el respaldo y sus keys. "Probar conexión" prueba los dos.
+- Las herramientas del asistente no cambian.
+
+**Terminado cuando:** con Groq sin cupo, le pido algo a Nova y contesta igual (con Gemini), y al minuto siguiente vuelve a usar Groq.
+
+## v0.7.4 — Buscar información en internet
 **Objetivo:** que Nova conteste cosas que no sabe buscándolas, sin abrir el navegador.
 - "Fijate quién ganó anoche River", "¿a qué hora abre tal lugar?": busca con una API de búsqueda aparte, con plan gratis (no la búsqueda incluida de Groq, para no gastar sus tokens), lee unos pocos resultados y contesta en una o dos frases, diciendo de dónde lo sacó.
 - Nova decide sola cuándo buscar: si la respuesta está en sus datos (agenda, fútbol, noticias) o es algo que no cambia, no busca; si es algo actual o que no sabe, busca.
