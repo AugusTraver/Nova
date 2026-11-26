@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::asistente::ciclo::{self, Asistente, Avisos, Progreso, Turno};
 use crate::asistente::herramientas::Fuente;
 use crate::asistente::mensajes::{Mensaje, RespuestaModelo};
-use crate::asistente::openai::ClienteCompatible;
+use crate::asistente::cadena::CadenaIa;
 use crate::asistente::proveedor::{AjustesIa, ProveedorIa, TipoProveedor};
 use crate::compu::{self, AjustesCompu};
 use crate::clima::{AjustesClima, CiudadEncontrada, ClienteClima, VistaClima};
@@ -207,13 +207,10 @@ impl Avisos for AvisosTauri {
     }
 }
 
-fn cliente_ia(db: &Db) -> Resultado<ClienteCompatible> {
+/// El proveedor elegido y su respaldo (v0.7.3), con las keys del llavero.
+fn cliente_ia(db: &Db) -> Resultado<CadenaIa> {
     let ajustes = preferencias::ajustes_ia(&db.conexion())?;
-    let key = match ajustes.proveedor.cuenta_llavero() {
-        Some(cuenta) => llavero::leer(cuenta)?,
-        None => None,
-    };
-    ajustes.cliente(key)
+    ajustes.cadena(llavero::leer)
 }
 
 /// Un turno con el asistente. Es `async`: mientras se espera al modelo, el
@@ -260,20 +257,25 @@ pub fn borrar_historial(db: State<'_, Db>) -> Resultado<()> {
     mensajes::borrar_todo(&db.conexion())
 }
 
-/// Lo que ve Ajustes: los ajustes y si hay una key guardada (nunca la key).
+/// Lo que ve Ajustes: los ajustes y qué proveedores tienen key guardada
+/// (nunca las keys).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VistaAjustesIa {
     pub ajustes: AjustesIa,
-    pub tiene_key: bool,
+    pub con_key: Vec<TipoProveedor>,
 }
 
 fn vista_ia(ajustes: AjustesIa) -> Resultado<VistaAjustesIa> {
-    let tiene_key = match TipoProveedor::Groq.cuenta_llavero() {
-        Some(cuenta) => llavero::leer(cuenta)?.is_some(),
-        None => false,
-    };
-    Ok(VistaAjustesIa { ajustes, tiene_key })
+    let mut con_key = Vec::new();
+    for tipo in [TipoProveedor::Groq, TipoProveedor::Gemini] {
+        if let Some(cuenta) = tipo.cuenta_llavero()
+            && llavero::leer(cuenta)?.is_some()
+        {
+            con_key.push(tipo);
+        }
+    }
+    Ok(VistaAjustesIa { ajustes, con_key })
 }
 
 #[tauri::command]
@@ -288,17 +290,21 @@ pub fn guardar_ajustes_ia(db: State<'_, Db>, ajustes: AjustesIa) -> Resultado<Vi
     vista_ia(ajustes)
 }
 
-/// Guarda la API key de Groq en el llavero. Vacía = borrarla.
+/// Guarda la API key de un proveedor de IA en el llavero (Groq si no se
+/// dice). Vacía = borrarla.
 #[tauri::command]
-pub fn guardar_api_key(key: String) -> Resultado<bool> {
-    let cuenta = TipoProveedor::Groq.cuenta_llavero().unwrap_or_default();
+pub fn guardar_api_key(key: String, proveedor: Option<TipoProveedor>) -> Resultado<bool> {
+    let tipo = proveedor.unwrap_or(TipoProveedor::Groq);
+    let Some(cuenta) = tipo.cuenta_llavero() else {
+        return invalido(format!("{} no usa key.", tipo.nombre()));
+    };
     let key = key.trim();
     if key.is_empty() {
         llavero::borrar(cuenta)?;
         return Ok(false);
     }
-    if key.len() > 300 || key.chars().any(char::is_whitespace) {
-        return invalido("Esa key no parece válida.");
+    if !tipo.key_valida(key) {
+        return invalido(format!("Esa key no parece de {}: revisá que esté completa.", tipo.nombre()));
     }
     llavero::guardar(cuenta, key)?;
     Ok(true)
@@ -1097,10 +1103,15 @@ mod tests {
             serde_json::to_value([Fuente::Agenda, Fuente::Responsabilidades, Fuente::Materias]).unwrap(),
             json!(["agenda", "responsabilidades", "materias"])
         );
-        let vista = serde_json::to_value(VistaAjustesIa { ajustes: AjustesIa::default(), tiene_key: false }).unwrap();
-        assert_eq!(claves(&vista), ["ajustes", "tieneKey"]);
-        assert_eq!(claves(&vista["ajustes"]), ["modeloGroq", "modeloOllama", "proveedor", "urlOllama"]);
+        let vista = serde_json::to_value(VistaAjustesIa { ajustes: AjustesIa::default(), con_key: vec![TipoProveedor::Gemini] }).unwrap();
+        assert_eq!(claves(&vista), ["ajustes", "conKey"]);
+        assert_eq!(
+            claves(&vista["ajustes"]),
+            ["modeloGemini", "modeloGroq", "modeloOllama", "proveedor", "respaldo", "urlOllama"]
+        );
         assert_eq!(vista["ajustes"]["proveedor"], "groq");
+        assert_eq!(vista["ajustes"]["respaldo"], "gemini");
+        assert_eq!(vista["conKey"], json!(["gemini"]));
 
         // AjustesAvisos (src/lib/tipos.ts)
         let avisos = serde_json::to_value(AjustesAvisos::default()).unwrap();

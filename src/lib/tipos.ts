@@ -199,19 +199,23 @@ export interface VistaGoogle {
 /** Avisos mientras el asistente trabaja. */
 export type Progreso = { tipo: "pensando" } | { tipo: "herramienta"; nombre: string };
 
-export type TipoProveedor = "groq" | "ollama";
+export type TipoProveedor = "groq" | "ollama" | "gemini";
 
 export interface AjustesIa {
   proveedor: TipoProveedor;
   modeloGroq: string;
   modeloOllama: string;
   urlOllama: string;
+  /** v0.7.3. */
+  modeloGemini: string;
+  /** Al que se pasa cuando el principal se queda sin cupo (v0.7.3). */
+  respaldo: TipoProveedor | null;
 }
 
-/** Ajustes de IA y si hay una API key guardada (la key nunca sale de Rust). */
+/** Ajustes de IA y qué proveedores tienen key guardada (las keys nunca salen de Rust). */
 export interface VistaAjustesIa {
   ajustes: AjustesIa;
-  tieneKey: boolean;
+  conKey: TipoProveedor[];
 }
 
 // ---- Datos de internet (ver src-tauri/src/futbol, noticias, clima) ----

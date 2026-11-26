@@ -12,6 +12,7 @@ import type {
   Ajustes as TipoAjustes,
   Regla,
   Reglas,
+  TipoProveedor,
   VistaAjustesCompu,
   VistaVoz,
 } from "../lib/tipos";
@@ -39,8 +40,8 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
   const [guardando, setGuardando] = useState(false);
   const [capturando, setCapturando] = useState(false);
   const [ia, setIa] = useState<AjustesIa | null>(null);
-  const [tieneKey, setTieneKey] = useState(false);
-  const [keyNueva, setKeyNueva] = useState<string | null>(null);
+  const [conKey, setConKey] = useState<TipoProveedor[]>([]);
+  const [keysNuevas, setKeysNuevas] = useState<Partial<Record<TipoProveedor, string>>>({});
   const [jugadores, setJugadores] = useState<JugadorSeguido[] | null>(null);
   const [noticias, setNoticias] = useState<AjustesNoticias | null>(null);
   const [clima, setClima] = useState<AjustesClima | null>(null);
@@ -66,21 +67,28 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
     api.obtenerAjustesIa().then(
       (vista) => {
         setIa(vista.ajustes);
-        setTieneKey(vista.tieneKey);
+        setConKey(vista.conKey);
       },
       (e: unknown) => setError(mensajeDelAsistente(e)),
     );
   }, []);
 
-  /** Guarda proveedor, modelo y key (la key va derecho al llavero). */
+  /** Guarda proveedores, modelos y keys (las keys van derecho al llavero). */
   async function guardarIa() {
     if (!ia) return;
     const vista = await api.guardarAjustesIa(ia);
     setIa(vista.ajustes);
-    if (keyNueva !== null) {
-      setTieneKey(await api.guardarApiKey(keyNueva));
-      setKeyNueva(null);
+    let con = vista.conKey;
+    for (const [proveedor, key] of Object.entries(keysNuevas) as [TipoProveedor, string][]) {
+      const queda = await api.guardarApiKey(key, proveedor);
+      con = [...con.filter((p) => p !== proveedor), ...(queda ? [proveedor] : [])];
     }
+    setConKey(con);
+    setKeysNuevas({});
+  }
+
+  function cambiarKey(proveedor: TipoProveedor, key: string | null) {
+    setKeysNuevas(({ [proveedor]: _, ...resto }) => (key === null ? resto : { ...resto, [proveedor]: key }));
   }
 
   // Mientras se elige el atajo, la próxima combinación con Ctrl/Alt/Shift
@@ -223,9 +231,9 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
         <AjustesAsistente
           ia={ia}
           alCambiar={setIa}
-          tieneKey={tieneKey}
-          keyNueva={keyNueva}
-          alCambiarKey={setKeyNueva}
+          conKey={conKey}
+          keysNuevas={keysNuevas}
+          alCambiarKey={cambiarKey}
           guardarIa={guardarIa}
         />
       )}

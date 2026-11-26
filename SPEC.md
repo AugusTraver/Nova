@@ -290,7 +290,7 @@ Reglas:
 - **Sin Ollama de respaldo por ahora:** se decidió no cambiar solo a Ollama. Con estos ahorros alcanza para el uso diario.
 
 ### 5.9 Decisiones de v0.7.1 (Nova usa la compu)
-- **Qué hace:** abre cosas (páginas, búsquedas de Google, videos de YouTube, programas, carpetas y archivos), lee archivos de texto y los cambia con confirmación. No lee páginas para contestar: eso es v0.7.3.
+- **Qué hace:** abre cosas (páginas, búsquedas de Google, videos de YouTube, programas, carpetas y archivos), lee archivos de texto y los cambia con confirmación. No lee páginas para contestar: eso es v0.7.4.
 - **Todo en Rust** (`src-tauri/src/compu/`), con las reglas puras en `dominio/compu.rs` (direcciones, rutas, tipos de archivo, reemplazos y el antes y después, con tests). El modelo nunca arma un comando ni una ruta que se ejecute: cada acción es una herramienta con argumentos validados.
 - **Herramientas:** `abrir_pagina`, `buscar_en_google`, `poner_video`, `abrir_programa` (con un archivo o carpeta opcional, "abrí notas.txt en VS Code"), `abrir_archivo`, `leer_archivo`, `cambiar_archivo`, `crear_archivo`, `borrar_archivo`, `deshacer_cambio` y `controlar_musica`. Se suman a las de la agenda según el tema (ver abajo).
 - **Abrir:** con `ShellExecuteW`, lo mismo que un doble clic. Las direcciones van al navegador por defecto y solo pueden ser `http` o `https`, con un sitio y sin usuario ni contraseña (`file:`, `javascript:`, `ms-settings:` y demás, no). Sin esquema se le pone `https://`.
@@ -325,6 +325,17 @@ Reglas:
   - **Horas ambiguas:** "de 6 a 7" quedaba a las 06:00 porque el modelo mandaba "06:00", y con el cero la hora cuenta como de 24 horas. Si el usuario no la dijo con el cero ni aclaró "de la mañana", se le saca el cero y vale la regla de la tarde (`hora_como_la_dijo`).
 - **Para después:** el portapapeles (mandaría lo copiado a Groq) y manejar ventanas (cerrar programas es riesgoso). Poner una canción en Spotify va en v1.0 con la API oficial y tu cuenta (pide Premium): abrir `spotify:track:…` en Windows a veces muestra el tema sin reproducirlo.
 - **Widgets que se arrastran** (pedido durante v0.7.1, adelantado de "después de v1.0"): se agarran de cualquier parte que no sea un botón, un link o un campo, y quedan donde los soltás. Al soltar, un imán suave (`src/lib/disposicion.ts`, con tests) los mete adentro de la pantalla y los corre lo mínimo para no tapar la esfera, la respuesta o la barra (marcadas con `data-obstaculo`) ni pisar a otro widget. Se guarda cuánto se corrió cada uno como fracción de la pantalla (preferencia `disposicion_widgets`, validada en `dominio/disposicion.rs`), así se ve igual con otra resolución. No se arrastran mientras se edita algo o se confirma un cambio de archivo. En Ajustes, "Volver a su lugar" los acomoda como siempre. Redimensionarlos sigue para después de v1.0.
+
+### 5.10 Decisiones de v0.7.3 (Gemini de respaldo)
+- **Por qué:** Groq anda muy bien pero su plan gratis da pocos tokens: con `gpt-oss-120b`, 8.000 por minuto y 200.000 por día. Un pedido gasta unos 2.500 tokens (y una o dos llamadas), así que alcanza para unos 3 pedidos por minuto y unos 80 por día.
+- **Gemini, por su API compatible con OpenAI** (`https://generativelanguage.googleapis.com/v1beta/openai`): usa el mismo cliente que Groq y Ollama. Por defecto `gemini-3.5-flash-lite`, el de más cupo en el plan gratis (15 pedidos y 250.000 tokens por minuto, 500 pedidos por día). Los Flash completos dan solo 20 pedidos por día y los Pro no están en el plan gratis. Key en el llavero (cuenta `gemini-api-key`). Google AI Pro no sube los límites de la API.
+- **La cadena** (`asistente/cadena.rs`): un principal (Groq por defecto) y un respaldo (Gemini por defecto; se usa solo si tiene key). Antes de cada pedido se estima cuántos tokens va a gastar (unos 4 caracteres por token, más 900 de respuesta) y, si al principal no le alcanza lo que le queda en el minuto, va al respaldo. Si el principal contesta 429 o un error del servidor, se repite con el respaldo. Una key mala o un pedido inválido no pasan al respaldo: se muestra el error. Una vez que un turno pasó al respaldo, sigue ahí hasta el final.
+- **El cupo** (`asistente/cupo.rs`): se lee de los encabezados de Groq (`x-ratelimit-remaining-tokens` y `x-ratelimit-reset-tokens`) y de los 429 (cuánto esperar, también el "Please retry in 23s" de Gemini). Se recuerda por proveedor mientras Nova está abierta; no se guarda en la base.
+- **Lo de fondo** (elegir noticias) va primero al respaldo, para no gastarle cupo a Groq.
+- **La firma de Gemini:** Gemini 3 firma cada llamada a una herramienta (`extra_content`) y pide la firma de vuelta. Se guarda en `Llamada.extra` y se devuelve solo a Gemini; a las llamadas que armó Groq antes de pasarse se les pone el valor que Google acepta para esos casos (`skip_thought_signature_validator`).
+- **Ajustes:** el principal (Groq, Gemini u Ollama), el respaldo ("Ninguno" o cualquiera de los otros) y el modelo y la key de cada uno. "Probar conexión" prueba los dos.
+- **En la consola:** cada pedido dice qué proveedor contestó (`IA (Gemini): 2.400 tokens…`) y cuándo se pasó al respaldo (`IA: a Groq no le alcanza el cupo; uso Gemini.`).
+- **Las herramientas del asistente no cambian.**
 
 ## 6. Modelo de datos (SQLite)
 
@@ -370,7 +381,7 @@ preferencias(clave, valor_json)
 - Migraciones versionadas desde el primer día (`PRAGMA user_version`, archivos en `src-tauri/migraciones/`).
 
 ## 7. Configuración
-Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA, API keys (guardadas en el llavero), equipos, intereses y feeds de noticias, reglas de responsabilidades automáticas, voz (activar/desactivar, velocidad, "Oye Nova"), avisos y "no molestar", sobre vos, arranque con el sistema, clima on/off, Google Calendar (ID y secreto del cliente, conectar y desconectar).
+Pantalla de ajustes (dentro del panel) para: atajo, proveedor y modelo de IA y su respaldo, API keys (guardadas en el llavero), equipos, intereses y feeds de noticias, reglas de responsabilidades automáticas, voz (activar/desactivar, velocidad, "Oye Nova"), avisos y "no molestar", sobre vos, arranque con el sistema, clima on/off, Google Calendar (ID y secreto del cliente, conectar y desconectar).
 
 ## 8. Requisitos no funcionales
 - **Rápido:** el panel tiene que abrirse en menos de 300 ms desde el atajo. Animaciones a 60 fps.

@@ -334,7 +334,7 @@ mod tests {
     fn llama(nombre: &str, args: Value) -> RespuestaModelo {
         RespuestaModelo {
             texto: String::new(),
-            llamadas: vec![Llamada { id: format!("id_{nombre}"), nombre: nombre.into(), argumentos: args.to_string() }],
+            llamadas: vec![Llamada { id: format!("id_{nombre}"), nombre: nombre.into(), argumentos: args.to_string(), extra: None }],
         }
     }
 
@@ -525,7 +525,7 @@ mod tests {
         let db = Db::de_conexion(crate::db::en_memoria());
         let ajustes = crate::asistente::proveedor::AjustesIa::default();
         let key = crate::llavero::leer("groq-api-key").unwrap();
-        let cliente = ajustes.cliente(key).unwrap();
+        let cliente = ajustes.cliente_de(ajustes.proveedor, key).unwrap();
         let avisos = Registro::default();
         let turno = responder_con(
             &cliente,
@@ -547,6 +547,33 @@ mod tests {
         println!("Respuesta por voz: {}", turno.respuesta);
     }
 
+    /// Lo mismo contra Gemini de verdad (v0.7.3), con la key del llavero:
+    /// prueba que entiende las herramientas y devuelve bien su firma en la
+    /// segunda vuelta. Gasta 2 o 3 de los 500 pedidos del día.
+    /// `cargo test con_gemini -- --ignored --nocapture`.
+    #[tokio::test]
+    #[ignore]
+    async fn con_gemini_crea_el_recordatorio() {
+        use crate::asistente::proveedor::{AjustesIa, TipoProveedor};
+        let db = Db::de_conexion(crate::db::en_memoria());
+        let key = crate::llavero::leer("gemini-api-key").unwrap().expect("falta la key de Gemini en el llavero");
+        let cliente = AjustesIa::default().cliente_de(TipoProveedor::Gemini, Some(key)).unwrap();
+        let turno = responder_con(
+            &cliente,
+            &db,
+            &Asistente::default(),
+            "Recordame comprar el regalo de Juan para el viernes.",
+            true,
+            &Registro::default(),
+            &ahora(),
+        )
+        .await
+        .unwrap();
+        let lista = crate::repos::responsabilidades::listar(&db.conexion()).unwrap();
+        assert!(lista.iter().any(|r| r.titulo.to_lowercase().contains("regalo")), "no creó la responsabilidad");
+        println!("Gemini: {}", turno.respuesta);
+    }
+
     /// Cuántos tokens gasta cada pedido típico contra Groq de verdad (el plan
     /// gratis cuenta tokens por minuto). Espera entre pedidos para no chocar
     /// con el límite. `cargo test tokens_por_pedido -- --ignored --nocapture`.
@@ -556,7 +583,7 @@ mod tests {
         let db = base_con_analisis();
         let ajustes = crate::asistente::proveedor::AjustesIa::default();
         let key = crate::llavero::leer("groq-api-key").unwrap();
-        let cliente = ajustes.cliente(key).unwrap();
+        let cliente = ajustes.cliente_de(ajustes.proveedor, key).unwrap();
         let estado = Asistente::default();
         let avisos = Registro::default();
         let pedidos = [
@@ -600,7 +627,7 @@ mod tests {
         let (compu, manos) = Compu::de_prueba(programas, prueba.ruta("copias"));
         let estado = Asistente::new(compu);
         let cliente = crate::asistente::proveedor::AjustesIa::default()
-            .cliente(crate::llavero::leer("groq-api-key").unwrap())
+            .cliente_de(crate::asistente::proveedor::TipoProveedor::Groq, crate::llavero::leer("groq-api-key").unwrap())
             .unwrap();
         let avisos = Registro::default();
         let pedidos = [

@@ -100,7 +100,7 @@ mod tests {
     use crate::db;
 
     fn llamada(id: &str) -> Llamada {
-        Llamada { id: id.into(), nombre: "listar_materias".into(), argumentos: "{}".into() }
+        Llamada { id: id.into(), nombre: "listar_materias".into(), argumentos: "{}".into(), extra: None }
     }
 
     #[test]
