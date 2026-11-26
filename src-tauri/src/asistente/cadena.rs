@@ -16,7 +16,7 @@ use serde_json::Value;
 use super::cupo::{self, Cupo};
 use super::mensajes::{Mensaje, RespuestaModelo};
 use super::openai::{ClienteCompatible, armar_pedido, estimar_tokens};
-use super::proveedor::{ProveedorIa, TipoProveedor};
+use super::proveedor::ProveedorIa;
 use crate::error::{Error, Resultado};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,7 +55,7 @@ impl CadenaIa {
     }
 
     #[cfg(test)]
-    pub fn tipos(&self) -> (TipoProveedor, Option<TipoProveedor>) {
+    pub fn tipos(&self) -> (super::proveedor::TipoProveedor, Option<super::proveedor::TipoProveedor>) {
         (self.principal.tipo(), self.respaldo.as_ref().map(ClienteCompatible::tipo))
     }
 
