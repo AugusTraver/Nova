@@ -267,6 +267,43 @@ Reglas:
 - **Medición en la consola:** cada pedido escribe `IA: N tokens (… de pedido, … de respuesta); quedan … este minuto`.
 - **Sin Ollama de respaldo por ahora:** se decidió no cambiar solo a Ollama. Con estos ahorros alcanza para el uso diario.
 
+### 5.9 Decisiones de v0.7.1 (Nova usa la compu)
+- **Qué hace:** abre cosas (páginas, búsquedas de Google, videos de YouTube, programas, carpetas y archivos), lee archivos de texto y los cambia con confirmación. No lee páginas para contestar: eso es v0.7.3.
+- **Todo en Rust** (`src-tauri/src/compu/`), con las reglas puras en `dominio/compu.rs` (direcciones, rutas, tipos de archivo, reemplazos y el antes y después, con tests). El modelo nunca arma un comando ni una ruta que se ejecute: cada acción es una herramienta con argumentos validados.
+- **Herramientas:** `abrir_pagina`, `buscar_en_google`, `poner_video`, `abrir_programa` (con un archivo o carpeta opcional, "abrí notas.txt en VS Code"), `abrir_archivo`, `leer_archivo`, `cambiar_archivo`, `crear_archivo`, `borrar_archivo`, `deshacer_cambio` y `controlar_musica`. Se suman a las de la agenda según el tema (ver abajo).
+- **Abrir:** con `ShellExecuteW`, lo mismo que un doble clic. Las direcciones van al navegador por defecto y solo pueden ser `http` o `https`, con un sitio y sin usuario ni contraseña (`file:`, `javascript:`, `ms-settings:` y demás, no). Sin esquema se le pone `https://`.
+  - El webview ya no tiene `opener:default`: todo se abre desde Rust.
+- **Páginas guardadas:** "la página de la facultad" no la adivina el modelo: en Ajustes se guardan nombre y dirección, y los nombres van en la descripción de `abrir_pagina`. Si no está, Nova ofrece buscarla en Google.
+- **YouTube:** la API oficial (`search.list`, un resultado, región AR). Desde junio de 2026 esa búsqueda tiene su propia cuota: 100 por día gratis. La key va al llavero (cuenta `youtube`) y se carga en Ajustes. Sin key, sin cuota o sin internet, abre la lista de resultados y lo dice. No se lee la página de resultados (se rompe y va contra las condiciones de YouTube).
+- **Programas:** los accesos directos (`.lnk`) del menú Inicio (el tuyo y el de todos), sin los de "Desinstalar…" ni la ayuda, más una lista fija de Windows que no tiene acceso directo (calculadora, bloc de notas, explorador, Paint, Recortes, Configuración). Apodos: "vscode", "code" → Visual Studio Code.
+  - Gana el nombre exacto; después el que empieza igual; después el que tiene todas las palabras; después uno parecido (para lo que Whisper escribe mal). Si dos empatan, no abre ninguno y pregunta cuál.
+  - La lista se arma la primera vez y se rehace si no encuentra el programa.
+  - Las apps de la Microsoft Store sin acceso directo quedan para después (piden la librería `windows`, que es pesada).
+- **Carpetas permitidas:** por defecto Documentos, Escritorio y Descargas, pedidas a Windows (`SHGetKnownFolderPath`) para que anden aunque OneDrive las haya movido. Se cambian en Ajustes con el selector de carpetas (`tauri-plugin-dialog`, permiso `dialog:allow-open`).
+  - Rust no acepta un disco entero, la carpeta del usuario entera ni nada de Windows, Program Files, ProgramData o AppData.
+  - **Toda ruta se resuelve con `canonicalize` y después se verifica** que esté adentro de una carpeta permitida: así ni `..` ni una unión de carpetas (`mklink /J`) sacan a Nova afuera. Se verifica al buscar, al preparar el cambio y otra vez al aplicarlo. Tiene tests, también con una unión de verdad.
+  - Por nombre ("notas.txt" o "notas") se busca hasta 5 carpetas de profundidad, sin seguir enlaces ni entrar a `node_modules` o carpetas ocultas. Si hay dos con el mismo nombre, pregunta cuál.
+- **Tipos de archivo:**
+  - Abrir con su programa, solo de una lista de los que sí (documentos, PDF, imágenes, audio, video, comprimidos). Nunca `.exe`, `.bat`, `.ps1`, `.js`, `.lnk`, `.html` ni nada que se ejecute al abrirlo. Las carpetas se abren en el Explorador.
+  - Leer y modificar, solo texto en UTF-8 (`.txt`, `.md`, `.csv`, `.json`, código…) de hasta 1 MB. Se respetan el fin de línea (CRLF) y la marca BOM. Al modelo le llegan como mucho 3.000 caracteres.
+- **Lo leído es dato:** `leer_archivo` devuelve el texto en `contenido_del_archivo` con un aviso de que no son órdenes, y el prompt lo repite. La protección de verdad es otra: nada se modifica sin el sí del usuario.
+- **Modificar, crear, borrar y deshacer:** la herramienta solo prepara el cambio (`AccionPendiente::Archivo`) y el `Turno` trae su antes y después (`cambio`). Lo confirma el usuario (botón o "sí", nunca el modelo).
+  - Reemplazar busca primero exacto y, si no está, sin importar mayúsculas (y respeta la mayúscula del original: "Martes" → "Jueves").
+  - Crear nunca pisa un archivo que ya existe. Sin carpeta, va a la primera permitida.
+  - Borrar manda a la Papelera, y solo archivos de los tipos de arriba (carpetas enteras no).
+  - Si el archivo cambió entre la pregunta y el sí (se compara una huella), no se toca.
+- **El antes y después:** las líneas que cambian con una de contexto, un corte donde se saltean iguales y como mucho 8 líneas ("y 3 líneas más"). En cada par se resalta solo la palabra que cambia. Lo que sale va tenue y tachado; lo que entra, con el resalte de la luz de la esfera (`--color-resalte`). Mientras espera, el panel se apaga y las noticias se esconden para dejarle lugar. Por voz se dice solo la pregunta corta.
+- **Deshacer:** antes de tocar un archivo se guarda una copia en `%LOCALAPPDATA%\com.augustraver.nova\deshacer\` y el cambio queda en `cambios_archivos` (migración 5). "Deshacé eso" vuelve atrás el último (también con antes y después y confirmación), y avisa si el archivo cambió después. Las copias duran 7 días y se guardan como mucho 50.
+- **Interruptor:** en Ajustes, "Dejar que Nova use la compu". Apagado, no se manda ninguna herramienta de la compu y, si igual llegara una llamada, Rust la rechaza.
+- **Tokens:** los temas nuevos de `seleccion.rs` son Compu, Archivos, Música y Temporizador. Las herramientas de la compu nunca van en el "todas" de cuando no se reconoce el tema, ni el temporizador. Hay palabras **débiles** ("martes", "cambiá", "borrá", "hoy"…) que suman la agenda solo si el pedido no es de la compu: "en notas.txt cambiá martes por jueves" no arrastra las de la agenda. Las reglas de la compu van al prompt solo cuando se mandan sus herramientas.
+  - **No se midió con Groq** al cerrar la versión (decisión del dueño): la medición de v0.6.1 se cortó por el límite diario y no se repitió. Los pedidos que no son de la compu mandan lo mismo que antes; para medir: `cargo test tokens_por_pedido -- --ignored --nocapture` y `cargo test tokens_de_la_compu -- --ignored --nocapture`.
+- **Extras que entraron:**
+  - **Música:** `controlar_musica` aprieta las teclas de medios de Windows (`SendInput`): pausar o seguir (es la misma tecla), siguiente, anterior, volumen (5 toques = 10 puntos) y silencio.
+  - **Temporizadores:** `poner_temporizador` ("avisame en 10 minutos que…" o "a las 6"), hasta un día. Se guardan en `temporizadores` (migración 6) y la tarea de fondo se despierta justo para cada uno. Avisan con una notificación aunque sea "no molestar" (los pediste vos) y en voz si los avisos van en voz.
+  - **Horas ambiguas:** "de 6 a 7" quedaba a las 06:00 porque el modelo mandaba "06:00", y con el cero la hora cuenta como de 24 horas. Si el usuario no la dijo con el cero ni aclaró "de la mañana", se le saca el cero y vale la regla de la tarde (`hora_como_la_dijo`).
+- **Para después:** el portapapeles (mandaría lo copiado a Groq) y manejar ventanas (cerrar programas es riesgoso). Poner una canción en Spotify va en v1.0 con la API oficial y tu cuenta (pide Premium): abrir `spotify:track:…` en Windows a veces muestra el tema sin reproducirlo.
+- **Widgets que se arrastran** (pedido durante v0.7.1, adelantado de "después de v1.0"): se agarran de cualquier parte que no sea un botón, un link o un campo, y quedan donde los soltás. Al soltar, un imán suave (`src/lib/disposicion.ts`, con tests) los mete adentro de la pantalla y los corre lo mínimo para no tapar la esfera, la respuesta o la barra (marcadas con `data-obstaculo`) ni pisar a otro widget. Se guarda cuánto se corrió cada uno como fracción de la pantalla (preferencia `disposicion_widgets`, validada en `dominio/disposicion.rs`), así se ve igual con otra resolución. No se arrastran mientras se edita algo o se confirma un cambio de archivo. En Ajustes, "Volver a su lugar" los acomoda como siempre. Redimensionarlos sigue para después de v1.0.
+
 ## 6. Modelo de datos (SQLite)
 
 ```
@@ -288,11 +325,18 @@ mensajes(id, rol['usuario'|'asistente'|'herramienta'], contenido, creado_en)
 
 avisos_enviados(clave, enviado_en)      -- v0.6: avisos del sistema ya mandados
 
+cambios_archivos(id, ruta, accion['cambiar'|'crear'|'borrar'|'deshacer'], copia?,
+                 huella_despues?, hecho_en, deshecho)   -- v0.7.1: para deshacer
+
+temporizadores(id, texto, vence_en, creado_en)          -- v0.7.1: se borran al avisar
+
 preferencias(clave, valor_json)
   -- atajo, proveedor_ia, modelo, equipos (Boca, Selección), jugadores_seguidos,
   -- intereses_noticias, feeds_rss,
   -- reglas_auto_responsabilidades, leer_resumen_al_abrir, ciudad_clima, tema,
-  -- voz (incluye palabra_clave), avisos, perfil
+  -- voz (incluye palabra_clave), avisos, perfil,
+  -- compu (interruptor, carpetas permitidas, páginas guardadas),
+  -- disposicion_widgets (dónde quedó cada widget)
 ```
 - Fechas en ISO 8601 con zona horaria. Los eventos de todo el día y las fechas límite se guardan como fecha sola (`2026-11-20`); el `fin` de un evento de todo el día es el último día incluido.
 - Los eventos recurrentes se guardan como serie y las repeticiones se calculan al pedir un rango. Editar una repetición cambia toda la serie; para una fecha suelta existe "saltear".

@@ -20,6 +20,8 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
+# El selector de carpetas de Ajustes (v0.7.1).
+tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 window-vibrancy = "0.8.1"
@@ -33,6 +35,8 @@ keyring-core = "1"
 # habilita la parte de tiempo y sincronización para usarla directo.
 tokio = { version = "1", features = ["time", "sync", "macros", "process", "io-util"] }
 feed-rs = "3.0.0"
+# Validar direcciones (v0.7.1). Ya venía adentro de reqwest: no suma nada nuevo.
+url = "2"
 cpal = "0.18.2"
 zip = { version = "9.7.0", default-features = false, features = ["deflate"] }
 # "Oye Nova": modelo ONNX chiquito que corre en Rust puro (sin ONNX Runtime).
@@ -84,7 +88,16 @@ windows-native-keyring-store = "1"
 # Avisos de Windows que abren el panel al tocarlos (v0.6).
 tauri-winrt-notification = "0.7"
 # Saber si la sesión está bloqueada o la compu va a batería (pausar "Oye Nova").
-windows-sys = { version = "0.61", features = ["Win32_System_StationsAndDesktops", "Win32_System_Power"] }
+# v0.7.1: carpetas conocidas, abrir cosas y la Papelera (Shell), CoTaskMemFree
+# (Com) y las teclas de medios (KeyboardAndMouse).
+windows-sys = { version = "0.61", features = [
+    "Win32_System_StationsAndDesktops",
+    "Win32_System_Power",
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_UI_Shell",
+    "Win32_UI_Input_KeyboardAndMouse",
+] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "time"] }

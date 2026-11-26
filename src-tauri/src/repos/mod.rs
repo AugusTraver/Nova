@@ -4,11 +4,13 @@
 pub mod automaticas;
 pub mod avisos;
 pub mod cache;
+pub mod cambios_archivos;
 pub mod eventos;
 pub mod materias;
 pub mod mensajes;
 pub mod preferencias;
 pub mod responsabilidades;
+pub mod temporizadores;
 
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, SecondsFormat};
 

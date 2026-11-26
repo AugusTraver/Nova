@@ -40,10 +40,13 @@ pub fn interpretar_confirmacion(texto: &str) -> Option<bool> {
         "eliminalo", "eliminala", "si eliminalo", "si eliminala", "sacalo", "sacala", "si sacalo", "si sacala",
         "quitalo", "quitala", "borrar", "eliminar", "si borrar", "si eliminar", "borra", "elimina", "hacelo",
         "si hacelo", "claro", "si claro", "confirmado", "dale borralo", "dale eliminalo",
+        // Cambios de archivos (v0.7.1).
+        "cambialo", "cambiala", "si cambialo", "si cambiala", "dale cambialo", "crealo", "creala", "si crealo",
+        "si creala", "dale crealo", "deshacelo", "si deshacelo", "guardalo", "si guardalo", "agregalo", "si agregalo",
     ];
     const NO: &[&str] = &[
         "no", "nop", "cancela", "cancelar", "cancelalo", "mejor no", "no lo borres", "no la borres", "deja",
-        "dejalo", "dejala", "no gracias", "nada",
+        "dejalo", "dejala", "no gracias", "nada", "no lo cambies", "no lo toques", "no toques nada", "no lo crees",
     ];
     if SI.contains(&limpio.as_str()) {
         Some(true)

@@ -56,6 +56,21 @@ pub fn perfil(conexion: &Connection) -> Resultado<crate::dominio::perfil::Perfil
     Ok(leer(conexion, PERFIL)?.unwrap_or_default())
 }
 
+/// El acceso a la compu: interruptor, carpetas y páginas (`AjustesCompu`).
+/// Si nunca se guardó: activado, con Documentos, Escritorio y Descargas.
+pub const COMPU: &str = "compu";
+
+pub fn compu(conexion: &Connection) -> Resultado<crate::compu::AjustesCompu> {
+    Ok(leer(conexion, COMPU)?.unwrap_or_else(crate::compu::AjustesCompu::por_defecto))
+}
+
+/// Dónde dejó cada widget (`Disposicion`). Vacía = todos en su lugar.
+pub const DISPOSICION: &str = "disposicion_widgets";
+
+pub fn disposicion(conexion: &Connection) -> Resultado<crate::dominio::disposicion::Disposicion> {
+    Ok(leer(conexion, DISPOSICION)?.unwrap_or_default())
+}
+
 pub fn ajustes_ia(conexion: &Connection) -> Resultado<crate::asistente::proveedor::AjustesIa> {
     Ok(leer(conexion, IA)?.unwrap_or_default())
 }

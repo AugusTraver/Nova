@@ -34,7 +34,7 @@ use crate::llavero;
 use crate::noticias::rss::ClienteNoticias;
 use crate::noticias::{self as servicio_noticias, Elegidas, Titular};
 use crate::dominio::avisos as logica_avisos;
-use crate::repos::{avisos as repo_avisos, cache};
+use crate::repos::{avisos as repo_avisos, cache, temporizadores as repo_temporizadores};
 use crate::repos::{Ahora, preferencias};
 use crate::ventana;
 
@@ -144,8 +144,15 @@ async fn vuelta(app: &AppHandle, clientes: &Clientes) -> DuracionStd {
         let _ = app.emit(EVENTO_DATOS_CAMBIADOS, &cambios);
     }
     avisos(app, &db);
-    // Cada minuto como mucho, así los avisos llegan a horario.
-    espera.min(Duration::seconds(60)).to_std().unwrap_or(DuracionStd::from_secs(60))
+    temporizadores(app, &db);
+    // Cada minuto como mucho, así los avisos llegan a horario; y si hay un
+    // temporizador antes, justo para él.
+    let mut espera = espera.min(Duration::seconds(60));
+    if let Some(proximo) = con_base(&db, repo_temporizadores::proximo).flatten() {
+        let falta = proximo - Ahora::del_sistema().momento;
+        espera = espera.min(falta.max(Duration::seconds(1)));
+    }
+    espera.to_std().unwrap_or(DuracionStd::from_secs(60))
 }
 
 /// Fútbol: calendarios, tabla, jugadores y en vivo. Devuelve si cambió algo
@@ -350,6 +357,27 @@ async fn clima(db: &Db, cliente: &ClienteClima) -> bool {
     let resultado = cliente.pronostico(&ajustes).await;
     anotar(db, servicio_clima::CLAVE, &resultado, |_| ahora.momento + Duration::minutes(30), &ahora);
     true
+}
+
+/// Temporizadores vencidos (v0.7.1): los pediste vos, así que avisan aunque
+/// sea "no molestar", y se dicen en voz alta si los avisos van en voz.
+fn temporizadores(app: &AppHandle, db: &Db) {
+    let ahora = Ahora::del_sistema();
+    let Some(vencidos) = con_base(db, |c| repo_temporizadores::tomar_vencidos(c, &ahora)) else { return };
+    if vencidos.is_empty() {
+        return;
+    }
+    for t in &vencidos {
+        let aviso = logica_avisos::Aviso { clave: format!("temporizador:{}", t.id), titulo: "Nova te avisa".into(), cuerpo: t.texto.clone() };
+        crate::notificaciones::mostrar(app, &aviso);
+    }
+    let Some(ajustes) = con_base(db, preferencias::avisos) else { return };
+    if ajustes.en_voz {
+        let voz = app.state::<crate::voz::Voz>();
+        let Some(ajustes_voz) = con_base(db, preferencias::voz) else { return };
+        let texto = vencidos.iter().map(|t| format!("Te aviso: {}.", t.texto)).collect::<Vec<_>>().join(" ");
+        voz.mandar(app, &ajustes_voz, crate::voz::motor::Orden::Hablar(texto));
+    }
 }
 
 /// Avisos del sistema: lo que toca ahora y no se mandó (v0.6). Cada aviso se

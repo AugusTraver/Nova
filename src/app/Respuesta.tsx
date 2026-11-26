@@ -2,6 +2,16 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { pistaDeVoz } from "../lib/voz";
 import { useAsistente } from "../store/asistente";
 import { useVoz } from "../store/voz";
+import type { AccionArchivo } from "../lib/tipos";
+import { AntesYDespues } from "./AntesYDespues";
+
+/** El botón del "sí" según lo que espera (un borrado de la agenda si no hay cambio de archivo). */
+const SI: Record<AccionArchivo, string> = {
+  cambiar: "Sí, cambialo",
+  crear: "Sí, crealo",
+  borrar: "Sí, a la Papelera",
+  deshacer: "Sí, deshacelo",
+};
 
 /**
  * Debajo de la esfera (SPEC 3.2): lo que pediste, qué está haciendo Nova y su
@@ -18,6 +28,7 @@ export function Respuesta() {
   const error = useAsistente((s) => s.error);
   const confirmacion = useAsistente((s) => s.confirmacion);
   const confirmar = useAsistente((s) => s.confirmar);
+  const cambio = useAsistente((s) => s.cambio);
   const reducido = useReducedMotion();
 
   // Si espera un "sí", se muestra la pregunta exacta que armó Rust (con el
@@ -37,6 +48,9 @@ export function Respuesta() {
         : "";
   // Una sola "vista" a la vez; la clave hace que se crucen con un fundido.
   const clave = paso !== null ? "paso" : error !== null ? "error" : texto !== null ? `r:${texto}` : "nada";
+  // Con un cambio de archivo, la zona crece para el antes y después (y la
+  // barra de texto baja un poco mientras tanto).
+  const conCambio = paso === null && error === null && confirmacion !== null && cambio !== null;
   const aparecer = reducido
     ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
     : {
@@ -46,7 +60,7 @@ export function Respuesta() {
       };
 
   return (
-    <div className="flex h-[6.25rem] w-full flex-col items-center text-center">
+    <div className={`flex w-full flex-col items-center text-center ${conCambio ? "min-h-[6.25rem]" : "h-[6.25rem]"}`}>
       {/* Con una pregunta pendiente, la pregunta manda: el pedido se oculta. */}
       <p
         className={`h-5 max-w-full shrink-0 truncate text-[14px] transition-colors duration-200 ${
@@ -57,13 +71,13 @@ export function Respuesta() {
       </p>
 
       {/* Lo que lee un lector de pantalla: el paso y después la respuesta. */}
-      <div aria-live="polite" aria-atomic className="relative mt-1 w-full flex-1">
+      <div aria-live="polite" aria-atomic className={`relative mt-1 w-full ${conCambio ? "" : "flex-1"}`}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={clave}
             {...aparecer}
             transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute inset-0 flex flex-col items-center"
+            className={`flex flex-col items-center ${conCambio ? "" : "absolute inset-0"}`}
           >
             {paso !== null && <p className="font-display text-[17px] italic text-tinta-2">{paso}</p>}
             {paso === null && error !== null && (
@@ -74,6 +88,7 @@ export function Respuesta() {
                 {texto}
               </p>
             )}
+            {conCambio && <AntesYDespues vista={cambio} />}
           </motion.div>
         </AnimatePresence>
       </div>
@@ -88,7 +103,7 @@ export function Respuesta() {
             transition={{ duration: 0.2 }}
             role="group"
             aria-label={confirmacion}
-            className="pointer-events-auto flex shrink-0 items-center gap-5 text-[15px]"
+            className={`pointer-events-auto flex shrink-0 items-center gap-5 text-[15px] ${conCambio ? "mt-3" : ""}`}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -96,7 +111,7 @@ export function Respuesta() {
               onClick={() => confirmar(true)}
               className="rounded-md border-b border-tinta-3 pb-0.5 text-tinta transition-colors duration-150 hover:border-tinta"
             >
-              Sí, borralo
+              {cambio ? SI[cambio.accion] : "Sí, borralo"}
             </button>
             <button
               type="button"

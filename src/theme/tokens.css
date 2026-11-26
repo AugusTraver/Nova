@@ -11,6 +11,10 @@
  * utilidades de Tailwind generadas (text-tinta, text-tinta-2, bg-tinta-4...).
  */
 @theme static {
+  /* El resalte de lo que cambia en un archivo (v0.7.1): la luz de la esfera,
+     muy suave, sobre el cielo de cada momento. */
+  --color-resalte: color-mix(in oklab, var(--color-luz-borde) 30%, transparent);
+
   /* Tipografía: una serif cálida para lo importante, una sans para el resto */
   --font-display: "Fraunces Variable", Georgia, serif;
   --font-sans: "Instrument Sans Variable", "Segoe UI", system-ui, sans-serif;

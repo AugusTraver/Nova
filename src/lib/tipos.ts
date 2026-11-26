@@ -110,6 +110,65 @@ export interface Turno {
   respuesta: string;
   /** Si quedó un borrado esperando el "sí": la pregunta para los botones. */
   confirmacion: string | null;
+  /** Si lo que espera el "sí" es un cambio de archivo: su antes y después. */
+  cambio: VistaCambio | null;
+}
+
+// ---- Compu (v0.7.1, ver src-tauri/src/compu) ----
+
+export type TipoLinea = "igual" | "sale" | "entra" | "corte";
+
+/** Una línea del antes y después: lo igual de antes, lo que cambia y lo igual de después. */
+export interface LineaCambio {
+  tipo: TipoLinea;
+  inicio: string;
+  marca: string;
+  fin: string;
+}
+
+export type AccionArchivo = "cambiar" | "crear" | "borrar" | "deshacer";
+
+/** Un cambio de archivo esperando el "sí". */
+export interface VistaCambio {
+  archivo: string;
+  /** Dónde está ("Documentos\Facu"). */
+  carpeta: string;
+  accion: AccionArchivo;
+  lineas: LineaCambio[];
+  /** Líneas cambiadas que no entraron. */
+  mas: number;
+  nota: string | null;
+}
+
+export interface PaginaGuardada {
+  nombre: string;
+  direccion: string;
+}
+
+export interface AjustesCompu {
+  /** El interruptor general del acceso a la compu. */
+  activa: boolean;
+  carpetas: string[];
+  paginas: PaginaGuardada[];
+}
+
+/** Los widgets que se pueden arrastrar (dominio/disposicion.rs: WIDGETS). */
+export type IdWidget = "resumen" | "calendario" | "facu" | "futbol" | "responsabilidades" | "noticias";
+
+/** Cuánto se corrió un widget de su lugar, como fracción del panel (0.1 = un décimo del ancho o del alto). */
+export interface Corrimiento {
+  x: number;
+  y: number;
+}
+
+/** Dónde dejó cada widget. Los que no están, en su lugar de siempre. */
+export type Disposicion = Partial<Record<IdWidget, Corrimiento>>;
+
+/** Lo que ve Ajustes (la key de YouTube nunca sale de Rust). */
+export interface VistaAjustesCompu {
+  ajustes: AjustesCompu;
+  tieneKeyYoutube: boolean;
+  carpetasPorDefecto: string[];
 }
 
 /** Avisos mientras el asistente trabaja. */
