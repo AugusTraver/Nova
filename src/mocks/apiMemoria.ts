@@ -21,6 +21,7 @@ import type {
   AjustesAvisos,
   Progreso,
   Responsabilidad,
+  TipoProveedor,
   Turno,
   VistaGoogle,
 } from "../lib/tipos";
@@ -149,8 +150,10 @@ export function crearApiMemoria(): Api {
     modeloGroq: "openai/gpt-oss-120b",
     modeloOllama: "qwen3:8b",
     urlOllama: "http://localhost:11434",
+    modeloGemini: "gemini-3.5-flash-lite",
+    respaldo: "gemini",
   };
-  let tieneKey = false;
+  let conKey: TipoProveedor[] = [];
   let jugadoresSeguidos: JugadorSeguido[] = [
     { id: "45843", nombre: "Lionel Messi" },
     { id: "153115", nombre: "Leandro Paredes" },
@@ -458,14 +461,15 @@ export function crearApiMemoria(): Api {
       return confirmar(aceptar);
     },
     borrarHistorial: () => esperar(undefined),
-    obtenerAjustesIa: () => esperar({ ajustes: ajustesIa, tieneKey }),
+    obtenerAjustesIa: () => esperar({ ajustes: ajustesIa, conKey }),
     guardarAjustesIa: (nuevos) => {
-      ajustesIa = nuevos;
-      return esperar({ ajustes: ajustesIa, tieneKey });
+      ajustesIa = { ...nuevos, respaldo: nuevos.respaldo === nuevos.proveedor ? null : nuevos.respaldo };
+      return esperar({ ajustes: ajustesIa, conKey });
     },
-    guardarApiKey: (key) => {
-      tieneKey = key.trim() !== "";
-      return esperar(tieneKey);
+    guardarApiKey: (key, proveedor = "groq") => {
+      const queda = key.trim() !== "";
+      conKey = [...conKey.filter((p) => p !== proveedor), ...(queda ? [proveedor] : [])];
+      return esperar(queda);
     },
     obtenerAjustesCompu: () =>
       esperar({ ajustes: ajustesCompu, tieneKeyYoutube, carpetasPorDefecto: ajustesCompu.carpetas.slice(0, 3) }),
@@ -528,8 +532,9 @@ export function crearApiMemoria(): Api {
     elegirCarpeta: async () => window.prompt("Carpeta (en Nova se abre el selector de Windows):", String.raw`C:\Users\vos\Facu`),
     probarConexion: async () => {
       await pausa(700);
-      if (ajustesIa.proveedor === "groq" && !tieneKey) {
-        throw { tipo: "validacion", mensaje: "Falta la API key de Groq. Cargala en Ajustes." };
+      const nombre = { groq: "Groq", gemini: "Gemini", ollama: "Ollama" } as const;
+      if (ajustesIa.proveedor !== "ollama" && !conKey.includes(ajustesIa.proveedor)) {
+        throw { tipo: "validacion", mensaje: `Falta la API key de ${nombre[ajustesIa.proveedor]}. Cargala en Ajustes.` };
       }
     },
 

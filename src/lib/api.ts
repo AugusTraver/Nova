@@ -26,6 +26,7 @@ import type {
   AjustesAvisos,
   Progreso,
   Responsabilidad,
+  TipoProveedor,
   Turno,
   VistaAjustesIa,
   AjustesCompu,
@@ -94,7 +95,8 @@ export interface Api {
   elegirCarpeta(): Promise<string | null>;
   guardarAjustesIa(ajustes: AjustesIa): Promise<VistaAjustesIa>;
   /** Guarda la API key en el llavero ("" la borra). Devuelve si quedó una. */
-  guardarApiKey(key: string): Promise<boolean>;
+  /** La key de un proveedor de IA (Groq si no se dice). Vacía = borrarla. */
+  guardarApiKey(key: string, proveedor?: TipoProveedor): Promise<boolean>;
   probarConexion(): Promise<void>;
 
   /** Fútbol desde la caché (la tarea de fondo de Rust es la que descarga). */
@@ -199,7 +201,7 @@ const apiTauri: Api = {
     return typeof elegida === "string" ? elegida : null;
   },
   guardarAjustesIa: (ajustes) => invoke("guardar_ajustes_ia", { ajustes }),
-  guardarApiKey: (key) => invoke("guardar_api_key", { key }),
+  guardarApiKey: (key, proveedor) => invoke("guardar_api_key", { key, proveedor }),
   probarConexion: () => invoke("probar_conexion"),
 
   obtenerFutbol: () => invoke("obtener_futbol"),
