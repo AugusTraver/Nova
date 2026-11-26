@@ -57,6 +57,8 @@ export function crearApiMemoria(): Api {
     recurrencia: "ninguna",
     repetirHasta: null,
     excepciones: [],
+    deGoogle: false,
+    soloLectura: false,
     ...e,
   });
 
@@ -359,7 +361,7 @@ export function crearApiMemoria(): Api {
           .sort((a, b) => a.fecha.localeCompare(b.fecha) || Number(a.evento.todoElDia ? 0 : 1) - Number(b.evento.todoElDia ? 0 : 1) || a.inicio.localeCompare(b.inicio)),
       ),
     crearEvento: (datos) => {
-      const e = { id: siguiente++, excepciones: [], ...datos };
+      const e: Evento = { id: siguiente++, excepciones: [], deGoogle: false, soloLectura: false, ...datos };
       eventos = [...eventos, e];
       return esperar(e);
     },

@@ -40,6 +40,8 @@ function oc(titulo: string, tipo: TipoEvento, fecha: string, hora = "09:00"): Oc
     recurrencia: "ninguna",
     repetirHasta: null,
     excepciones: [],
+    deGoogle: false,
+    soloLectura: false,
   };
   return { evento, fecha, inicio, fin: null };
 }

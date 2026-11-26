@@ -38,9 +38,13 @@ export interface Evento {
   repetirHasta: string | null;
   /** Fechas salteadas de la serie. */
   excepciones: string[];
+  /** Vino de Google Calendar (v0.7.2). */
+  deGoogle: boolean;
+  /** Repetición de una serie de Google que Nova no sabe repetir: se edita desde Calendar. */
+  soloLectura: boolean;
 }
 
-export type DatosEvento = Omit<Evento, "id" | "excepciones">;
+export type DatosEvento = Omit<Evento, "id" | "excepciones" | "deGoogle" | "soloLectura">;
 
 /** Una repetición concreta de un evento. */
 export interface Ocurrencia {

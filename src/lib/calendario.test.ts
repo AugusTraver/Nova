@@ -19,6 +19,8 @@ function oc(titulo: string, fecha: string, fin: string | null = null): Ocurrenci
       recurrencia: "ninguna",
       repetirHasta: null,
       excepciones: [],
+      deGoogle: false,
+      soloLectura: false,
     },
     fecha,
     inicio: fecha,

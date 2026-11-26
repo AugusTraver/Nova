@@ -6,6 +6,7 @@ pub mod avisos;
 pub mod cache;
 pub mod cambios_archivos;
 pub mod eventos;
+pub mod google;
 pub mod materias;
 pub mod mensajes;
 pub mod preferencias;

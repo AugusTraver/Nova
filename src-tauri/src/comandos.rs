@@ -93,7 +93,7 @@ pub fn editar_evento(db: State<'_, Db>, id: i64, datos: DatosEvento) -> Resultad
 
 #[tauri::command]
 pub fn borrar_evento(db: State<'_, Db>, id: i64) -> Resultado<()> {
-    eventos::borrar(&mut db.conexion(), id)
+    eventos::borrar(&mut db.conexion(), id, &Ahora::del_sistema())
 }
 
 /// Saltea una fecha de una serie (`saltear: true`) o la vuelve a poner.
@@ -909,8 +909,8 @@ mod tests {
         assert_eq!(
             claves(&ocurrencia["evento"]),
             [
-                "excepciones", "fin", "id", "inicio", "materiaId", "notas", "persona", "recurrencia",
-                "repetirHasta", "tipo", "titulo", "todoElDia"
+                "deGoogle", "excepciones", "fin", "id", "inicio", "materiaId", "notas", "persona",
+                "recurrencia", "repetirHasta", "soloLectura", "tipo", "titulo", "todoElDia"
             ]
         );
 

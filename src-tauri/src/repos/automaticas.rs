@@ -243,7 +243,7 @@ mod tests {
         assert_eq!(resumen(&base), ["Terminar el informe del TP | 2026-11-18"], "ni se cambia ni se duplica");
 
         // Si se borra el evento, la editada queda, sin evento
-        eventos::borrar(&mut base, tp.id).unwrap();
+        eventos::borrar(&mut base, tp.id, &ahora).unwrap();
         let lista = pendientes(&base);
         assert_eq!(lista.len(), 1);
         assert_eq!(lista[0].evento_id, None);
@@ -262,7 +262,7 @@ mod tests {
         assert_eq!(lista.len(), 1);
         assert_eq!(lista[0].estado, EstadoResponsabilidad::Hecha);
 
-        eventos::borrar(&mut base, parcial.id).unwrap();
+        eventos::borrar(&mut base, parcial.id, &ahora).unwrap();
         assert_eq!(pendientes(&base).len(), 1, "las hechas quedan para el progreso");
     }
 
@@ -271,7 +271,7 @@ mod tests {
         let mut base = db::en_memoria();
         let ahora = Ahora::fijo("2026-11-17");
         let parcial = eventos::crear(&mut base, evento("Parcial", TipoEvento::Examen, "2026-11-20"), &ahora).unwrap();
-        eventos::borrar(&mut base, parcial.id).unwrap();
+        eventos::borrar(&mut base, parcial.id, &ahora).unwrap();
         let filas: i64 = base.query_row("SELECT count(*) FROM responsabilidades", [], |f| f.get(0)).unwrap();
         assert_eq!(filas, 0);
     }
