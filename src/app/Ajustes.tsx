@@ -19,6 +19,7 @@ import { useDatos } from "../store/datos";
 import { useDisposicion } from "../store/disposicion";
 import { AjustesAsistente } from "./AjustesAsistente";
 import { AjustesAvisos } from "./AjustesAvisos";
+import { AjustesCalendar } from "./AjustesCalendar";
 import { AjustesCompu } from "./AjustesCompu";
 import { AjustesInternet } from "./AjustesInternet";
 import { AjustesPerfil } from "./AjustesPerfil";
@@ -228,6 +229,8 @@ export function Ajustes({ alTerminar }: { alTerminar: () => void }) {
           guardarIa={guardarIa}
         />
       )}
+
+      <AjustesCalendar />
 
       {compu && (
         <AjustesCompu
