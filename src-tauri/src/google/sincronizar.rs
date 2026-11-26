@@ -23,7 +23,7 @@ use crate::dominio::google::{
     self as logica, Accion, EnNova, EventoGoogle, Llegada, MateriaConocida, ParaSubir, Traducido, ZONA_POR_DEFECTO,
 };
 use crate::error::Resultado;
-use crate::repos::eventos::{self, DatosEvento, Evento};
+use crate::repos::eventos::{DatosEvento, Evento};
 use crate::repos::google::{self as repo, DeGoogle, Vinculo};
 use crate::repos::{Ahora, cache, materias};
 
@@ -482,7 +482,7 @@ mod tests {
     use super::*;
     use crate::dominio::momento::Momento;
     use crate::dominio::texto::{Recurrencia, TipoEvento};
-    use crate::repos::eventos::tests::datos;
+    use crate::repos::eventos::{self, tests::datos};
     use crate::repos::responsabilidades;
 
     /// Un Google de mentira: guarda los eventos en memoria, cuenta versiones
