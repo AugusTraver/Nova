@@ -362,7 +362,8 @@ async fn noticias(db: &Db, cliente: &ClienteNoticias) -> bool {
     }
 
     let con_ia = match cliente_ia(db) {
-        Ok(ia) => match ia.texto(&eleccion::armar_pedido(&candidatos, &ajustes.intereses)).await {
+        // De fondo: primero el respaldo, así no le come cupo a Groq (v0.7.3).
+        Ok(ia) => match ia.texto(&eleccion::armar_pedido(&candidatos, &ajustes.intereses), true).await {
             Ok(texto) => eleccion::leer_respuesta(&texto, &candidatos),
             Err(e) => {
                 eprintln!("Noticias sin IA: {e}");
@@ -387,15 +388,11 @@ async fn noticias(db: &Db, cliente: &ClienteNoticias) -> bool {
     true
 }
 
-/// El mismo proveedor de IA que usa el asistente (con su key del llavero).
-/// El llavero se lee sin tener tomada la base.
-fn cliente_ia(db: &Db) -> Resultado<crate::asistente::openai::ClienteCompatible> {
+/// El mismo proveedor de IA que usa el asistente, con su respaldo (con las
+/// keys del llavero). El llavero se lee sin tener tomada la base.
+fn cliente_ia(db: &Db) -> Resultado<crate::asistente::cadena::CadenaIa> {
     let ajustes = con_base(db, preferencias::ajustes_ia).unwrap_or_default();
-    let key = match ajustes.proveedor.cuenta_llavero() {
-        Some(cuenta) => llavero::leer(cuenta)?,
-        None => None,
-    };
-    ajustes.cliente(key)
+    ajustes.cadena(llavero::leer)
 }
 
 /// Clima: cada media hora, si está a la vista.

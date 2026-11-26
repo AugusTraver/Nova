@@ -12,6 +12,10 @@ pub struct Llamada {
     pub nombre: String,
     /// Los argumentos como texto JSON, tal cual los mandó el modelo.
     pub argumentos: String,
+    /// Lo que el proveedor pide que se le devuelva tal cual (la firma de
+    /// Gemini, v0.7.3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
