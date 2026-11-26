@@ -277,3 +277,23 @@ impl ApiCalendar for ClienteCalendar {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Con tu cuenta de verdad (necesita Google conectado desde Ajustes):
+    /// `cargo test lista_mi_calendario -- --ignored --nocapture`. Solo lee.
+    #[tokio::test]
+    #[ignore]
+    async fn lista_mi_calendario() {
+        let api = ClienteCalendar::nuevo().unwrap();
+        let hoy = chrono::Local::now().fixed_offset().to_rfc3339();
+        let lista = api.listar(None, Some(&hoy)).await.unwrap();
+        println!("Zona: {:?}. {} eventos desde hoy.", lista.zona, lista.eventos.len());
+        for ev in lista.eventos.iter().take(10) {
+            println!("- {:?} {:?}", ev.summary, ev.start);
+        }
+        assert!(lista.sync_token.is_some());
+    }
+}

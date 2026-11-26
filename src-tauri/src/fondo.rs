@@ -30,6 +30,7 @@ use crate::futbol::espn::ClienteEspn;
 use crate::futbol::proveedor::{PEDIDOS_CALENDARIO, PEDIDOS_JUGADOR, ProveedorFutbol};
 use crate::futbol::vista::{clave_calendario, clave_jugador, clave_tabla, clave_vivo};
 use crate::futbol::{EQUIPOS, EstadoPartido, Partido};
+use crate::google::{self, Google, calendario::Falla, sincronizar as sincro_google};
 use crate::llavero;
 use crate::noticias::rss::ClienteNoticias;
 use crate::noticias::{self as servicio_noticias, Elegidas, Titular};
@@ -139,6 +140,9 @@ async fn vuelta(app: &AppHandle, clientes: &Clientes) -> DuracionStd {
     if clima(&db, &clientes.clima).await {
         cambios.push(Fuente::Clima);
     }
+    if calendario(app, &db, panel_abierto).await {
+        cambios.extend([Fuente::Agenda, Fuente::Responsabilidades]);
+    }
 
     if !cambios.is_empty() {
         let _ = app.emit(EVENTO_DATOS_CAMBIADOS, &cambios);
@@ -153,6 +157,53 @@ async fn vuelta(app: &AppHandle, clientes: &Clientes) -> DuracionStd {
         espera = espera.min(falta.max(Duration::seconds(1)));
     }
     espera.to_std().unwrap_or(DuracionStd::from_secs(60))
+}
+
+/// Google Calendar (v0.7.2): sincroniza cada minuto con el panel abierto y
+/// cada 5 cerrado, o enseguida si cambiaste algo en Nova. Sin internet, se
+/// espacia como los demás datos (5, 15, 30 y 60 minutos). Devuelve si hay
+/// que avisarle al widget (cambió algo o cambió el aviso de error).
+async fn calendario(app: &AppHandle, db: &Db, panel_abierto: bool) -> bool {
+    if !google::conectado() {
+        return false;
+    }
+    let ahora = Ahora::del_sistema();
+    let anterior = con_base(db, |c| cache::leer::<sincro_google::EstadoCalendar>(c, sincro_google::CLAVE));
+    let error_antes = anterior.as_ref().and_then(|a| a.error.clone());
+    let hay_pendientes = con_base(db, |c| {
+        Ok(!crate::repos::google::pendientes(c)?.is_empty() || !crate::repos::google::borrados(c)?.is_empty())
+    })
+    .unwrap_or(false);
+    // Lo que cambiaste en Nova se sube ya, salvo que la última vez haya
+    // fallado (ahí se respeta la espera, para no insistir sin internet).
+    let toca = vencida(db, sincro_google::CLAVE, &ahora) || (hay_pendientes && error_antes.is_none());
+    if !toca {
+        return false;
+    }
+
+    let google = app.state::<Google>();
+    match sincro_google::sincronizar(db, &google.api, &ahora).await {
+        Ok(resumen) => {
+            let intervalo = if panel_abierto { Duration::minutes(1) } else { Duration::minutes(5) };
+            con_base(db, |c| cache::cambiar_vencimiento(c, sincro_google::CLAVE, ahora.momento + intervalo));
+            if resumen != sincro_google::Resumen::default() {
+                eprintln!(
+                    "Google Calendar: {} traídos, {} subidos, {} juntados, {} borrados",
+                    resumen.traidos, resumen.subidos, resumen.juntados, resumen.borrados
+                );
+            }
+            resumen.cambio_algo_aca() || error_antes.is_some()
+        }
+        Err(falla) => {
+            eprintln!("Google Calendar: {}", falla.mensaje());
+            let mensaje = match &falla {
+                Falla::SinRed(_) => "Sin conexión con Google Calendar".to_string(),
+                otra => otra.mensaje(),
+            };
+            con_base(db, |c| cache::anotar_error(c, sincro_google::CLAVE, &mensaje, &ahora));
+            error_antes.as_deref() != Some(mensaje.as_str())
+        }
+    }
 }
 
 /// Fútbol: calendarios, tabla, jugadores y en vivo. Devuelve si cambió algo

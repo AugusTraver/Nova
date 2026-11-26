@@ -61,6 +61,12 @@ pub fn run() {
             comandos::guardar_ajustes_compu,
             comandos::guardar_key_youtube,
             comandos::obtener_disposicion,
+            comandos::obtener_google,
+            comandos::guardar_cliente_google,
+            comandos::conectar_google,
+            comandos::cancelar_conexion_google,
+            comandos::desconectar_google,
+            comandos::sincronizar_google,
             comandos::guardar_disposicion,
             comandos::obtener_futbol,
             comandos::buscar_jugadores,
@@ -116,6 +122,8 @@ pub fn run() {
             let copias = app.path().app_local_data_dir()?.join("deshacer");
             app.manage(Asistente::new(compu::Compu::real(copias)));
             app.manage(fondo::Fondo::default());
+            // Google Calendar (v0.7.2): el cliente de la API y el permiso corto.
+            app.manage(google::Google::nuevo()?);
             fondo::arrancar(app.handle());
             // Los programas y modelos de voz van en la carpeta local (no la
             // que se sincroniza): son 1,4 GB.
